@@ -1,0 +1,250 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Satisfactory Modeler (SF+) Data Set",
+  "$description": "Satisfactory Modeler (SF+) Data Structure definitions",
+  "$comment": "his is NOT a copy-paste template!",
+  "type": "object",
+  "properties": {
+    "Machines": {
+      "type": "array",
+      "description": "Array list of machines",
+      "items": {
+        "type": "object",
+        "properties": {
+          "Name": {
+            "type": "string",
+            "description": "The machine name"
+          },
+          "Tier": {
+            "type": "string",
+            "description": "Unlock Tier",
+            "pattern": "^[0-9]{1}-[0-9]{1}$"
+          },
+          "AveragePower": {
+            "type": "string",
+            "description": "Average power consumption"
+          },
+          "OverclockPowerExponent": {
+            "type": "string"
+          },
+          "MaxProductionShards": {
+            "type": "number"
+          },
+          "ProductionShardMultiplier": {
+            "type": "string"
+          },
+          "ProductionShardPowerExponent": {
+            "type": "string"
+          },
+          "Cost": {
+            "type": "array",
+            "description": "Build costs",
+            "items": {
+              "type": "object",
+              "description": "List of items to build",
+              "properties": {
+                "Part": {
+                  "type": "string",
+                  "description": "The in-game name of the item, exactly as it is displayed to the user."
+                },
+                "Amount": {
+                  "type": "string",
+                  "description": "Ammount of items"
+                }
+              },
+              "required": [
+                "Part",
+                "Amount"
+              ]
+            }
+          },
+          "Mark": {
+            "type": "string",
+            "description": "Internal editor's tag. Starting with ID followed by underscore and data version. (like: asmo_1.1.0)"
+          },
+          "MinPower": {
+            "type": "string",
+            "description": "Maximum power consumption"
+          },
+          "BasePower": {
+            "type": "string"
+          },
+          "BasePowerBoost": {
+            "type": "string"
+          },
+          "FueledBasePowerBoost": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "Name",
+          "Tier",
+          "Cost"
+        ]
+      }
+    },
+    "MultiMachines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "Name": {
+            "type": "string"
+          },
+          "ShowPpm": {
+            "type": "boolean"
+          },
+          "DefaultMax": {
+            "type": "string"
+          },
+          "Machines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "Name": {
+                  "type": "string"
+                },
+                "PartsRatio": {
+                  "type": "string"
+                },
+                "Default": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "Name"
+              ]
+            }
+          },
+          "Capacities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "Name": {
+                  "type": "string"
+                },
+                "Default": {
+                  "type": "boolean"
+                },
+                "PartsRatio": {
+                  "type": "string"
+                },
+                "Color": {
+                  "type": "number"
+                },
+                "Description": {
+                  "type": "string"
+                },
+                "PowerRatio": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "Name"
+              ]
+            }
+          }
+        },
+        "required": [
+          "Name"
+        ]
+      }
+    },
+    "Parts": {
+      "type": "array",
+      "description": "Array list of usable parts",
+      "items": {
+        "type": "object",
+        "description": "Useable part",
+        "properties": {
+          "Name": {
+            "type": "string",
+            "description": ""
+          },
+          "Tier": {
+            "type": "string",
+            "description": ""
+          },
+          "SinkPoints": {
+            "type": "number",
+            "description": ""
+          },
+          "Mark": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "required": [
+          "Name",
+          "Tier",
+          "SinkPoints"
+        ]
+      }
+    },
+    "Recipes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "Name": {
+            "type": "string"
+          },
+          "Machine": {
+            "type": "string"
+          },
+          "BatchTime": {
+            "type": "string"
+          },
+          "Tier": {
+            "type": "string"
+          },
+          "Parts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "Part": {
+                  "type": "string"
+                },
+                "Amount": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "Part",
+                "Amount"
+              ]
+            }
+          },
+          "Mark": {
+            "type": "string"
+          },
+          "Alternate": {
+            "type": "boolean"
+          },
+          "MinPower": {
+            "type": "string"
+          },
+          "AveragePower": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "Name",
+          "Machine",
+          "BatchTime",
+          "Tier",
+          "Parts"
+        ]
+      }
+    }
+  },
+  "required": [
+    "Machines",
+    "MultiMachines",
+    "Parts",
+    "Recipes"
+  ]
+}
