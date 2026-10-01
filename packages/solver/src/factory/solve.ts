@@ -1,4 +1,4 @@
-import { MW_ITEM_ID, type Model, type Recipe, type ResourceNode } from '@sps/data';
+import { MW_ITEM_ID, type Flow, type Model, type Recipe, type ResourceNode } from '@sps/data';
 import type {
   LpBackend,
   LpConstraint,
@@ -29,6 +29,10 @@ import type {
 const REGULARIZER = 1e-9;
 /** Sanity cap used to name the direction of an unbounded LP (§3.5). */
 const SANITY_CAP = 1e7;
+/** MILP row tolerance of the retry when a plan fails to polish (see `LpOptions`). */
+const TIGHT_MIP_FEASIBILITY = 1e-10;
+/** How far the post-MILP polish may move the stage objective, relative (see `polish`). */
+const POLISH_SLACK = 1e-9;
 /** Elastic re-solve: cost of 1/min of extra import, in normal-node-equivalents. */
 const IMPORT_SLACK_COST = 0.01;
 /** Solution checks (CLAUDE.md): balance within 1e-6, variables ≥ −1e-9, nodes ≤ budget. */
@@ -294,12 +298,21 @@ async function solveStack(
         { ...lp, variables: lp.variables.map(({ integer: _, ...v }) => v) },
         milpOptions,
       );
-      if (!usable(relaxed)) return backend.solve(lp, milpOptions);
       const integer = new Set(lp.variables.filter((v) => v.integer).map((v) => v.name));
-      const start = new Map(
-        [...relaxed.values!].map(([k, v]) => [k, integer.has(k) ? Math.ceil(v - 1e-9) : v]),
-      );
-      return backend.solve(lp, { ...milpOptions, start });
+      const start = usable(relaxed)
+        ? new Map(
+            [...relaxed.values!].map(([k, v]) => [k, integer.has(k) ? Math.ceil(v - 1e-9) : v]),
+          )
+        : undefined;
+      const terms = objectiveTerms(p, objective);
+      const mip = await backend.solve(lp, start ? { ...milpOptions, start } : milpOptions);
+      const polished = await polish(lp, mip, integer, terms, backend, milpOptions);
+      if (polished) return polished;
+      // The machine counts don't hold up at LP precision: the MILP met a tiny
+      // demand within its feasibility tolerance. Solve it again, tighter.
+      const tight: LpOptions = { ...milpOptions, mipFeasibilityTolerance: TIGHT_MIP_FEASIBILITY };
+      const again = await backend.solve(lp, start ? { ...tight, start } : tight);
+      return (await polish(lp, again, integer, terms, backend, milpOptions)) ?? again;
     };
     let s = await run(tolerance);
     if (k === 0 && !usable(s)) return interpret(p, s, stats, backend, options, itemName);
@@ -346,6 +359,53 @@ async function solveStack(
   }));
   result.objectiveValue = result.stages[0]!.value;
   return result;
+}
+
+/**
+ * Re-solves a MILP's plan as LPs with its integer variables fixed at their
+ * rounded values. The MILP is feasible only to the MIP tolerance (tiny
+ * negative flows), and its 1e-9 tie-break regularizer sits below every solver
+ * tolerance, so ties come back arbitrary: a heater could run its boiler flat
+ * out and dump the steam. The first LP returns the plan at LP precision; the
+ * second holds the stage objective at that value and minimizes Σx, so each
+ * recipe runs only as hard as the plan needs (A17). Keeps the MILP's status
+ * and gap. Returns the MILP solution as is when it has no plan, and undefined
+ * when its machine counts are infeasible at LP precision.
+ */
+async function polish(
+  lp: LpModel,
+  mip: LpSolution,
+  integer: ReadonlySet<string>,
+  stage: LpTerm[],
+  backend: LpBackend,
+  options: LpOptions,
+): Promise<LpSolution | undefined> {
+  if (!usable(mip)) return mip;
+  const variables = lp.variables.map(({ integer: _, ...v }) => {
+    if (!integer.has(v.name)) return v;
+    const n = Math.round(mip.values!.get(v.name) ?? 0);
+    return { ...v, lo: n, hi: n };
+  });
+  const fixed = await backend.solve({ ...lp, variables }, options);
+  if (fixed.status === 'infeasible') return undefined;
+  if (fixed.status !== 'optimal' || !fixed.values) return mip;
+  const value = stage.reduce((sum, t) => sum + t.coef * (fixed.values!.get(t.var) ?? 0), 0);
+  const tidy = await backend.solve(
+    {
+      ...lp,
+      objective: variables
+        .filter((v) => v.name.startsWith('recipe:'))
+        .map((v) => ({ var: v.name, coef: 1 })),
+      variables,
+      constraints: [
+        ...lp.constraints,
+        { name: 'polish', terms: stage, hi: value + POLISH_SLACK * Math.max(1, Math.abs(value)) },
+      ],
+    },
+    options,
+  );
+  const best = tidy.status === 'optimal' && tidy.values ? tidy : fixed;
+  return { ...mip, values: best.values! };
 }
 
 const usable = (s: LpSolution) =>
@@ -566,8 +626,9 @@ type LpMode = 'normal' | 'elastic' | 'capped';
 
 /**
  * `normal`: the stage LP/MILP with its objective and lexicographic locks.
- * `elastic`: slack on node and import caps, minimizing the relaxation (an LP:
- * integer parts are left out). `capped`: every variable capped at the sanity
+ * `elastic`: slack on node and import caps, minimizing the relaxation
+ * (whole-machine counts and O6 indicators are left out; heater counts stay
+ * integer, A17, so the relaxation is what the real plan needs). `capped`: every variable capped at the sanity
  * cap, to name an unbounded direction.
  */
 function buildLp(
@@ -592,14 +653,18 @@ function buildLp(
     const turbine = mode === 'normal' ? p.turbineCaps.get(r.id) : undefined;
     variables.push({ name: v, lo: 0, hi: turbine ?? cap });
     if (mode !== 'elastic') objective.push({ var: v, coef: REGULARIZER });
-    for (const f of r.outputs) balance.get(f.item)!.push({ var: v, coef: f.rate });
-    for (const f of r.inputs) balance.get(f.item)!.push({ var: v, coef: -f.rate });
+    // Heaters (A17) always build whole machines, in every mode: the heater
+    // side (fuel, exhaust) scales with the count, the boiler pair with x_j.
+    const counted = whole || r.heater === true;
+    const scaleOf = (f: Flow) => (f.heater ? machinesVar(r.id) : v);
+    for (const f of r.outputs) balance.get(f.item)!.push({ var: scaleOf(f), coef: f.rate });
+    for (const f of r.inputs) balance.get(f.item)!.push({ var: scaleOf(f), coef: -f.rate });
     // In whole-machines mode a node is used by a whole machine, even underclocked (R3).
     const user = whole ? machinesVar(r.id) : v;
     if (r.node) nodeTerms.set(r.node, [...(nodeTerms.get(r.node) ?? []), { var: user, coef: 1 }]);
-    if (whole) {
+    if (counted) {
       variables.push({ name: machinesVar(r.id), lo: 0, hi: cap, integer: true });
-      objective.push({ var: machinesVar(r.id), coef: REGULARIZER });
+      if (mode !== 'elastic') objective.push({ var: machinesVar(r.id), coef: REGULARIZER });
       constraints.push({
         name: wholeRow(r.id),
         terms: [
@@ -776,37 +841,40 @@ function finish(
   const nodeUse = new Map<string, number>();
   let consumptionMW = 0;
   let generationMW = 0;
+  const failures: string[] = [];
   for (const r of p.recipes) {
     const n = x.get(r.id)!;
-    if (n <= 0) continue;
-    for (const f of r.outputs) add(produced, f.item, f.rate * n);
-    for (const f of r.inputs) add(consumed, f.item, f.rate * n);
-    // Whole-machines mode: the solved integer count (integral up to the MIP tolerance).
-    const whole = p.whole ? Math.round(val(machinesVar(r.id))) : Math.ceil(n - 1e-6);
+    // Heaters (A17) and whole-machines mode: the solved integer count
+    // (integral up to the MIP tolerance), checked against what runs.
+    const counted = p.whole || r.heater === true;
+    const m = counted ? val(machinesVar(r.id)) : 0;
+    if (counted && n > m + BALANCE_TOL * Math.max(1, m))
+      failures.push(`recipe ${r.id} runs ${n} machines but builds ${m}`);
+    if (r.heater && Math.abs(m - Math.round(m)) > BALANCE_TOL)
+      failures.push(`heater ${r.id} builds a fractional ${m} machines`);
+    const whole = counted ? Math.round(m) : Math.ceil(n - 1e-6);
+    if (n <= 0 && !(r.heater && whole > 0)) continue;
+    // A heater burns fuel and emits exhaust for every machine it builds.
+    const rate = (f: Flow) => f.rate * (f.heater ? whole : n);
+    for (const f of r.outputs) add(produced, f.item, rate(f));
+    for (const f of r.inputs) add(consumed, f.item, rate(f));
     if (r.node) add(nodeUse, r.node, p.whole ? whole : n);
-    const power = r.powerMW * n;
+    const power = r.powerMW * (r.heater ? whole : n);
     if (power >= 0) consumptionMW += power;
     else generationMW -= power;
     recipes.push({
       id: r.id,
       name: r.name,
       machine: r.machine,
-      machines: n,
+      machines: r.heater ? whole : n,
       machinesCeil: whole,
       powerMW: power,
+      ...(r.heater ? { boilerLoad: whole > 0 ? Math.min(1, n / whole) : 0 } : {}),
     });
   }
 
   const items: ItemFlow[] = [];
-  const failures: string[] = [];
   const scale = p.scaled.size ? val(OUTPUT_VAR) : 0;
-  if (p.whole)
-    for (const r of p.recipes) {
-      const n = x.get(r.id)!;
-      const m = val(machinesVar(r.id));
-      if (n > m + BALANCE_TOL * Math.max(1, m))
-        failures.push(`recipe ${r.id} runs ${n} machines but builds ${m}`);
-    }
   for (const item of p.items) {
     const flow: ItemFlow = {
       item,

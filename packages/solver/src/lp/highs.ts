@@ -33,6 +33,9 @@ export function createHighsBackend(loaderOptions?: HighsLoaderOptions): LpBacken
         // The solver's checks require every variable ≥ −1e-9 (CLAUDE.md), so
         // HiGHS must not leave bound violations up to its 1e-7 default.
         primal_feasibility_tolerance: 1e-10,
+        ...(options.mipFeasibilityTolerance !== undefined
+          ? { mip_feasibility_tolerance: options.mipFeasibilityTolerance }
+          : {}),
         ...(options.timeLimitSeconds !== undefined ? { time_limit: options.timeLimitSeconds } : {}),
       };
       if (model.variables.some((v) => v.integer)) {

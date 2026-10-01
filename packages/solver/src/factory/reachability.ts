@@ -1,23 +1,37 @@
-import type { Recipe } from '@sps/data';
+import type { Flow, Recipe } from '@sps/data';
+
+/**
+ * The flows of `r` that can run once `ready` holds for each of its inputs: all
+ * of them, or for a heater (A17) whose boiler input is missing, only the
+ * heater side (a heater can burn fuel with its boiler idle).
+ */
+function runnableOutputs(r: Recipe, ready: (f: Flow) => boolean): Flow[] | undefined {
+  if (r.inputs.every(ready)) return r.outputs;
+  if (r.heater && r.inputs.every((f) => !f.heater || ready(f)))
+    return r.outputs.filter((f) => f.heater);
+  return undefined;
+}
 
 /**
  * Items producible from the given sources: a recipe can run once all of its
  * inputs are producible, and then its outputs are. Recipes with no inputs
- * (extraction) can always run. Node budgets are ignored here: running out of
- * nodes is an infeasibility (elastic re-solve), not unreachability.
+ * (extraction) can always run, and a heater's exhaust needs only its fuel
+ * (A17). Node budgets are ignored here: running out of nodes is an
+ * infeasibility (elastic re-solve), not unreachability.
  */
 export function producible(recipes: readonly Recipe[], sources: Iterable<string>): Set<string> {
   const have = new Set(sources);
-  let pending = [...recipes];
-  for (;;) {
-    const next: Recipe[] = [];
-    for (const r of pending) {
-      if (r.inputs.every((f) => have.has(f.item))) for (const f of r.outputs) have.add(f.item);
-      else next.push(r);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const r of recipes) {
+      for (const f of runnableOutputs(r, (g) => have.has(g.item)) ?? []) {
+        if (have.has(f.item)) continue;
+        have.add(f.item);
+        grew = true;
+      }
     }
-    if (next.length === pending.length) return have;
-    pending = next;
   }
+  return have;
 }
 
 /**
@@ -30,7 +44,7 @@ export function prune(
   available: ReadonlySet<string>,
   demanded: Iterable<string>,
 ): Recipe[] {
-  const runnable = recipes.filter((r) => r.inputs.every((f) => available.has(f.item)));
+  const runnable = recipes.filter((r) => runnableOutputs(r, (f) => available.has(f.item)));
   const needed = new Set(demanded);
   const kept = new Set<Recipe>();
   let grew = true;
@@ -66,7 +80,7 @@ export function closestFixes(
   for (const r of disabled) {
     if (producible([...enabled, r], sources).has(item))
       ranked.push({ id: r.id, rank: direct(r) ? 0 : 1 });
-    else if (direct(r) && r.inputs.every((f) => all.has(f.item)))
+    else if (direct(r) && runnableOutputs(r, (f) => all.has(f.item)))
       ranked.push({ id: r.id, rank: 2 });
   }
   return ranked

@@ -48,6 +48,7 @@ References like §4.3 point into `ARCHITECTURE.md`.
   - 500 random property cases pass. Vanilla-mini golden cases pass within 1e-6 relative.
   - Unreachable, infeasible and unbounded fixtures return the expected diagnostics.
   - The full SF+ model with 5 targets solves in under 1 s.
+  - Heaters (A17): a heater recipe's fuel and byproducts equal whole machines × recipe rate; boiler throughput ≤ capacity (20 Steam/min from Solid Fuel Mk.1 → 1 heater, 15 Coal, boiler at 50%). Random heater models pass the property check.
 
 ### M3 — Vertical slice (web)
 

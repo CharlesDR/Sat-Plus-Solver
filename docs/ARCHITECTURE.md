@@ -104,26 +104,27 @@ One factory means one `SolveRequest`, and one LP/MILP. Everything in this sectio
 
 ### 3.1 Sets and variables
 
-| Symbol        | Meaning                                                                                                                                                                               |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| _R_           | Enabled recipes: dataset recipes after this factory's filters, plus generated extraction routes                                                                                       |
-| _I_           | Items, plus the pseudo-item **`MW`**. Generator recipes output `MW`. Machine draw stays in the power accounting and is **not** an `MW` input, so a factory never has to power itself. |
-| _N_           | Node classes (resource, purity) and fracking sites. Capacity `cap_n` is the factory's **node budget** (§4.4).                                                                         |
-| `x_j ≥ 0`     | Machine count for recipe _j_. For a generated miner route, this is also its node usage.                                                                                               |
-| `s_i ≥ 0`     | **Import** of item _i_, `s_i ≤ importCap_i`. It comes from incoming links (§4) or from an unassigned import declared in this factory.                                                 |
-| `z_i ≥ 0`     | Surplus of item _i_: byproducts and free disposal. At the world level, surplus is **available supply**.                                                                               |
-| `y_r ∈ {0,1}` | Whether resource type _r_ is used. MILP objectives only.                                                                                                                              |
-| `m_j ∈ ℤ≥0`   | Whole machines. Only in "whole machines" mode.                                                                                                                                        |
+| Symbol        | Meaning                                                                                                                                                                                           |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| _R_           | Enabled recipes: dataset recipes after this factory's filters, plus generated extraction routes                                                                                                   |
+| _I_           | Items, plus the pseudo-item **`MW`**. Generator recipes output `MW`. Machine draw stays in the power accounting and is **not** an `MW` input, so a factory never has to power itself.             |
+| _N_           | Node classes (resource, purity) and fracking sites. Capacity `cap_n` is the factory's **node budget** (§4.4).                                                                                     |
+| `x_j ≥ 0`     | Machine count for recipe _j_. For a generated miner route, this is also its node usage.                                                                                                           |
+| `s_i ≥ 0`     | **Import** of item _i_, `s_i ≤ importCap_i`. It comes from incoming links (§4) or from an unassigned import declared in this factory.                                                             |
+| `z_i ≥ 0`     | Surplus of item _i_: byproducts and free disposal. At the world level, surplus is **available supply**.                                                                                           |
+| `y_r ∈ {0,1}` | Whether resource type _r_ is used. MILP objectives only.                                                                                                                                          |
+| `m_j ∈ ℤ≥0`   | Whole machines. In "whole machines" mode, and **always for heater recipes** (A17): there `x_j` is the boiler throughput in machine-equivalents and `m_j` the heaters built, which burn full fuel. |
 
 ### 3.2 Constraints
 
 ```
-Item balance:     Σ_j a_ij·x_j + s_i − z_i = demand_i                ∀ i ∈ I
+Item balance:     Σ_j a_ij·x_j + Σ_heaters h_ij·m_j + s_i − z_i = demand_i   ∀ i ∈ I
+                  (heater-side flows h_ij of a heater recipe scale with m_j, its boiler pair with x_j; A17)
                   demand_i = target_i + Σ outgoing link rates of i   (from the world layer, §4.3)
 Node capacity:    Σ_{j uses n} x_j ≤ cap_n                            ∀ n ∈ N
 Imports:          0 ≤ s_i ≤ importCap_i                               (Σ incoming link rates + unassigned import)
 Unique resources: Σ_{j uses r} x_j ≤ cap_r · y_r                      (MILP objectives only)
-Whole machines:   x_j ≤ m_j                                            (optional)
+Whole machines:   x_j ≤ m_j                                            (optional; always for heaters: boiler ≤ heaters built)
 Lexicographic:    f_k(x) ≤ f_k* + tol·max(|f_k*|, ε)                  for each objective already solved
 ```
 
@@ -150,7 +151,7 @@ Lexicographic:    f_k(x) ≤ f_k* + tol·max(|f_k*|, ε)                  for ea
 
 ### 3.4 Integer machine counts
 
-The LP shows `x_j` and `ceil(x_j)`, with power reported on fractional counts. The "whole machines" toggle adds `m_j` and is only used by O3 and O6, with a 5 s limit. On timeout it returns the best solution found and its gap.
+The LP shows `x_j` and `ceil(x_j)`, with power reported on fractional counts. The "whole machines" toggle adds `m_j` and is only used by O3 and O6, with a 5 s limit. On timeout it returns the best solution found and its gap. Heater recipes always carry an integer `m_j` (A17), so a plan with an eligible heater is a MILP under the same limit. A MILP plan is polished: an LP with the integer values fixed holds the stage objective and minimizes Σx, so the tie-break applies at LP precision (a heater's boiler runs only as hard as needed), and a plan whose counts fail at LP precision is re-solved with a 1e-10 MIP feasibility tolerance.
 
 ### 3.5 Failure modes
 

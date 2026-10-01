@@ -31,8 +31,17 @@ function checkPlan(model: Model, req: SolveRequest, r: SolveResult): void {
     expect(u.machines).toBeGreaterThan(0);
     expect(excluded.has(u.id)).toBe(false);
     if (req.recipes?.alternates === false) expect(rec.alternate).toBe(false);
-    for (const f of rec.outputs) add(f.item, f.rate * u.machines);
-    for (const f of rec.inputs) add(f.item, -f.rate * u.machines);
+    // Heaters (A17): whole machines burn full fuel; the boiler runs at boilerLoad.
+    let boiler = u.machines;
+    if (rec.heater) {
+      expect(Number.isInteger(u.machines)).toBe(true);
+      expect(u.boilerLoad).toBeGreaterThanOrEqual(0);
+      expect(u.boilerLoad).toBeLessThanOrEqual(1);
+      boiler = u.machines * u.boilerLoad!;
+    } else expect(u.boilerLoad).toBeUndefined();
+    const at = (heaterSide?: true) => (heaterSide ? u.machines : boiler);
+    for (const f of rec.outputs) add(f.item, f.rate * at(f.heater));
+    for (const f of rec.inputs) add(f.item, -f.rate * at(f.heater));
     if (rec.node) nodeUse.set(rec.node, (nodeUse.get(rec.node) ?? 0) + u.machines);
   }
   for (const i of r.imports) {
@@ -211,29 +220,52 @@ function recipe(
   };
 }
 
-const randomCase = randomModel.chain((model) =>
-  fc.record({
-    model: fc.constant(model),
-    request: fc.record({
-      targets: fc.array(
-        fc.record({
-          item: fc.constantFrom(...model.items.map((i) => i.id)),
-          rate: amount(300),
-        }),
-        { minLength: 1, maxLength: 3 },
-      ),
-      imports: fc.array(
-        fc.record({
-          item: fc.constantFrom(...model.items.map((i) => i.id)),
-          cap: amount(100),
-        }),
-        { maxLength: 2 },
-      ),
-      objective: fc.constantFrom('resources' as const, 'scarcity' as const),
-      recipes: fc.record({ alternates: fc.boolean() }),
-    }),
-  }),
+/**
+ * Random models where most multi-input recipes are heaters (A17): the first
+ * input and output form the boiler pair, every other flow is heater side.
+ */
+const randomHeaterModel: fc.Arbitrary<Model> = randomModel.chain((model) =>
+  fc
+    .array(
+      fc.integer({ min: 0, max: 3 }).map((n) => n > 0),
+      { minLength: model.recipes.length, maxLength: model.recipes.length },
+    )
+    .map((flags) => ({
+      ...model,
+      recipes: model.recipes.map((r, k): Recipe => {
+        if (!flags[k] || r.node || r.inputs.length < 2) return r;
+        const mark = (f: Recipe['inputs'][number], i: number) =>
+          i === 0 ? f : { ...f, heater: true as const };
+        return { ...r, heater: true, inputs: r.inputs.map(mark), outputs: r.outputs.map(mark) };
+      }),
+    })),
 );
+
+/** A random request against `model`'s items. */
+const requestFor = (model: Model) =>
+  fc.record({
+    targets: fc.array(
+      fc.record({
+        item: fc.constantFrom(...model.items.map((i) => i.id)),
+        rate: amount(300),
+      }),
+      { minLength: 1, maxLength: 3 },
+    ),
+    imports: fc.array(
+      fc.record({
+        item: fc.constantFrom(...model.items.map((i) => i.id)),
+        cap: amount(100),
+      }),
+      { maxLength: 2 },
+    ),
+    objective: fc.constantFrom('resources' as const, 'scarcity' as const),
+    recipes: fc.record({ alternates: fc.boolean() }),
+  });
+
+const caseOf = (models: fc.Arbitrary<Model>) =>
+  models.chain((model) => fc.record({ model: fc.constant(model), request: requestFor(model) }));
+
+const randomCase = caseOf(randomModel);
 
 describe('solver properties', () => {
   test(`vanilla-mini: ${RUNS} random requests give checked plans or valid diagnostics`, async () => {
@@ -253,6 +285,15 @@ describe('solver properties', () => {
       { numRuns: RUNS, seed: SEED },
     );
   });
+
+  test(`random heater models: ${RUNS} random cases give checked plans or valid diagnostics (A17)`, async () => {
+    await fc.assert(
+      fc.asyncProperty(caseOf(randomHeaterModel), async ({ model, request }) => {
+        await solveAndCheck(model, request);
+      }),
+      { numRuns: RUNS, seed: SEED },
+    );
+  }, 60_000);
 
   test('scaling linearity: k × targets gives k × objective when nothing binds', async () => {
     const unbounded = Object.fromEntries(mini.nodes.map((n) => [n.id, Infinity]));
