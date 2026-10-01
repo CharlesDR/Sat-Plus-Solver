@@ -1,83 +1,102 @@
-# Sat-Plus-Solver — Execution Plan
+# Sat-Plus-Solver — Execution Plan (rev 2)
 
 Every milestone is merged on its own and leaves `main` green: lint, typecheck, test and build all pass.
-Order: data → solver → an early end-to-end slice → full objectives → UI depth → sharing → hardening.
-References like §2.3 point into `ARCHITECTURE.md`.
+Order: data → factory solver → an early end-to-end slice → full objectives → **world core (pure logic)** → factory UI → world UI → sharing → hardening.
+References like §4.3 point into `ARCHITECTURE.md`.
 
 | # | Milestone | Ships | Depends on |
 |---|---|---|---|
 | M0 | Scaffold and CI | Empty workspaces, toolchain, CI | — |
 | M1 | Data pipeline | `model.json` + validation report | M0 |
-| M2 | Solver core (LP, single objective) + CLI | `pnpm solve` prints a plan table | M1 |
-| M3 | **Vertical slice (web)** | Page: pick one target → summary table | M2 |
-| M4 | Full objectives | All 6 objectives, lexicographic stack, tolerance, MILP, supplied-input costing | M2 |
-| M5 | Planner controls | Multiple targets, recipe toggles, tier filter, caps and weights, supply inputs | M3, M4 |
-| M6 | Graph view | Interactive node graph synced with the table | M5 |
-| M7 | Sharing and persistence | URL + JSON export/import, versioning | M5 |
-| M8 | Hardening and release | Perf, diagnostics UX, E2E, Pages deploy | M6, M7 |
-| M9 | Post-v1 (backlog) | SF+ golden cases, power self-sufficiency, per-group overclock | M8 |
+| M2 | Factory solver core + CLI | `pnpm solve` prints a plan table | M1 |
+| M3 | **Vertical slice (web)** | Page: one target → summary table. The store is already a one-factory `World`. | M2 |
+| M4 | Full objectives + power | 6 objectives, lexicographic stack, tolerance, MILP, import costing, `MW` pseudo-item | M2 |
+| M5 | **World core** (pure) + CLI | `world` package: links, resolution, node pool, ledgers, groups; `pnpm world` | M4 |
+| M6 | Factory controls | Factory view: targets, toggles, tier filter, budgets, imports, objective stack | M3, M4 |
+| M7 | Factory flowchart | Interactive factory graph synced with the table | M6 |
+| M8 | **World UI** | Outer canvas, groups, link editor, ledgers, power, nodes, item trace, drill-down | M5, M7 |
+| M9 | Saves and sharing | Local save slots, JSON export/import, URL share, versioning | M8 |
+| M10 | Hardening and release | Perf, diagnostics UX, E2E, Pages deploy | M9 |
+| M11 | Backlog (after v1) | Joint world optimization, SF+ golden cases, multiple power grids, transport calculators, per-group overclock | M10 |
 
 ---
 
 ### M0 — Scaffold and CI
-- pnpm workspaces `packages/{data,solver,graph}` and `apps/web`, TS strict, ESLint (including the boundary rule from §6), Prettier, Vitest, GitHub Actions.
-- **Acceptance:** CI runs lint, typecheck and test on every PR and passes. The import-boundary rule fails on a deliberate violation in a test fixture.
+- pnpm workspaces `packages/{data,solver,world,graph}` and `apps/web`, TS strict, ESLint (with the dependency rule from §7), Prettier, Vitest, GitHub Actions.
+- **Acceptance:** CI runs lint, typecheck and test on every PR and passes. A deliberate import from `solver` into `web` fails lint.
 
 ### M1 — Data pipeline
-- Convert the xlsx to `data/nodes.csv`, adding a `site_rate_m3_min` column. Add `data/miner-model.json` and `data/overrides.json`.
-- Rational parser; normalize to per minute, positive-is-draw power, stable IDs; resolve MultiMachines.
-- Extraction route generator (§2.3) for Modular Miners, overclocked extractors, fracking sites and unlimited sources.
-- Validations (§5) and the free-lunch loop check (which needs the LP backend in Node, so HiGHS is pulled into M1).
+- `data/nodes.csv` (from the xlsx, with a `site_rate_m3_min` column), `miner-model.json` and `overrides.json`.
+- Rational parser, normalization, stable IDs, MultiMachine resolution, the `MW` pseudo-item on generator recipes, belt capacities.
+- Route generator (§2.3), validations and the free-lunch check (HiGHS runs in Node here).
 - **Acceptance:**
-  - `pnpm build:data` produces `model.json` and `report.md`. Injecting a bad amount, an unknown part or an unmapped node resource each fails the build with a clear message.
-  - Unit test: pure Montanion, Mk.3, Slug Slime, 3 full boosters → 1800/min total, 900 on each belt.
-  - Every generated route at 0 boosters matches its dataset row, except the deviations whitelisted in `overrides.json`, which are listed in the report.
-  - Snapshot: Iron Plate is 30 Iron Ingot/min in and 20 Iron Plate/min out, on a Constructor at 4 MW.
+  - `pnpm build:data` produces `model.json` and `report.md`. A bad amount, an unknown part or an unmapped node each fails with a clear message.
+  - Pure Montanion, Mk.3, Slime, 3 full boosters → 1800/min total, 900 on each belt.
+  - Generated routes match dataset rows at 0 boosters, except the whitelisted ones, which are listed in the report.
+  - Iron Plate snapshot: 30 in, 20 out, 4 MW.
+  - The Coal generator recipe outputs `MW` equal to its machine generation.
 
-### M2 — Solver core + CLI
-- `solver` package: `LpBackend` interface, HiGHS backend (Node), model builder (§3.1–3.2), O1 and O2, surplus and byproducts, node caps, reachability pruning, diagnostics (§3.5), and post-processing: `ceil` machine counts, power, byproducts, node usage by (resource, purity, route).
-- Hand-built **vanilla-mini** dataset and 5+ golden cases you can check in satisfactory-tools. Golden harness and fixture format (§8).
-- CLI: `pnpm solve --target "Iron Plate:60" [--objective scarcity]` prints the summary table.
+### M2 — Factory solver core + CLI
+- `solver` package: `LpBackend` with a HiGHS Node backend; model builder (§3.1–3.2) with **imports** and **demand** inputs, so the world layer can plug in later; O1 and O2; surplus; node budgets; pruning; diagnostics (§3.5); post-processing.
+- Vanilla-mini dataset and 5+ golden cases you can check in satisfactory-tools. Golden harness.
+- CLI: `pnpm solve --target "Iron Plate:60" [--import "Iron Ingot:30"] [--objective scarcity]`.
 - **Acceptance:**
-  - Property tests (§8) pass on 500 random cases.
-  - Vanilla-mini golden cases pass within 1e-6 relative.
-  - Unreachable, infeasible and unbounded fixtures each return the expected diagnostic.
-  - Benchmark: the full SF+ model with 5 targets solves in under 1 s in Node.
+  - 500 random property cases pass. Vanilla-mini golden cases pass within 1e-6 relative.
+  - Unreachable, infeasible and unbounded fixtures return the expected diagnostics.
+  - The full SF+ model with 5 targets solves in under 1 s.
 
 ### M3 — Vertical slice (web)
-- Vite + React app. The solver and HiGHS WASM run in a Web Worker. One target picker (item + rate), default objective O2, and a summary table: recipes, machines (fractional and rounded up), node usage, byproducts, power.
-- **Acceptance:** From a fresh load, picking "Iron Plate, 60/min" shows the same table as the CLI. Playwright smoke test. The main thread never blocks for more than 50 ms during a solve.
+- Vite + React. The solver and HiGHS run in a worker. The Zustand store holds a `World` with one implicit factory. One target picker and the summary table: recipes, machines (fractional and rounded up), node usage, byproducts, power.
+- **Acceptance:** "Iron Plate, 60/min" matches the CLI table. Playwright smoke test. No main-thread block over 50 ms during a solve.
 
-### M4 — Full objectives
-- O3 to O6 (§3.3), the lexicographic driver, the tolerance input (0.01%–90%, default 0.01%, validated), the whole-machines MILP, and the supplied-input embodied-cost toggle with its cache.
+### M4 — Full objectives + power
+- O3–O6, the lexicographic driver, the tolerance input (0.01%–90%, default 0.01%), the whole-machines MILP, and import costing (standalone-LP mode; linked mode arrives in M5). `MW` targets for power-plant factories. Power report: draw vs generation.
 - **Acceptance:**
-  - Golden cases where the secondary objective changes the plan and the primary stays within tolerance.
-  - O6 picks fewer resource types than O1 on a designed fixture.
-  - O5 hits the cap on a fixed-input fixture.
-  - With the toggle on, the embodied cost of a supplied item equals the standalone LP optimum.
-  - Tolerance values outside 0.01%–90% are rejected.
-  - A MILP timeout returns the incumbent and its gap.
+  - Secondary objective changes the plan while the primary stays within tolerance.
+  - O6 uses fewer resource types than O1 on a fixture. O5 reaches its cap.
+  - Embodied cost = the standalone optimum. Out-of-range tolerance is rejected. A MILP timeout returns the best solution and its gap.
+  - A "2000 MW from Coal" target produces a valid fuel chain.
 
-### M5 — Planner controls
-- Multiple targets. Recipe toggles: standard on, alternates off, bulk on/off, search, max-Tier filter. Node cap and scarcity weight editor, seeded from `nodes.csv`. Supplied inputs. Objective stack editor.
-- **Acceptance:** Turning on an alternate makes it eligible and it appears in the plan when it is better. The tier filter removes recipes above the selected tier. Lowering a cap below usage produces the infeasibility diagnostic.
+### M5 — World core (pure) + CLI
+- `world` package: domain model (§4.1), link semantics (§4.2), resolution with SCC and fixed-point iteration (§4.3), memoized per-factory solves, node-pool accounting and the "allocate remaining" helper (§4.4), ledgers, power totals, group aggregation (§4.5), and linked-import embodied costing.
+- CLI: `pnpm world solve examples/world.json` prints the factory, link, item-ledger, power and node tables.
+- **Acceptance:**
+  - World property tests pass: conservation, link delivery ≤ request, group aggregate = Σ descendants.
+  - Scenario fixtures pass: chain, diamond, convergent cycle, non-convergent cycle, infeasible upstream marks links short, node over-allocation, power deficit closed by "size power plant".
+  - Editing one factory re-solves only it and its upstream pull dependents.
+  - A 30-factory world cold-solves in under 5 s.
 
-### M6 — Graph view
-- `graph` package: result → nodes and edges, ELK layered layout in a worker. React Flow view with recipe, resource-node, target and byproduct node types. Edges are labeled with rates. Clicking a node highlights its table row and the reverse.
-- **Acceptance:** For every node, incoming minus outgoing edge rates equal that recipe's net rates (unit test). Layout is deterministic. A cyclic plan (Converter loop) renders without overlap. A 150-node plan lays out in under 2 s.
+### M6 — Factory controls (factory view)
+- Multiple targets. Recipe toggles (world defaults plus per-factory overrides; standard on, alternates off; bulk, search, max-Tier filter). Node budget editor. Unassigned imports. Objective stack editor.
+- **Acceptance:** Turning on an alternate makes it eligible and it is used when it's better. The tier filter excludes recipes above the tier. A budget below usage gives the infeasibility diagnostic. A per-factory override doesn't change other factories.
 
-### M7 — Sharing and persistence
-- A serializable `PlannerState` (`v`, `dataHash`), lz-string URL hash, JSON export and import, and a migration hook for version changes. The last session is autosaved to localStorage, wrapped in try/catch.
-- **Acceptance:** Round-trip test (state → URL → state is deep-equal). An old `v` fixture migrates. A mismatched `dataHash` shows a warning banner and still loads. URLs stay under 2 KB for typical plans.
+### M7 — Factory flowchart
+- `graph.factoryGraph` plus ELK. A React Flow view with recipe, resource-node, import, export/target and byproduct nodes. Edges show rates. Selection syncs both ways with the table.
+- **Acceptance:** Edge rates conserve at every node. Deterministic layout. A Converter-loop plan renders without overlap. A 150-node plan lays out in under 2 s.
 
-### M8 — Hardening and release
-- Diagnostics UX polish, loading states, error boundaries, a11y pass, the full Playwright suite, a GitHub Pages deploy workflow, and a README.
-- **Acceptance:** CI deploys `main` to Pages. The E2E suite covers target → plan → toggle → graph → share → reload. There are no console errors.
+### M8 — World UI
+- World canvas as the home view: factory and group nodes with status, power and node badges; link edges labeled by item and rate; stubs for unmet imports and unclaimed surplus.
+- Link editor: drag from a factory's export to another factory, pick the item, choose `fixed` or `pull`, set transport and see belt or pipe count.
+- Groups: create, nest, collapse (boundary flows only). Breadcrumb drill-down into the M6/M7 factory view.
+- Panels: item ledger (save-wide or per group), factory table, link table, power, node pool. Item trace highlighting.
+- **Acceptance:**
+  - E2E: create factories A and B, link Iron Plate A→B with `pull`, and A's demand updates. The ledger shows A's surplus and B's imports. Collapsing a group containing both hides the internal link.
+  - Item trace highlights exactly the factories and links that touch the item.
+  - Power panel totals equal the sum of the factory power values.
 
-### M9 — Backlog (after v1)
-- Your SF+ golden cases. Booster power values (R1). Verifying A3, A4 and A6 in game.
-- Power self-sufficiency (MW as an item, generator chains). Overclock and Somersloop settings per machine group.
+### M9 — Saves and sharing
+- The `World` document gets a `v` field and `dataHash`, plus migrations. localStorage save slots (wrapped in try/catch), JSON export/import, and an lz-string URL share when the payload is under 8 KB (otherwise prompt to export). "Share this factory only" exports a one-factory world.
+- **Acceptance:** Round trip World → JSON → World and World → URL → World is deep-equal. An old `v` fixture migrates. A `dataHash` mismatch shows a banner and still loads. Oversized worlds fall back to export.
+
+### M10 — Hardening and release
+- Diagnostics UX, loading and progress states for world solves, error boundaries, an a11y pass, the full Playwright suite, a Pages deploy workflow, and a README with a sample world.
+- **Acceptance:** CI deploys `main`. E2E covers world → link → drill-down → toggle → back → export → import → reload. No console errors.
+
+### M11 — Backlog (after v1)
+- **Joint world optimization** (§4.6): opt-in, enforces map node limits exactly.
+- Your SF+ golden cases. Booster power value (R1). In-game checks of A3, A4 and A6.
+- Multiple power grids (A8). Transport calculators: trains, trucks, drones, Dimensional Depot. Overclock and Somersloop settings per machine group.
 
 ---
 
-**Review checkpoints:** after M1 (you check `report.md` and the miner and fracking numbers) and after M3 (you try the slice).
+**Review checkpoints:** after M1 (miner and fracking numbers in `report.md`), after M3 (try the slice), and after M5 (world semantics, using the CLI on a sample of your own save layout).
