@@ -28,6 +28,9 @@ export const CYCLE_TOLERANCE = 1e-6;
 /** Most resolution passes while linked import costs settle (as `solveCosted` in the solver). */
 export const COST_PASSES = 4;
 
+/** Default pipe capacity per tier, m³/min (A10): Mk1 300, Mk2 600. */
+export const DEFAULT_PIPE_CAPACITIES: Readonly<Record<number, number>> = { 1: 300, 2: 600 };
+
 export interface ResolveOptions {
   /** Pipe capacity per tier, m³/min (A10). Default 300 (Mk1) and 600 (Mk2). */
   pipeCapacities?: Readonly<Record<number, number>>;
@@ -168,7 +171,7 @@ export async function resolveWorld(
     linked = next;
   }
   return analyze(ctx.world, model, links, pass, [...diagnostics, ...pass.diagnostics], stats, {
-    pipeCapacities: options.pipeCapacities ?? { 1: 300, 2: 600 },
+    pipeCapacities: options.pipeCapacities ?? DEFAULT_PIPE_CAPACITIES,
   });
 }
 
