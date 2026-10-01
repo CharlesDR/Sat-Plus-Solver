@@ -1,0 +1,38 @@
+{
+  "meta": { "v": 2, "dataHash": "abc123" },
+  "factories": [
+    {
+      "id": "factory-main",
+      "name": "Factory",
+      "request": {
+        "targets": [{ "item": "iron-plate", "rate": 60 }],
+        "objectives": ["scarcity"],
+        "excludeRecipes": ["iron-wire"]
+      },
+      "unassignedImports": [{ "item": "iron-ingot" }],
+      "nodeBudget": "pool",
+      "priority": 0,
+      "notes": "saved by M5"
+    },
+    {
+      "id": "factory-b",
+      "name": "B",
+      "request": { "targets": [{ "item": "screw", "rate": 40 }] },
+      "unassignedImports": [],
+      "nodeBudget": { "node:iron-ore:normal": 2 },
+      "priority": 0,
+      "notes": ""
+    }
+  ],
+  "groups": [],
+  "links": [],
+  "defaults": {
+    "objectives": ["resources"],
+    "tolerance": 0.0001,
+    "alternates": false,
+    "wholeMachines": true,
+    "costImports": false,
+    "excludeRecipes": ["cast-screw"]
+  },
+  "nodePool": { "node:iron-ore:normal": 12 }
+}

@@ -3,6 +3,7 @@ import fc from 'fast-check';
 import { describe, expect, test } from 'vitest';
 import vanillaMini from '../../../../fixtures/vanilla-mini/model.json';
 import { createHighsBackend } from '../lp/highs';
+import { recipeExclusion } from './recipes';
 import { LEX_EPSILON, MIN_RATE, solve } from './solve';
 import type { ObjectiveId, SolveRequest, SolveResult } from './types';
 
@@ -18,7 +19,6 @@ const TOL = 1e-6;
 /** Recomputes balance, signs, budgets, caps and filters from the plan alone. */
 function checkPlan(model: Model, req: SolveRequest, r: SolveResult): void {
   const recipes = new Map(model.recipes.map((x) => [x.id, x]));
-  const excluded = new Set(req.recipes?.exclude ?? []);
   const net = new Map<string, number>();
   const scale = new Map<string, number>();
   const add = (item: string, v: number) => {
@@ -29,8 +29,9 @@ function checkPlan(model: Model, req: SolveRequest, r: SolveResult): void {
   for (const u of r.recipes) {
     const rec = recipes.get(u.id)!;
     expect(u.machines).toBeGreaterThan(0);
-    expect(excluded.has(u.id)).toBe(false);
-    if (req.recipes?.alternates === false) expect(rec.alternate).toBe(false);
+    expect(recipeExclusion(rec, req.recipes)).toBeUndefined();
+    if (rec.alternate && !req.recipes?.alternates)
+      expect(req.recipes?.include ?? []).toContain(u.id);
     // Heaters (A17): whole machines burn full fuel; the boiler runs at boilerLoad.
     let boiler = u.machines;
     if (rec.heater) {
@@ -108,6 +109,7 @@ const amount = (max: number) =>
 const mini = vanillaMini as Model;
 const miniItems = mini.items.map((i) => i.id);
 const miniRecipes = mini.recipes.map((r) => r.id);
+const miniAlternates = mini.recipes.filter((r) => r.alternate).map((r) => r.id);
 
 const miniRequest: fc.Arbitrary<SolveRequest> = fc.record(
   {
@@ -126,6 +128,7 @@ const miniRequest: fc.Arbitrary<SolveRequest> = fc.record(
     recipes: fc.record({
       alternates: fc.boolean(),
       exclude: fc.uniqueArray(fc.constantFrom(...miniRecipes), { maxLength: 4 }),
+      include: fc.uniqueArray(fc.constantFrom(...miniAlternates), { maxLength: 2 }),
     }),
     nodeBudget: fc.oneof(
       fc.constant('pool' as const),

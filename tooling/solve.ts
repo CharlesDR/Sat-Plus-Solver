@@ -4,13 +4,15 @@
  *   pnpm solve --target "Iron Plate:60" [--target ...] [--import "Iron Ingot:30"]
  *              [--objective resources,machines,...] [--tolerance 0.01%] [--whole-machines]
  *              [--cost-imports] [--alternates] [--compare-alternates] [--exclude <recipe-id>]
- *              [--budget "<node-id>=<count>"] [--model <model.json>] [--json]
+ *              [--enable <recipe-id>] [--max-tier <major-minor>] [--budget "<node-id>=<count>"] [--model <model.json>] [--json]
  *
  * Items are matched by id or by name (case-insensitive). An import without a
  * rate is unlimited. `--budget` overrides the map pool for one node class.
  * `--objective` takes a comma-separated stack (resources, scarcity, machines,
  * power, output, types; or o1–o6), solved in order within `--tolerance`
- * (a percentage). Alternates are off unless `--alternates` is given;
+ * (a percentage). Alternates are off unless `--alternates` is given, and
+ * `--enable` turns on single alternates; `--max-tier` leaves out recipes above
+ * a dataset tier (tier 0-0 always stays);
  * `--compare-alternates` solves both ways and lists the alternates that help.
  * The model is data/generated/model.json, built in memory when it is missing.
  */
@@ -23,6 +25,7 @@ import {
   compareAlternates,
   createHighsBackend,
   formatRate,
+  parseTier,
   recipeTable,
   solve,
   summarizePlan,
@@ -40,7 +43,7 @@ import { ROOT, runPipeline } from './build-data';
 export const USAGE = `Usage: pnpm solve --target "Item:rate" [--target ...] [--import "Item[:cap]"]
                   [--objective resources,machines,...] [--tolerance <percent>] [--whole-machines]
                   [--cost-imports] [--alternates] [--compare-alternates] [--exclude <recipe-id>]
-                  [--budget "<node-id>=<count>"] [--model <model.json>] [--json]
+                  [--enable <recipe-id>] [--max-tier <major-minor>] [--budget "<node-id>=<count>"] [--model <model.json>] [--json]
 Objectives: resources (o1), scarcity (o2), machines (o3), power (o4), output (o5), types (o6).`;
 
 export class CliError extends Error {}
@@ -86,6 +89,8 @@ export function parseCli(argv: string[], model: Model): CliArgs {
         'no-alternates': { type: 'boolean' },
         'compare-alternates': { type: 'boolean' },
         exclude: { type: 'string', multiple: true },
+        enable: { type: 'string', multiple: true },
+        'max-tier': { type: 'string' },
         budget: { type: 'string', multiple: true },
         model: { type: 'string' },
         json: { type: 'boolean' },
@@ -134,6 +139,11 @@ export function parseCli(argv: string[], model: Model): CliArgs {
   const recipeIds = new Set(model.recipes.map((r) => r.id));
   for (const id of parsed.exclude ?? [])
     if (!recipeIds.has(id)) throw new CliError(`Unknown recipe id "${id}" in --exclude.`);
+  for (const id of parsed.enable ?? [])
+    if (!recipeIds.has(id)) throw new CliError(`Unknown recipe id "${id}" in --enable.`);
+  const maxTier = parsed['max-tier']?.trim();
+  if (maxTier !== undefined && !parseTier(maxTier))
+    throw new CliError(`--max-tier "${maxTier}" must look like 3-2 (major-minor).`);
   let nodeBudget: SolveRequest['nodeBudget'] = 'pool';
   if (parsed.budget?.length) {
     const caps: Record<string, number> = Object.fromEntries(
@@ -156,7 +166,12 @@ export function parseCli(argv: string[], model: Model): CliArgs {
       ...(parsed['cost-imports'] ? { costImports: true } : {}),
       nodeBudget,
       ...(imports.length ? { imports } : {}),
-      recipes: { alternates: parsed.alternates ?? false, exclude: parsed.exclude ?? [] },
+      recipes: {
+        alternates: parsed.alternates ?? false,
+        exclude: parsed.exclude ?? [],
+        ...(parsed.enable?.length ? { include: parsed.enable } : {}),
+        ...(maxTier !== undefined ? { maxTier } : {}),
+      },
     },
     json: parsed.json ?? false,
     compareAlternates: parsed['compare-alternates'] ?? false,

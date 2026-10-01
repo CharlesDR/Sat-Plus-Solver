@@ -371,3 +371,47 @@ describe('linked-import costing (A18)', () => {
     expect(r.stats.passes).toBe(1);
   });
 });
+
+describe('factory controls (M6)', () => {
+  test("a per-factory recipe override doesn't change other factories", async () => {
+    // Two identical cable factories; only A turns on Iron Wire and solves under scarcity.
+    const cable = [{ item: 'cable', rate: 30 }];
+    const plain = buildWorld([
+      { id: 'a', targets: cable, request: { objectives: ['scarcity'] } },
+      { id: 'b', targets: cable, request: { objectives: ['scarcity'] } },
+    ]);
+    const edited = buildWorld([
+      {
+        id: 'a',
+        targets: cable,
+        request: { objectives: ['scarcity'], recipes: { 'iron-wire': true } },
+      },
+      { id: 'b', targets: cable, request: { objectives: ['scarcity'] } },
+    ]);
+    const cache = createSolveCache();
+    const before = await resolveWorld(plain, model, solveFactory, cache);
+    const calls = counting();
+    const after = await resolveWorld(edited, model, calls, cache);
+    const ids = (r: WorldResult, f: string) => factory(r, f).result.recipes.map((x) => x.id);
+    expect(ids(before, 'a')).not.toContain('iron-wire');
+    expect(ids(after, 'a')).toContain('iron-wire');
+    // B is untouched: same request, same plan, and served from the cache.
+    expect(factory(after, 'b').key).toBe(factory(before, 'b').key);
+    expect(factory(after, 'b').result).toEqual(factory(before, 'b').result);
+    expect(calls.calls).toHaveLength(1);
+  });
+
+  test('a world default applies to every factory unless one overrides it', async () => {
+    const cable = [{ item: 'cable', rate: 30 }];
+    const world = buildWorld([
+      { id: 'a', targets: cable },
+      { id: 'b', targets: cable, request: { recipes: { 'iron-wire': false } } },
+    ]);
+    world.defaults.objectives = ['scarcity'];
+    world.defaults.recipes = { 'iron-wire': true };
+    const r = await resolveWorld(world, model, solveFactory);
+    const ids = (f: string) => factory(r, f).result.recipes.map((x) => x.id);
+    expect(ids('a')).toContain('iron-wire');
+    expect(ids('b')).not.toContain('iron-wire');
+  });
+});

@@ -96,8 +96,23 @@ describe('pnpm solve: arguments', () => {
     });
   });
 
+  test('--enable turns on single alternates and --max-tier sets the tier limit', () => {
+    const { request } = parseCli(
+      ['-t', 'Screw:40', '--enable', 'cast-screw', '--max-tier', '3-2'],
+      mini,
+    );
+    expect(request.recipes).toEqual({
+      alternates: false,
+      exclude: [],
+      include: ['cast-screw'],
+      maxTier: '3-2',
+    });
+  });
+
   test.each([
     [[], 'At least one --target is required.'],
+    [['-t', 'Cable:1', '--enable', 'nope'], 'Unknown recipe id "nope" in --enable.'],
+    [['-t', 'Cable:1', '--max-tier', '3'], '--max-tier "3" must look like 3-2 (major-minor).'],
     [['-t', 'Iron Plate'], '--target "Iron Plate" needs a rate, like "Iron Plate:60".'],
     [['-t', 'Iron Plate:-3'], '--target "Iron Plate:-3": "-3" is not a rate ≥ 0.'],
     [
