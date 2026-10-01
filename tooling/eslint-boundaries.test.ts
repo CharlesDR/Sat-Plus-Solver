@@ -21,6 +21,8 @@ describe('package dependency rule', () => {
     ['packages/graph/src/x.ts', "export { PACKAGE_NAME } from '@sps/solver';\n"],
     ['packages/world/src/x.ts', "import highs from 'highs';\nexport { highs };\n"],
     ['apps/web/src/x.ts', "import highs from 'highs';\nexport { highs };\n"],
+    ['apps/web/src/x.ts', "export * from '@sps/data/build';\n"],
+    ['packages/solver/src/x.ts', "export * from '@sps/data/build';\n"],
   ])('%s rejects: %s', async (file, code) => {
     expect(await restrictedImportErrors(file, code)).not.toHaveLength(0);
   });

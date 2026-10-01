@@ -50,8 +50,9 @@ Items marked **[A#]** are assumptions, collected in §10.
 | Recipe-level `MinPower`/`AveragePower` (67 variable-power recipes)           | `AveragePower` is the draw. Swapped pairs are logged **[A1]**.                                                                              |
 | Recipe `Machine` may name a MultiMachine group                               | Resolved through MultiMachine defaults or the generated miner routes                                                                        |
 | Two duplicate recipe names                                                   | IDs are `slug(name)`, plus `~` and a short content hash when names collide. IDs stay stable.                                                |
+| Water, Crude Oil and Molten Tin are not flagged `Fluid`                      | `overrides.markAsFluid` marks them as fluids **[A13]**                                                                                      |
 
-Excluded by default: `Handgun` (building crafting), `Ficsmas`, storage containers, Dimensional Depot, AWESOME Sink, and Geyser (no recipes). Space Elevator phases can be targets. `IgnoreInputMultiplier` and `SpaceElevatorMultiplier` are ignored **[A2]**.
+Excluded by default (each with its reason in `overrides.json`, all listed in the build report): `Handgun` (building crafting), `Ficsmas`, FICSMAS Gift Tree, Doggo House (random loot), recipes using the `Placeholder` part, Well Water (its extractor draws 0 MW, so water would be free) **[A14]**, and pure sinks such as the Steam/Flue Gas Stacks (surplus is free disposal anyway). Geyser is ignored (no recipes). Space Elevator phases become virtual target items. The Alien Power Augmenter is modeled at its `BasePower` only **[A12]**. `IgnoreInputMultiplier` and `SpaceElevatorMultiplier` are ignored **[A2]**.
 
 ### 2.3 Extraction model
 
@@ -59,8 +60,10 @@ Excluded by default: `Handgun` (building crafting), `Ficsmas`, storage container
 
 ```
 effective   = max(0.5, purity + (fluidBonus + boosterBonus) × processingMalus)
-primaryRate = A_mk × 60 × effective × conversionRatio      (split evenly over 2 belt outputs)
-wasteRate   = primaryRate × wasteRatio                     (e.g. Crushed Gangue 1/3, Tailings Slurry 1/3)
+baseRate    = A_mk × 60 × effective                        (split evenly over 2 belt outputs)
+output_k    = baseRate × perBase_k                         (per unit of base extraction, from the dataset's
+                                                            Crusher/Smelter rows: e.g. Sand 4/3; Crushed X 1
+                                                            + Crushed Gangue 1/3; Ingot 1 + Tailings Slurry 1/3)
 fluidIn     = fluidBasePerMin × purity                     (not affected by boosters)
 ```
 
@@ -72,12 +75,12 @@ fluidIn     = fluidBasePerMin × purity                     (not affected by boo
 | `fluidBasePerMin` | 30 (Water, Sulfuric), 15 (Muriatic, Nitric, Energized Slime), Slug Slime 15 or 30 depending on ore                                              | Dataset                                               |
 | `boosterBonus`    | **+3.0** (three booster slots, each full at +100%)                                                                                              | k-mods planner changelog v2.3                         |
 | `processingMalus` | none 1.0, **Crusher 0.5**, **Smelter 0.5 [A3]**                                                                                                 | Crusher derived from the dataset's Fluid-Crusher rows |
-| `conversionRatio` | From the dataset's Crusher/Smelter rows (e.g. Sand `1 1/3`)                                                                                     | Dataset                                               |
+| `perBase_k`       | From the dataset's Crusher/Smelter rows (e.g. Sand `1 1/3`); Sulfur Powder derived from the Fluid-Crusher rows                                  | Dataset                                               |
 | Miner clock       | 100%. Boosters take the place of overclocking.                                                                                                  | Planner changelog v2.3                                |
 
 Check: pure Montanion, Mk.3, Slug Slime → 4 × 60 × (2 + 2.5 + 3.0) = **1800/min = 900 on each belt** ✔ (unit test).
 
-**Route generation.** For each ore, the generator produces routes over purity × processing (none, or a Crusher/Smelter product from the dataset) × fluid (none, or a dataset-listed fluid). The no-fluid option is dropped where the dataset has no plain route (Uranium, Kerr Crystal, Sulfur). Processing combined with fluid is allowed for every ore **[A4]**. Each route uses one node. That is about 500 routes, replacing the ~420 dataset miner rows. The build cross-checks each generated route at 0 boosters against the dataset; mismatches go into the report. One is known: impure Sulfur Powder gangue **[A5]**.
+**Route generation.** For each ore, the generator produces routes over purity × processing (none, or a Crusher/Smelter product from the dataset) × fluid (none, or a dataset-listed fluid). The no-fluid option is dropped where the dataset has no plain route (Uranium, Kerr Crystal, Sulfur). Processing combined with fluid is allowed for every ore **[A4]**. Each route uses one node. That is 350 routes (only node classes with a count), replacing the ~420 dataset miner rows. The build cross-checks the model at 0 boosters against every one of the 379 dataset miner rows, exactly (rational arithmetic); a mismatch fails the build unless whitelisted. One known deviation is handled by an amount override: impure Sulfur Powder gangue **[A5]**. A Crusher/Smelter combined with a fluid uses the Fluid-Crusher machine's power **[A11]**.
 
 **Other node-limited extractors** run at 250% clock, with power scaled by clock^`OverclockPowerExponent`:
 
@@ -88,7 +91,7 @@ Check: pure Montanion, Mk.3, Slug Slime → 4 × 60 × (2 + 2.5 + 3.0) = **1800/
 | Toxic Air (Air Collector)                         | 90 × 2.5 = 225                        | Dataset 9 per 6 s                                                                                                                        |
 | **Fracking site** (Nitrogen, Chlorine, Crude Oil) | **1500 m³/min per site** [A6]         | The N₂ benchmark: 13.33 normal-node-equivalents per cluster on average × 45 m³/min × 2.5. Can be overridden per resource in `nodes.csv`. |
 
-**Unlimited resources** (Water, Air, Excited Photonic Matter, Well Water) have no node constraint. Their extractor recipes stay in the LP, so their machines and power are counted, at 100% clock.
+**Unlimited resources** (Water, Air, Excited Photonic Matter) have no node constraint. Their extractor recipes stay in the LP, so their machines and power are counted, at 100% clock.
 
 **Farming** needs no special handling. Seeds come only from Seed Extractors fed by Dirt, Peat or Loam, so crops are limited by soil nodes through ordinary item balance.
 
@@ -251,11 +254,13 @@ overrides.json ─┘                                              └─ build 
 | zod schema, parts referenced but undefined, unparseable numbers      | error                    |
 | `nodes.csv` resources map to parts; counts are non-negative integers | error                    |
 | Machines resolve; batch time > 0; fluid magnitude check              | error                    |
-| Free-lunch loop LP (§3.2)                                            | error unless whitelisted |
-| Generated routes differ from dataset rows at 0 boosters              | warning (in the report)  |
+| Free-lunch loop LPs (§3.2), see below                                | error unless whitelisted |
+| Generated routes differ from dataset rows at 0 boosters              | error unless whitelisted |
 | Swapped power pair, unused parts, duplicate names                    | warning                  |
 
-Output: `model.json` holds `items[]` (including `MW`), `recipes[]`, `nodes[]` (id, resource, purity, map count, NNE), `extractionRoutes[]`, `beltCapacities[]` and `meta`.
+Output (`data/generated/`, git-ignored, built by `pnpm build:data` and in CI): `model.json` holds `items[]` (including `MW` and virtual targets), `machines[]`, `recipes[]` (node-limited extraction recipes carry `node`; generated miner routes carry `route`), `nodes[]` (id, resource, purity, map count, NNE), `beltCapacities[]` and `meta`; `report.md` is the human-readable build report.
+
+**Free-lunch check.** Two LPs over recipes that have inputs and draw on no node, each recipe's activity ≤ 1 and every item's net ≥ 0: (1) maximize net item output with grid power available, (2) maximize net power with machine draw counted. A positive optimum fails the build. The data package cannot depend on the solver (§7), so the check is `findFreeLunch` in `@sps/solver` and `pnpm build:data` (`tooling/build-data.ts`) runs it after `buildModel`.
 
 ---
 
@@ -263,7 +268,8 @@ Output: `model.json` holds `items[]` (including `MW`), `recipes[]`, `nodes[]` (i
 
 ```
 packages/
-  data/     build pipeline: raw → model.json (Node-only)
+  data/     `@sps/data`: canonical model types (browser-safe);
+            `@sps/data/build`: build pipeline raw → model + report (Node-only)
   solver/   pure TS. Factory layer: model builder, objectives, lexicographic driver,
             diagnostics, post-processing. Depends on model types + LpBackend only.
   world/    pure TS. World layer: domain model, link resolution (SCC, fixed point),
@@ -276,7 +282,7 @@ apps/
 
 | Package  | Public API (sketch)                                                                                                                            |
 | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `data`   | `buildModel(paths) → { model, report }`                                                                                                        |
+| `data`   | `buildModel(inputs) → { model?, issues, details }`, `renderReport(result)` (from `@sps/data/build`)                                            |
 | `solver` | `solve(model, request, backend) → SolveResult`                                                                                                 |
 | `world`  | `resolveWorld(world, model, solveFactory, cache) → WorldResult` (per-factory results, resolved links, ledgers, power, node usage, diagnostics) |
 | `graph`  | `factoryGraph(result)`, `worldGraph(worldResult, {collapsedGroups, traceItem})`, `layout(g)`                                                   |
@@ -336,6 +342,10 @@ Dependency rule: `data ← solver ← world ← web`, and `graph` depends on the
 | A8  | Single power grid for the whole save                                                                                              | A per-factory `grid` tag in the backlog                               |
 | A9  | The map node limit is checked across factories but not enforced                                                                   | Over-allocation warning, explicit budgets, joint solve in the backlog |
 | A10 | Pipe capacities aren't in the dataset                                                                                             | Configurable (defaults 300/600 m³/min)                                |
+| A11 | No Fluid-Smelter machine in the dataset; Smelter + fluid routes use the Fluid-Crusher machine's power                             | One entry in `miner-model.json`                                       |
+| A12 | Alien Power Augmenter modeled as its 500 MW `BasePower`; its grid-wide percentage boost is not linear and is ignored              | `overrides.generatorOverrides`                                        |
+| A13 | Water, Crude Oil and Molten Tin are not flagged `Fluid` in the dataset                                                            | `overrides.markAsFluid`                                               |
+| A14 | Well Water excluded: its extractor draws 0 MW in the dataset (pressurizer power is not attributed)                                | `overrides.excludeRecipes`                                            |
 | R1  | **Booster module power draw is unknown**                                                                                          | `boosterPowerMW = 0`, flagged in the UI; please provide the value     |
 | R2  | The SF+ wiki export (archived Mar 2026) may lag the current SF+ version                                                           | All map numbers live in editable data files                           |
 | R3  | Fractional node usage                                                                                                             | The whole-machines toggle makes node usage integer                    |

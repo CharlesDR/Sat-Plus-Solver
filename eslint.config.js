@@ -11,6 +11,7 @@ import tseslint from 'typescript-eslint';
  */
 const HIGHS = { name: 'highs', message: 'HiGHS is reachable only through the solver LpBackend.' };
 const forbid = (pkg, why) => ({ name: pkg, message: why });
+const DATA_BUILD = { name: '@sps/data/build', message: 'The data build pipeline is Node-only.' };
 const layering = 'Violates the package dependency rule (docs/ARCHITECTURE.md §7).';
 
 /** @type {Record<string, { paths: object[]; allowTypeImports?: boolean }>} */
@@ -21,13 +22,15 @@ export const boundaries = {
       .concat(HIGHS),
   },
   'packages/solver/**': {
-    paths: ['@sps/world', '@sps/graph', '@sps/web'].map((p) => forbid(p, layering)),
+    paths: ['@sps/world', '@sps/graph', '@sps/web']
+      .map((p) => forbid(p, layering))
+      .concat(DATA_BUILD),
   },
   'packages/world/**': {
-    paths: ['@sps/graph', '@sps/web'].map((p) => forbid(p, layering)).concat(HIGHS),
+    paths: ['@sps/graph', '@sps/web'].map((p) => forbid(p, layering)).concat(HIGHS, DATA_BUILD),
   },
   'apps/web/**': {
-    paths: [HIGHS],
+    paths: [HIGHS, DATA_BUILD],
   },
 };
 
@@ -53,6 +56,7 @@ const graphBoundary = {
           })),
           ...['@sps/data', '@sps/web'].map((p) => forbid(p, layering)),
           HIGHS,
+          DATA_BUILD,
         ],
       },
     ],
