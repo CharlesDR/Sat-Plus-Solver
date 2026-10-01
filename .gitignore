@@ -5,3 +5,5 @@ coverage/
 .vite/
 .DS_Store
 data/generated/
+apps/web/test-results/
+apps/web/playwright-report/

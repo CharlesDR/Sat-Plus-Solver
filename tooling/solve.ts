@@ -16,13 +16,16 @@ import { parseArgs } from 'node:util';
 import type { Model } from '@sps/data';
 import {
   createHighsBackend,
+  formatRate,
   solve,
+  summarizePlan,
   type ImportCap,
   type ItemRate,
   type LpBackend,
   type ObjectiveId,
   type SolveRequest,
   type SolveResult,
+  type SummaryFlow,
 } from '@sps/solver';
 import { ROOT, runPipeline } from './build-data';
 
@@ -150,12 +153,7 @@ function itemResolver(model: Model): (name: string) => string {
   };
 }
 
-const fmt = (n: number) => {
-  if (!Number.isFinite(n)) return String(n);
-  if (n !== 0 && Math.abs(n) < 0.001) return n.toPrecision(3);
-  const r = Math.round(n * 1000) / 1000;
-  return Object.is(r, -0) ? '0' : String(r);
-};
+const fmt = formatRate;
 
 /** Text table; the first `textColumns` columns are left-aligned, the rest (numbers) right-aligned. */
 function table(head: string[], rows: string[][], textColumns = 1): string {
@@ -168,27 +166,24 @@ function table(head: string[], rows: string[][], textColumns = 1): string {
   return [line(head), width.map((w) => '-'.repeat(w)).join('  '), ...rows.map(line)].join('\n');
 }
 
-/** Renders a result as the plain-text plan table. */
+/** Renders a result as the plain-text plan table (rows from the shared `summarizePlan`). */
 export function renderPlan(model: Model, result: SolveResult): string {
-  const item = new Map(model.items.map((i) => [i.id, i.name]));
-  const machine = new Map(model.machines.map((m) => [m.id, m.name]));
-  const node = new Map(model.nodes.map((n) => [n.id, n]));
-  const name = (id: string) => item.get(id) ?? id;
+  const plan = summarizePlan(model, result);
   const out: string[] = [];
   out.push(
-    `Status: ${result.status}    Objective: ${result.objective}` +
-      (result.objectiveValue !== undefined ? ` = ${fmt(result.objectiveValue)}` : ''),
+    `Status: ${plan.status}    Objective: ${plan.objective}` +
+      (plan.objectiveValue !== undefined ? ` = ${fmt(plan.objectiveValue)}` : ''),
   );
-  for (const d of result.diagnostics) out.push(`${d.severity}: ${d.message}`);
-  if (result.status !== 'ok') return out.join('\n') + '\n';
+  for (const d of plan.diagnostics) out.push(`${d.severity}: ${d.message}`);
+  if (plan.status !== 'ok') return out.join('\n') + '\n';
 
   out.push('', 'Recipes');
   out.push(
     table(
       ['Recipe', 'Machine', 'Count', 'Build', 'MW'],
-      result.recipes.map((r) => [
+      plan.recipes.map((r) => [
         r.name,
-        machine.get(r.machine) ?? r.machine,
+        r.machine,
         fmt(r.machines),
         String(r.machinesCeil),
         fmt(r.powerMW),
@@ -196,38 +191,31 @@ export function renderPlan(model: Model, result: SolveResult): string {
       2,
     ),
   );
-  const flows = (title: string, rows: ItemRate[]) => {
+  const flows = (title: string, rows: SummaryFlow[]) => {
     if (!rows.length) return;
     out.push(
       '',
       title,
       table(
         ['Item', 'Per min'],
-        rows.map((r) => [name(r.item), fmt(r.rate)]),
+        rows.map((r) => [r.name, fmt(r.rate)]),
       ),
     );
   };
-  flows(
-    'Targets',
-    result.items.filter((i) => i.demand > 0).map((i) => ({ item: i.item, rate: i.demand })),
-  );
-  flows('Imports', result.imports);
-  flows('Surplus and byproducts', result.surplus);
-  if (result.nodes.length) {
+  flows('Targets', plan.targets);
+  flows('Imports', plan.imports);
+  flows('Surplus and byproducts', plan.byproducts);
+  if (plan.nodes.length) {
     out.push(
       '',
       'Nodes',
       table(
         ['Node', 'Used', 'Budget', 'NNE'],
-        result.nodes.map((n) => {
-          const meta = node.get(n.node);
-          const label = meta ? `${name(meta.resource)} (${meta.purity})` : n.node;
-          return [label, fmt(n.used), fmt(n.budget), fmt(n.nne)];
-        }),
+        plan.nodes.map((n) => [n.label, fmt(n.used), fmt(n.budget), fmt(n.nne)]),
       ),
     );
   }
-  const p = result.power;
+  const p = plan.power;
   out.push(
     '',
     `Power: ${fmt(p.consumptionMW)} MW draw, ${fmt(p.generationMW)} MW generated, net ${fmt(p.netMW)} MW`,

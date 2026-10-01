@@ -15,7 +15,8 @@
     "build": "pnpm --filter @sps/web build",
     "dev": "pnpm --filter @sps/web dev",
     "build:data": "tsx tooling/build-data.ts",
-    "solve": "tsx tooling/solve.ts"
+    "solve": "tsx tooling/solve.ts",
+    "e2e": "pnpm --filter @sps/web e2e"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
