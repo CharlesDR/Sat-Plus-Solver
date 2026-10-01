@@ -2,7 +2,7 @@
  * @sps/graph — factory flowchart and world graph construction + layout.
  * Pure TypeScript; may depend only on solver/world result types.
  * See docs/ARCHITECTURE.md §7. The factory flowchart lands in M7, the world
- * graph in M8.
+ * graph in M8 (`worldGraph`, `layoutWorldGraph`).
  */
 export const PACKAGE_NAME = '@sps/graph';
 
@@ -38,3 +38,23 @@ export type {
   PlacedEdge,
   PlacedNode,
 } from './layout';
+export { factoryNodeId, groupNodeId, worldGraph } from './world';
+export type {
+  StubItem,
+  WorldEdge,
+  WorldEdgeItem,
+  WorldGraph,
+  WorldGraphInput,
+  WorldGraphOptions,
+  WorldNode,
+  WorldNodeKind,
+} from './world';
+export {
+  absolutePosition,
+  ACTION_ROW,
+  GROUP_HEADER,
+  layoutWorldGraph,
+  worldEdgeLines,
+  worldNodeLines,
+} from './worldLayout';
+export type { PlacedWorldEdge, PlacedWorldNode, WorldLayout } from './worldLayout';
