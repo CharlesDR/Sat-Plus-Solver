@@ -106,7 +106,11 @@ describe('solve: plans', () => {
   });
 
   test('scarcity weights can be overridden', async () => {
-    const cable = { targets: [{ item: 'cable', rate: 30 }], objective: 'scarcity' } as const;
+    const cable = {
+      targets: [{ item: 'cable', rate: 30 }],
+      objective: 'scarcity',
+      recipes: { alternates: true },
+    } as const;
     const byDefault = await solve(model, cable, backend);
     expect(byDefault.recipes.map((x) => x.id)).toContain('iron-wire');
     const cheapCopper = await solve(
@@ -116,6 +120,14 @@ describe('solve: plans', () => {
     );
     expect(cheapCopper.recipes.map((x) => x.id)).toContain('wire');
     expect(cheapCopper.objectiveValue).toBeCloseTo(0.5 * 0.001, 12);
+  });
+
+  test('alternates are off unless enabled', async () => {
+    const screws: SolveRequest = { targets: [{ item: 'screw', rate: 40 }] };
+    const byDefault = await solve(model, screws, backend);
+    expect(byDefault.recipes.map((x) => x.id)).not.toContain('cast-screw');
+    const enabled = await solve(model, { ...screws, recipes: { alternates: true } }, backend);
+    expect(enabled.recipes.map((x) => x.id)).toContain('cast-screw');
   });
 
   test('is deterministic', async () => {

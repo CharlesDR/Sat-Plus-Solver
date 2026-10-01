@@ -9,7 +9,10 @@
         "rate": 30
       }
     ],
-    "objective": "scarcity"
+    "objective": "scarcity",
+    "recipes": {
+      "alternates": true
+    }
   },
   "expected": {
     "status": "ok",

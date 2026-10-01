@@ -41,8 +41,36 @@ describe('pnpm solve: arguments', () => {
       ],
       objective: 'scarcity',
       nodeBudget: 'pool',
+      recipes: { alternates: false, exclude: [] },
+    });
+  });
+
+  test('objective stacks, tolerance, whole machines, import costing and alternates', () => {
+    const { request, compareAlternates } = parseCli(
+      [
+        '-t',
+        'Cable:30',
+        '-o',
+        'types, O1,machines',
+        '--tolerance',
+        '0.5%',
+        '--whole-machines',
+        '--cost-imports',
+        '--alternates',
+        '--compare-alternates',
+      ],
+      mini,
+    );
+    expect(compareAlternates).toBe(true);
+    expect(request).toMatchObject({
+      objectives: ['resourceTypes', 'resources', 'machines'],
+      tolerance: 0.005,
+      wholeMachines: true,
+      costImports: true,
       recipes: { alternates: true, exclude: [] },
     });
+    expect(request.objective).toBeUndefined();
+    expect(parseCli(['-t', 'Cable:30', '-o', 'o4'], mini).request.objective).toBe('power');
   });
 
   test('--no-alternates, --exclude and --budget', () => {
@@ -76,7 +104,18 @@ describe('pnpm solve: arguments', () => {
       ['-t', 'Iron Plat:60'],
       'Unknown item "Iron Plat". Did you mean: Iron Plate, Reinforced Iron Plate?',
     ],
-    [['-t', 'Cable:1', '-o', 'power'], 'Unknown --objective "power" (resources or scarcity).'],
+    [
+      ['-t', 'Cable:1', '-o', 'resources,nope'],
+      'Unknown --objective "nope" (resources, scarcity, machines, power, output or types).',
+    ],
+    [
+      ['-t', 'Cable:1', '--tolerance', 'lots'],
+      '--tolerance "lots" must be a percentage, like 0.5%.',
+    ],
+    [
+      ['-t', 'Cable:1', '--alternates', '--no-alternates'],
+      '--alternates and --no-alternates contradict each other.',
+    ],
     [['-t', 'Cable:1', '--exclude', 'nope'], 'Unknown recipe id "nope" in --exclude.'],
     [
       ['-t', 'Cable:1', '--budget', 'node:x=1'],
@@ -157,6 +196,87 @@ describe('pnpm solve: output', () => {
     expect(usage.stderr).toContain('Usage: pnpm solve');
   });
 
+  test('an objective stack prints each stage', async () => {
+    const { code, stdout } = await runCli([
+      '--model',
+      MINI,
+      '-t',
+      'Cable:30',
+      '--alternates',
+      '-o',
+      'resources,scarcity',
+      '--tolerance',
+      '20%',
+    ]);
+    expect(code).toBe(0);
+    expect(stdout.split('\n').slice(0, 3)).toEqual([
+      'Status: ok    Objectives: resources > scarcity',
+      '  resources = 0.556 (optimum 0.5)',
+      '  scarcity = 0.014 (optimum 0.014)',
+    ]);
+    expect(stdout).toContain('Iron Wire');
+  });
+
+  test('out-of-range tolerance is rejected by the solver', async () => {
+    const { code, stdout } = await runCli(['--model', MINI, '-t', 'Cable:30', '--tolerance', '95']);
+    expect(code).toBe(1);
+    expect(stdout).toContain('Tolerance must be between 0.01% and 90% (got 95%).');
+  });
+
+  test('--cost-imports prints the embodied cost; -o output prints the scale', async () => {
+    const costed = await runCli([
+      '--model',
+      MINI,
+      '-t',
+      'Iron Plate:60',
+      '-i',
+      'Iron Ingot',
+      '--cost-imports',
+    ]);
+    expect(costed.stdout).toContain(
+      'Import costs (per 1/min, standalone plan)\n' +
+        'Item        Resource types  resources\n' +
+        '----------  --------------  ---------\n' +
+        'Iron Ingot  Iron Ore            0.017',
+    );
+    const scaled = await runCli([
+      '--model',
+      MINI,
+      '-t',
+      'Iron Plate:20',
+      '-i',
+      'Iron Ingot:90',
+      '-o',
+      'output',
+      '--budget',
+      'node:iron-ore:normal=0',
+    ]);
+    expect(scaled.stdout).toContain('Output scale: 3 × the targets');
+  });
+
+  test('--compare-alternates lists the alternates that help', async () => {
+    const { code, stdout } = await runCli([
+      '--model',
+      MINI,
+      '-t',
+      'Screw:40',
+      '-o',
+      'resources,power',
+      '--compare-alternates',
+    ]);
+    expect(code).toBe(0);
+    expect(stdout.split('\n').slice(0, 7)).toEqual([
+      'Alternates that help: Alternate: Cast Screw',
+      '',
+      'Objective  Without   With',
+      '---------  -------  -----',
+      'resources    0.167  0.167',
+      'power        8.833  5.367',
+      '',
+    ]);
+    expect(stdout).toContain('Plan with alternates');
+  });
+
   test('--json prints the SolveResult', async () => {
     const { stdout } = await runCli(['--model', MINI, '-t', 'Iron Plate:60', '--json']);
     const result = JSON.parse(stdout);
@@ -194,6 +314,29 @@ describe('full SF+ model', () => {
     const ms = performance.now() - start;
     expect(r.status).toBe('ok');
     expect(ms).toBeLessThan(1000);
+  });
+
+  test('2000 MW from Coal: a valid fuel chain', async () => {
+    const otherGenerators = model.recipes
+      .filter((r) => r.kind === 'generator' && !r.inputs.some((f) => f.item === 'coal'))
+      .map((r) => r.id);
+    const r = await solve(
+      model,
+      { targets: [{ item: 'mw', rate: 2000 }], recipes: { exclude: otherGenerators } },
+      createHighsBackend(),
+    );
+    expect(r.status).toBe('ok');
+    const generators = r.recipes.filter(
+      (x) => model.recipes.find((m) => m.id === x.id)!.kind === 'generator',
+    );
+    expect(generators.map((g) => g.id)).toEqual(['coal-coal-generator']);
+    expect(r.power.generationMW).toBeCloseTo(2000, 6);
+    // Coal and water reach the generators: both are produced in the plan, nothing imported.
+    const flow = (item: string) => r.items.find((i) => i.item === item)!;
+    expect(flow('coal').produced).toBeGreaterThan(0);
+    expect(flow('water').produced).toBeGreaterThan(0);
+    expect(r.imports).toEqual([]);
+    expect(flow('mw')).toMatchObject({ produced: expect.closeTo(2000, 6), demand: 2000 });
   });
 
   test('every item with a dataset recipe and no inputs can be targeted alone', async () => {

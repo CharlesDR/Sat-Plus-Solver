@@ -15,11 +15,25 @@ export interface ImportCap {
   cap: number;
 }
 
-/** O1 and O2 (§3.3). O3–O6 and the lexicographic stack arrive in M4. */
-export type ObjectiveId = 'resources' | 'scarcity';
+/**
+ * The six objectives of §3.3: O1 `resources`, O2 `scarcity`, O3 `machines`,
+ * O4 `power` (machine draw only; turbines an earlier stage runs are credited, A16), O5 `output`
+ * (maximize), O6 `resourceTypes` (MILP).
+ */
+export type ObjectiveId =
+  'resources' | 'scarcity' | 'machines' | 'power' | 'output' | 'resourceTypes';
+
+export const OBJECTIVE_IDS: readonly ObjectiveId[] = [
+  'resources',
+  'scarcity',
+  'machines',
+  'power',
+  'output',
+  'resourceTypes',
+];
 
 export interface RecipeFilter {
-  /** Include alternate recipes. Default true. */
+  /** Include alternate recipes. Default false (`DEFAULT_ALTERNATES`); `compareAlternates` shows which would help. */
   alternates?: boolean;
   /** Recipe ids to leave out. */
   exclude?: readonly string[];
@@ -32,7 +46,23 @@ export interface SolveRequest {
   demand?: readonly ItemRate[];
   /** Imports: incoming links plus unassigned imports. Free under O1/O2. */
   imports?: readonly ImportCap[];
+  /** A one-objective stack. Use `objectives` for more; not both. Default `resources`. */
   objective?: ObjectiveId;
+  /**
+   * Lexicographic stack (§3.3): each objective is solved in order and held
+   * within `tolerance` of its optimum for the next. No repeats; `output` may
+   * only come first. Default `['resources']`.
+   */
+  objectives?: readonly ObjectiveId[];
+  /** Relative tolerance per stage, a fraction in [MIN_TOLERANCE, MAX_TOLERANCE]. Default 0.0001 (0.01%). */
+  tolerance?: number;
+  /** Whole machines (§3.4): adds integer machine counts, making the solve a MILP. */
+  wholeMachines?: boolean;
+  /**
+   * Cost imported inputs (§3.3): each import carries the cost of making 1/min
+   * of it in a standalone plan under this stack, from the map pool.
+   */
+  costImports?: boolean;
   /** O2 weight per resource item id, replacing 1 / map-total NNE. Must be ≥ 0. */
   scarcityWeights?: Readonly<Record<string, number>>;
   recipes?: RecipeFilter;
@@ -48,7 +78,7 @@ export interface RecipeUsage {
   machine: string;
   /** Fractional machine count at the recipe's clock. */
   machines: number;
-  /** Whole machines needed to build it. */
+  /** Whole machines needed to build it (the solved integer count in whole-machines mode). */
   machinesCeil: number;
   /** Total draw of these machines, fractional (negative = generation). */
   powerMW: number;
@@ -101,7 +131,15 @@ export type Diagnostic =
       /** LP variables that hit the sanity cap: `recipe:<id>`, `import:<item>` or `surplus:<item>`. */
       directions: string[];
     }
-  | { code: 'time-limit'; severity: 'warning'; message: string }
+  | {
+      code: 'time-limit';
+      severity: 'warning';
+      message: string;
+      /** Relative MIP gap of the returned plan, when the stage was a MILP. */
+      gap?: number;
+    }
+  | { code: 'tolerance-relaxed'; severity: 'warning'; message: string; tolerance: number }
+  | { code: 'import-cost'; severity: 'warning'; item: string; message: string }
   | { code: 'numerical'; severity: 'error'; message: string }
   | { code: 'check-failed'; severity: 'error'; message: string }
   | { code: 'invalid-request'; severity: 'error'; message: string };
@@ -113,11 +151,40 @@ export interface SolveStats {
   rows: number;
 }
 
+/** One solved stage of the lexicographic stack. */
+export interface StageResult {
+  objective: ObjectiveId;
+  /** The objective's value on the returned plan (without the tie-break regularizer). */
+  value: number;
+  /** The stage's own optimum, which later stages were held within tolerance of. */
+  optimum: number;
+  /** Relative MIP gap when the stage was a time-limited MILP; 0 or absent otherwise. */
+  gap?: number;
+}
+
+/** Embodied cost of 1/min of an import (§3.3), from its standalone plan. */
+export interface ImportCost {
+  item: string;
+  /** Cost per 1/min under each objective of the stack (`output` excluded). */
+  cost: Partial<Record<ObjectiveId, number>>;
+  /** Node resources its standalone plan uses: what it brings in under O6. */
+  resourceTypes: string[];
+}
+
 export interface SolveResult {
   status: SolveStatus;
+  /** The primary objective (the stack's first). */
   objective: ObjectiveId;
-  /** Value of the chosen objective (without the tie-break regularizer). */
+  /** Value of the primary objective on the returned plan (without the tie-break regularizer). */
   objectiveValue?: number;
+  /** The whole stack, in order. */
+  objectives: ObjectiveId[];
+  /** One entry per stack objective, once the plan is solved. */
+  stages: StageResult[];
+  /** O5: the scale reached, targets × scale is what the plan delivers. */
+  outputScale?: number;
+  /** With `costImports`: the embodied cost per import, sorted by item. */
+  importCosts?: ImportCost[];
   /** Recipes with a positive machine count, sorted by id. */
   recipes: RecipeUsage[];
   /** Every item that moves, sorted by id. */
