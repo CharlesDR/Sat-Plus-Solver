@@ -26,6 +26,7 @@ export {
   LEX_EPSILON,
   MAX_TOLERANCE,
   MILP_TIME_LIMIT_SECONDS,
+  MIN_RATE,
   MIN_TOLERANCE,
   objectiveStack,
   solve,
