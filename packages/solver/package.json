@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@sps/data": "workspace:*"
+    "@sps/data": "workspace:*",
+    "highs": "^1.15.3"
   }
 }

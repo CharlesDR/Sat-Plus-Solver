@@ -1,6 +1,20 @@
 /**
  * @sps/solver — factory layer: LP/MILP model builder, objectives, diagnostics.
  * Pure TypeScript; reaches HiGHS only via the LpBackend interface.
- * See docs/ARCHITECTURE.md §3 and §5. Implemented in M2/M4.
+ * See docs/ARCHITECTURE.md §3 and §5. The LP plumbing and the build-time
+ * free-lunch check land in M1; the factory solver itself in M2/M4.
  */
-export const PACKAGE_NAME = '@sps/solver';
+export type {
+  LpBackend,
+  LpConstraint,
+  LpModel,
+  LpOptions,
+  LpSolution,
+  LpStatus,
+  LpTerm,
+  LpVariable,
+} from './lp/types';
+export { toLpText } from './lp/lpFormat';
+export { createHighsBackend } from './lp/highs';
+export { findFreeLunch } from './checks/freeLunch';
+export type { FreeLunchResult } from './checks/freeLunch';
