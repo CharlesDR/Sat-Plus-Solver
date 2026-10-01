@@ -58,6 +58,12 @@ export interface LpOptions {
   timeLimitSeconds?: number;
   /** MILP only: a candidate solution by variable name (missing = 0). The backend checks it and ignores it if infeasible. */
   start?: ReadonlyMap<string, number>;
+  /**
+   * MILP only: row feasibility tolerance, absolute. The backend default
+   * (HiGHS 1e-6) is fast but can "meet" a demand of MIN_RATE by building
+   * nothing; the solver retries with a tighter value when that happens.
+   */
+  mipFeasibilityTolerance?: number;
 }
 
 export interface LpBackend {

@@ -33,15 +33,29 @@ export function createHighsBackend(loaderOptions?: HighsLoaderOptions): LpBacken
         // The solver's checks require every variable ≥ −1e-9 (CLAUDE.md), so
         // HiGHS must not leave bound violations up to its 1e-7 default.
         primal_feasibility_tolerance: 1e-10,
+        ...(options.mipFeasibilityTolerance !== undefined
+          ? { mip_feasibility_tolerance: options.mipFeasibilityTolerance }
+          : {}),
         ...(options.timeLimitSeconds !== undefined ? { time_limit: options.timeLimitSeconds } : {}),
       };
       if (model.variables.some((v) => v.integer)) {
-        try {
-          return solveMip(h, text, columns, settings, model, start);
-        } catch (e) {
-          instance = undefined;
-          return { status: 'error', rawStatus: `HiGHS threw: ${(e as Error).message}` };
+        // HiGHS can fail on a MILP with tiny right-hand sides (a 1e-6/min
+        // demand): wrongly declare it infeasible or unbounded, in presolve or
+        // at its 1e-6 MIP tolerance, or throw. Confirm without presolve, then
+        // at a tight tolerance, before reporting it.
+        const attempts = [{}, { presolve: 'off' }, { mip_feasibility_tolerance: 1e-10 }];
+        let r: LpSolution = { status: 'error', rawStatus: 'not run' };
+        for (const retry of attempts) {
+          try {
+            r = solveMip(await highs(), text, columns, { ...settings, ...retry }, model, start);
+          } catch (e) {
+            instance = undefined;
+            r = { status: 'error', rawStatus: `HiGHS threw: ${(e as Error).message}` };
+          }
+          if (!['infeasible', 'infeasible-or-unbounded', 'unbounded', 'error'].includes(r.status))
+            return r;
         }
+        return r;
       }
       let result: ReturnType<Highs['solve']>;
       try {
@@ -102,7 +116,7 @@ function solveMip(
   h: Highs,
   text: string,
   columns: Map<string, string>,
-  settings: Record<string, number | boolean>,
+  settings: Record<string, number | boolean | string>,
   model: LpModel,
   start: ReadonlyMap<string, number> | undefined,
 ): LpSolution {

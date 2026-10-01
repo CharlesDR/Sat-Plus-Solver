@@ -76,12 +76,20 @@ export interface RecipeUsage {
   id: string;
   name: string;
   machine: string;
-  /** Fractional machine count at the recipe's clock. */
+  /**
+   * Fractional machine count at the recipe's clock. Heaters (A17): the whole
+   * heater count, which burns full fuel and emits full exhaust.
+   */
   machines: number;
-  /** Whole machines needed to build it (the solved integer count in whole-machines mode). */
+  /** Whole machines needed to build it (the solved integer count in whole-machines mode and for heaters). */
   machinesCeil: number;
   /** Total draw of these machines, fractional (negative = generation). */
   powerMW: number;
+  /**
+   * Heaters only (A17): boiler-side throughput as a fraction of the heaters'
+   * boiler capacity, 0–1. Boiler flows are `rate × machines × boilerLoad`.
+   */
+  boilerLoad?: number;
 }
 
 export interface ItemFlow {

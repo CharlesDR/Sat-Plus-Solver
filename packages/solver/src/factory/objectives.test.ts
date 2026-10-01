@@ -402,8 +402,14 @@ describe('whole machines (MILP)', () => {
       { targets: [{ item: 'modular-frame', rate: 3 }], objective: 'machines', wholeMachines: true },
       timing,
     );
-    // The LP relaxation (for the warm start), then the MILP.
-    expect(seen).toEqual([MILP_TIME_LIMIT_SECONDS, MILP_TIME_LIMIT_SECONDS]);
+    // The LP relaxation (for the warm start), the MILP, then the two LPs
+    // with its machine counts fixed (the polish).
+    expect(seen).toEqual([
+      MILP_TIME_LIMIT_SECONDS,
+      MILP_TIME_LIMIT_SECONDS,
+      MILP_TIME_LIMIT_SECONDS,
+      MILP_TIME_LIMIT_SECONDS,
+    ]);
     expect(r.status).toBe('ok');
     expect(r.recipes.length).toBeGreaterThan(0);
     expect(r.stages[0]!.gap).toBe(0.125);
@@ -440,7 +446,8 @@ describe('whole machines (MILP)', () => {
     await solve(model, { ...cable30, objectives: ['resources', 'resourceTypes'] }, spy, {
       timeLimitSeconds: 2,
     });
-    expect(seen).toEqual([2, 2, 2]);
+    // Stage 1 LP; stage 2 relaxation, MILP and the two fixed-count LPs.
+    expect(seen).toEqual([2, 2, 2, 2, 2]);
   });
 });
 
