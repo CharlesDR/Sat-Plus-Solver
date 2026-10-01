@@ -1,0 +1,64 @@
+{
+  "$comment": "Hand-maintained fixes and choices applied to game_data.json (which is read-only). Every entry carries its reason; all are listed in the build report.",
+  "markAsFluid": {
+    "Water": "Not flagged Fluid in the dataset, but it is a pipe fluid.",
+    "Crude Oil": "Not flagged Fluid in the dataset, but it is a pipe fluid.",
+    "Molten Tin": "Not flagged Fluid in the dataset, unlike every other molten metal."
+  },
+  "excludeMachines": {
+    "Handgun": "Building-crafting recipes, not production.",
+    "FICSMAS Gift Tree": "Seasonal content.",
+    "Doggo House": "Consumes items and produces nothing the solver can model (random loot)."
+  },
+  "excludeRecipeFlags": {
+    "Ficsmas": "Seasonal content."
+  },
+  "excludeRecipes": {
+    "Well Water": "Resource Well Extractor draws 0 MW in the dataset (pressurizer power is not attributed), which would make water free; water comes from Water Extractors instead."
+  },
+  "excludeRecipesUsingParts": {
+    "Placeholder": "Unfinished recipes in the dataset."
+  },
+  "ignoredNodeResources": {
+    "Geyser": "Geothermal power is not modeled and no recipe uses geysers."
+  },
+  "minerOres": {
+    "$comment": "Recipe-name prefix used by Modular Miner Crusher/Smelter/Fluid rows → node resource (part name in nodes.csv).",
+    "Aurovite": "Aurovite Ore",
+    "Callanite": "Callanite Ore",
+    "Coal": "Coal",
+    "Dirt": "Dirt",
+    "Kerr Crystal": "Kerr Crystal",
+    "Kyalite": "Kyalite",
+    "Larrussite": "Larrussite Ore",
+    "Loam": "Loam",
+    "Montanion": "Montanion Ore",
+    "Peat": "Peat",
+    "SAM": "SAM",
+    "Siterite": "Siterite Ore",
+    "Sulfur": "Sulfur",
+    "Sulfur Powder": "Sulfur",
+    "Uranium": "Uranium"
+  },
+  "routeAmountOverrides": [
+    {
+      "resource": "Sulfur",
+      "purity": "impure",
+      "processing": "Sulfur Powder",
+      "part": "Crushed Gangue",
+      "amount": "4/9",
+      "reason": "A5: the dataset gives 20 gangue per 45 Sulfur Powder on impure nodes, not the 1/3 ratio the formula gives; the dataset value wins."
+    }
+  ],
+  "crossCheckWhitelist": {},
+  "generatorOverrides": {
+    "Alien Power Augmenter": {
+      "generationMW": "500",
+      "reason": "A12: modeled as its BasePower only; the grid-wide percentage boost is not linear and is ignored."
+    }
+  },
+  "virtualTargetMachines": {
+    "Space Elevator": "Phase deliveries become a virtual output item so a phase can be picked as a target."
+  },
+  "freeLunchWhitelist": {}
+}

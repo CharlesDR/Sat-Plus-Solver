@@ -1,0 +1,96 @@
+/**
+ * Canonical model consumed by the solver (docs/ARCHITECTURE.md §2.2, §6).
+ * Units: items/min, fluids m³/min, power MW (positive = consumption).
+ * Every rate in `inputs`/`outputs` is positive and per machine.
+ */
+
+export const MODEL_SCHEMA_VERSION = 1;
+
+/** Id of the power pseudo-item output by generator recipes. Its rate unit is MW. */
+export const MW_ITEM_ID = 'mw';
+
+export type ItemForm = 'solid' | 'fluid' | 'power' | 'virtual';
+
+export interface Item {
+  id: string;
+  name: string;
+  form: ItemForm;
+  sinkPoints: number;
+  tier: string;
+}
+
+export interface Machine {
+  id: string;
+  name: string;
+  /** Draw at 100% clock (negative = generation). */
+  powerMW: number;
+}
+
+export interface Flow {
+  item: string;
+  /** Per machine, per minute (MW for the `mw` item). Always > 0. */
+  rate: number;
+}
+
+export type RecipeKind = 'production' | 'generator' | 'extraction';
+
+export type Purity = 'impure' | 'normal' | 'pure';
+export type NodePurity = Purity | 'site';
+
+export interface MinerRoute {
+  resource: string; // item id of the node resource
+  purity: Purity;
+  processing: string | null; // primary product item id, or null for plain mining
+  fluid: string | null; // fluid item id, or null
+}
+
+export interface Recipe {
+  id: string;
+  name: string;
+  machine: string; // machine id
+  kind: RecipeKind;
+  alternate: boolean;
+  tier: string;
+  inputs: Flow[];
+  outputs: Flow[];
+  /** Per machine at this recipe's clock (negative = generation). */
+  powerMW: number;
+  /** 1 for 100%; extraction on limited nodes runs overclocked. */
+  clock: number;
+  /** Node class this recipe draws on: one machine uses one node (or one fracking site). */
+  node?: string;
+  source: 'dataset' | 'generated';
+  /** Present on generated Modular Miner routes. */
+  route?: MinerRoute;
+}
+
+export interface ResourceNode {
+  id: string;
+  resource: string; // item id
+  purity: NodePurity;
+  /** Map-wide count from data/nodes.csv. */
+  count: number;
+  /** Normal-node-equivalents per node (impure 1/2, normal 1, pure 2, site = configured). */
+  nne: number;
+}
+
+export interface BeltCapacity {
+  tier: number;
+  perMin: number;
+}
+
+export interface ModelMeta {
+  schemaVersion: number;
+  /** Hash of every input file; saves carry it to detect dataset changes. */
+  dataHash: string;
+  minerMk: number;
+}
+
+export interface Model {
+  meta: ModelMeta;
+  items: Item[];
+  machines: Machine[];
+  recipes: Recipe[];
+  nodes: ResourceNode[];
+  beltCapacities: BeltCapacity[];
+}

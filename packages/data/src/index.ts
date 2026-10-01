@@ -1,5 +1,6 @@
 /**
- * @sps/data — build-time pipeline: raw SF+ JSON → normalized, validated `model.json`.
- * See docs/ARCHITECTURE.md §2 and §6. Implemented in M1.
+ * @sps/data — canonical model types (browser-safe).
+ * The Node-only build pipeline is exported from `@sps/data/build`.
+ * See docs/ARCHITECTURE.md §2 and §6.
  */
-export const PACKAGE_NAME = '@sps/data';
+export * from './model';
