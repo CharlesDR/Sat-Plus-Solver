@@ -6,7 +6,8 @@
  * "share this factory only" shares a one-factory world.
  */
 import { readFile } from 'node:fs/promises';
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 const AUTOSAVE = 'sps:autosave';
 const V1 = new URL('../../../fixtures/worlds/v1-world.json', import.meta.url);
@@ -72,7 +73,7 @@ test('save slots and the autosave survive a reload', async ({ page }) => {
   await expect(p2.getByRole('button', { name: 'Load Base' })).toHaveCount(0);
 });
 
-test('World → JSON → World and World → URL → World are deep-equal', async ({ page, browser }) => {
+test('World → JSON → World and World → URL → World are deep-equal', async ({ page, freshPage }) => {
   await page.goto('/');
   await addFactory(page, 'Smelter');
   await page.getByRole('button', { name: 'Open Smelter', exact: true }).click();
@@ -86,7 +87,7 @@ test('World → JSON → World and World → URL → World are deep-equal', asyn
   expect(file).toEqual(world);
 
   // Import into a fresh browser: the same world, and the same plan.
-  const other = await browser.newPage();
+  const other = await freshPage();
   await other.goto('/');
   await upload(other, 'world.json', file);
   await expect((await openPanel(other)).getByRole('status')).toContainText(
@@ -100,7 +101,7 @@ test('World → JSON → World and World → URL → World are deep-equal', asyn
   await panel.getByRole('button', { name: 'Share link to world' }).click();
   const url = await panel.getByLabel(/^Share link/).inputValue();
   expect(url).toMatch(/#w=/);
-  const third = await browser.newPage();
+  const third = await freshPage();
   await third.goto(url);
   await expect(opener(third, 'Smelter')).toBeVisible();
   expect(await autosave(third)).toEqual(world);
@@ -150,7 +151,7 @@ test('an oversized world falls back to export', async ({ page }) => {
   expect(file.factories[0]!.notes).toBe(noise);
 });
 
-test('share this factory only', async ({ page, browser }) => {
+test('share this factory only', async ({ page, freshPage }) => {
   await page.goto('/');
   await addFactory(page, 'Plates');
   await page.getByRole('button', { name: 'Open Plates', exact: true }).click();
@@ -166,7 +167,7 @@ test('share this factory only', async ({ page, browser }) => {
 
   await page.getByRole('button', { name: 'Share link to this factory' }).click();
   const url = await page.getByLabel(/^Share link/).inputValue();
-  const other = await browser.newPage();
+  const other = await freshPage();
   await other.goto(url);
   await expect(other.getByRole('button', { name: 'Open Plates', exact: true })).toBeVisible();
   await expect(other.getByRole('button', { name: 'Open Factory', exact: true })).toHaveCount(0);
