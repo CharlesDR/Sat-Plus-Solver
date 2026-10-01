@@ -18,15 +18,6 @@ export function SummaryTable({ plan, ...pick }: { plan: PlanSummary } & Pick) {
         Status: {plan.status} · Objective: {plan.objective}
         {plan.objectiveValue !== undefined && ` = ${fmt(plan.objectiveValue)}`}
       </p>
-      {plan.diagnostics.length > 0 && (
-        <ul className="diagnostics">
-          {plan.diagnostics.map((d, k) => (
-            <li key={k} className={d.severity}>
-              {d.severity}: {d.message}
-            </li>
-          ))}
-        </ul>
-      )}
       {plan.status === 'ok' && (
         <>
           <Table

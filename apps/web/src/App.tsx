@@ -1,8 +1,11 @@
 import type { LayoutEngine } from '@sps/graph';
-import { allocateRemaining, extractFactory } from '@sps/world';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { allocateRemaining, extractFactory, serializeWorld } from '@sps/world';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useStore } from 'zustand';
 import { Field } from './controls/Field';
+import { DiagnosticsList, useNames } from './Diagnostics';
+import { factoryDiagnostics, withImport, withNodeCap, type Fix } from './diagnostics';
+import { ErrorBoundary } from './ErrorBoundary';
 import { ImportsEditor } from './controls/ImportsEditor';
 import { NodeBudgetEditor } from './controls/NodeBudgetEditor';
 import { RecipeToggles } from './controls/RecipeToggles';
@@ -12,11 +15,12 @@ import { Flowchart } from './flowchart/Flowchart';
 import type { Saves } from './persistence/saves';
 import { SavePanel } from './persistence/SavePanel';
 import type { Boot } from './persistence/session';
-import { ShareControls } from './persistence/ShareControls';
+import { downloadText, fileName, ShareControls } from './persistence/ShareControls';
 import type { Selection } from './selection';
 import type { SolveOutcome, SolverClient } from './solver/client';
-import type { Catalog, FocusPlan } from './solver/protocol';
+import type { Catalog, FocusPlan, SolveProgress } from './solver/protocol';
 import type { Scope, WorldStore } from './store';
+import { SolvingNote } from './SolvingNote';
 import { SummaryTable } from './SummaryTable';
 import { useWorldPlan, type WorldPlanState } from './useWorldPlan';
 import { breadcrumb } from './world/viewModel';
@@ -62,11 +66,27 @@ export function App(props: {
           The solver failed to start: {initError}
         </p>
       ) : !catalog ? (
-        <p aria-busy="true">Loading the solver…</p>
+        <p aria-busy="true" role="status">
+          Loading the solver…
+        </p>
       ) : (
-        <Shell client={client} store={store} layout={layout} catalog={catalog} />
+        <ErrorBoundary what="the app" recovery={<ExportWorld store={store} />}>
+          <Shell client={client} store={store} layout={layout} catalog={catalog} />
+        </ErrorBoundary>
       )}
     </main>
+  );
+}
+
+/** Recovery after a crash: the world as a file, straight from the store. */
+function ExportWorld({ store }: { store: WorldStore }) {
+  return (
+    <button
+      type="button"
+      onClick={() => downloadText(fileName('world'), serializeWorld(store.getState().world, true))}
+    >
+      Export world
+    </button>
   );
 }
 
@@ -131,27 +151,33 @@ function Shell(props: {
           {actionError}
         </p>
       )}
-      {focus !== undefined ? (
-        <FactoryView
-          key={focus}
-          store={store}
-          layout={layout}
-          catalog={catalog}
-          factoryId={focus}
-          plan={state}
-          onSwitch={openFactory}
-        />
-      ) : (
-        <WorldView
-          world={world}
-          store={store}
-          catalog={catalog}
-          layout={layout}
-          plan={state}
-          onOpen={openFactory}
-          onSizePower={sizePower}
-        />
-      )}
+      <ErrorBoundary
+        what={focus !== undefined ? 'the factory view' : 'the world view'}
+        resetKey={focus}
+        recovery={<ExportWorld store={store} />}
+      >
+        {focus !== undefined ? (
+          <FactoryView
+            key={focus}
+            store={store}
+            layout={layout}
+            catalog={catalog}
+            factoryId={focus}
+            plan={state}
+            onSwitch={openFactory}
+          />
+        ) : (
+          <WorldView
+            world={world}
+            store={store}
+            catalog={catalog}
+            layout={layout}
+            plan={state}
+            onOpen={openFactory}
+            onSizePower={sizePower}
+          />
+        )}
+      </ErrorBoundary>
     </>
   );
 }
@@ -159,7 +185,7 @@ function Shell(props: {
 /** A factory's plan from a world solve, once the solve includes it. */
 type PlanState =
   | { kind: 'idle' }
-  | { kind: 'solving'; previous?: Focused }
+  | { kind: 'solving'; previous?: Focused; progress?: SolveProgress | undefined }
   | { kind: 'done'; outcome: Focused }
   | { kind: 'error'; message: string };
 type Focused = FocusPlan & { ms: number };
@@ -194,23 +220,47 @@ function FactoryView(props: {
     !!factory &&
     factory.request.targets.length === 0 &&
     !world.links.some((l) => l.from === factoryId);
+  const previous = focused(
+    w.kind === 'done' ? w.outcome : w.kind === 'solving' ? w.previous : undefined,
+    factoryId,
+  );
   const plan: PlanState = idle
     ? { kind: 'idle' }
     : w.kind === 'error'
       ? w
-      : w.kind === 'done' && focused(w.outcome, factoryId)
-        ? { kind: 'done', outcome: focused(w.outcome, factoryId)! }
-        : (() => {
-            const previous = focused(w.kind === 'done' ? w.outcome : w.previous, factoryId);
-            return previous ? { kind: 'solving', previous } : { kind: 'solving' };
-          })();
+      : w.kind === 'done' && previous
+        ? { kind: 'done', outcome: previous }
+        : {
+            kind: 'solving',
+            ...(previous ? { previous } : {}),
+            ...(w.kind === 'solving' ? { progress: w.progress } : {}),
+          };
   const outcome =
     plan.kind === 'done' ? plan.outcome : plan.kind === 'solving' ? plan.previous : undefined;
   const usage = useMemo(
     () => new Map(outcome?.plan.nodes.map((n) => [n.node, n.used]) ?? []),
     [outcome],
   );
+  const names = useNames(catalog, world);
   if (!factory) return <p className="error">Unknown factory “{factoryId}”.</p>;
+  const scoped: Scope = { kind: 'factory', id: factoryId };
+  const fix = (f: Fix) => {
+    if (f.kind === 'enable-recipe') actions.setRecipes(scoped, [f.recipe], true);
+    else if (f.kind === 'add-import')
+      actions.setUnassignedImports(
+        factoryId,
+        withImport(factory.unassignedImports, f.item, f.rate),
+      );
+    else if (f.kind === 'raise-node' && factory.nodeBudget !== 'pool')
+      actions.setNodeBudget(factoryId, withNodeCap(factory.nodeBudget, f.node, f.amount));
+  };
+  const diagnostics = outcome && (
+    <DiagnosticsList
+      label="Plan diagnostics"
+      views={factoryDiagnostics(outcome.plan.diagnostics, names, factory.nodeBudget)}
+      onFix={fix}
+    />
+  );
 
   return (
     <div className="factory">
@@ -308,6 +358,7 @@ function FactoryView(props: {
       </section>
       <PlanView
         plan={plan}
+        diagnostics={diagnostics}
         layout={layout}
         selection={selection}
         onSelect={(id, from) => setSelection(id === undefined ? undefined : { id, from })}
@@ -318,19 +369,23 @@ function FactoryView(props: {
 
 function PlanView(props: {
   plan: PlanState;
+  diagnostics: ReactNode;
   layout: LayoutEngine;
   selection: Selection | undefined;
   onSelect: (id: string | undefined, from: Selection['from']) => void;
 }) {
-  const { plan, layout, selection, onSelect } = props;
+  const { plan, layout, selection, onSelect, diagnostics } = props;
   const solved = (o: Focused) => (
     <>
-      <Flowchart
-        engine={layout}
-        graph={o.graph}
-        selection={selection}
-        onSelect={(id) => onSelect(id, 'graph')}
-      />
+      {diagnostics}
+      <ErrorBoundary what="the flowchart" resetKey={o.graph}>
+        <Flowchart
+          engine={layout}
+          graph={o.graph}
+          selection={selection}
+          onSelect={(id) => onSelect(id, 'graph')}
+        />
+      </ErrorBoundary>
       <SummaryTable plan={o.plan} selection={selection} onSelect={(id) => onSelect(id, 'table')} />
     </>
   );
@@ -346,7 +401,7 @@ function PlanView(props: {
     case 'solving':
       return (
         <div aria-busy="true">
-          <p className="solving">Solving…</p>
+          <SolvingNote progress={plan.progress} what="the plan" />
           {plan.previous && <div className="stale">{solved(plan.previous)}</div>}
         </div>
       );

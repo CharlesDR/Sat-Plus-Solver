@@ -6,6 +6,7 @@
   --line: #d8d8dc;
   --error: #b42318;
   --warn: #8a5a00;
+  --ok: #1a7f45;
   font-family: system-ui, sans-serif;
   font-size: 15px;
 }
@@ -17,6 +18,7 @@
     --line: #3a3a3e;
     --error: #ff8a80;
     --warn: #f0c060;
+    --ok: #6fd39a;
   }
 }
 body {
@@ -472,7 +474,7 @@ button.link-button {
   white-space: nowrap;
 }
 .panel td.status.ok {
-  color: #2e9d5b;
+  color: var(--ok);
 }
 .panel td.status.short {
   color: var(--warn);
@@ -503,6 +505,9 @@ label.inline {
   font: inherit;
   font-size: 15px;
   color: var(--fg);
+  background-color: var(--bg);
+  border: 1px solid var(--muted);
+  border-radius: 3px;
 }
 /* Frames and stubs are not interactive nodes; their buttons still are. */
 .world-node button,
@@ -528,4 +533,52 @@ label.inline {
   max-width: 40rem;
   font-family: ui-monospace, monospace;
   font-size: 12px;
+}
+
+/* Diagnostics (M10): a headline per diagnostic, the solver's message, then its fixes. */
+section.diagnostics {
+  margin: 0.75rem 0;
+}
+section.diagnostics h2 {
+  font-size: 1rem;
+  margin: 0 0 0.25rem;
+}
+section.diagnostics ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+section.diagnostics li {
+  border-left: 3px solid var(--warn);
+  margin: 0.25rem 0;
+  padding: 0.25rem 0.5rem;
+}
+section.diagnostics li.error {
+  border-left-color: var(--error);
+}
+section.diagnostics li > strong {
+  color: var(--warn);
+}
+section.diagnostics li.error > strong {
+  color: var(--error);
+}
+section.diagnostics li p {
+  margin: 0.25rem 0;
+}
+.fixes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.solving progress {
+  margin-left: 0.5rem;
+  vertical-align: middle;
+}
+.crashed {
+  border: 1px solid var(--error);
+  padding: 0.5rem 0.75rem;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
