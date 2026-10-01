@@ -2,11 +2,16 @@
  * `pnpm solve`: solves one factory from the command line and prints the plan.
  *
  *   pnpm solve --target "Iron Plate:60" [--target ...] [--import "Iron Ingot:30"]
- *              [--objective resources|scarcity] [--no-alternates] [--exclude <recipe-id>]
+ *              [--objective resources,machines,...] [--tolerance 0.01%] [--whole-machines]
+ *              [--cost-imports] [--alternates] [--compare-alternates] [--exclude <recipe-id>]
  *              [--budget "<node-id>=<count>"] [--model <model.json>] [--json]
  *
  * Items are matched by id or by name (case-insensitive). An import without a
  * rate is unlimited. `--budget` overrides the map pool for one node class.
+ * `--objective` takes a comma-separated stack (resources, scarcity, machines,
+ * power, output, types; or o1–o6), solved in order within `--tolerance`
+ * (a percentage). Alternates are off unless `--alternates` is given;
+ * `--compare-alternates` solves both ways and lists the alternates that help.
  * The model is data/generated/model.json, built in memory when it is missing.
  */
 import { existsSync, readFileSync } from 'node:fs';
@@ -15,8 +20,10 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import type { Model } from '@sps/data';
 import {
+  compareAlternates,
   createHighsBackend,
   solve,
+  type AlternatesReport,
   type ImportCap,
   type ItemRate,
   type LpBackend,
@@ -27,8 +34,10 @@ import {
 import { ROOT, runPipeline } from './build-data';
 
 export const USAGE = `Usage: pnpm solve --target "Item:rate" [--target ...] [--import "Item[:cap]"]
-                  [--objective resources|scarcity] [--no-alternates] [--exclude <recipe-id>]
-                  [--budget "<node-id>=<count>"] [--model <model.json>] [--json]`;
+                  [--objective resources,machines,...] [--tolerance <percent>] [--whole-machines]
+                  [--cost-imports] [--alternates] [--compare-alternates] [--exclude <recipe-id>]
+                  [--budget "<node-id>=<count>"] [--model <model.json>] [--json]
+Objectives: resources (o1), scarcity (o2), machines (o3), power (o4), output (o5), types (o6).`;
 
 export class CliError extends Error {}
 
@@ -37,11 +46,22 @@ const OBJECTIVES: Record<string, ObjectiveId> = {
   o1: 'resources',
   scarcity: 'scarcity',
   o2: 'scarcity',
+  machines: 'machines',
+  o3: 'machines',
+  power: 'power',
+  o4: 'power',
+  output: 'output',
+  o5: 'output',
+  types: 'resourceTypes',
+  resourcetypes: 'resourceTypes',
+  o6: 'resourceTypes',
 };
 
 export interface CliArgs {
   request: SolveRequest;
   json: boolean;
+  /** Solve with alternates off and on and report which help. */
+  compareAlternates: boolean;
   modelPath?: string;
 }
 
@@ -55,7 +75,12 @@ export function parseCli(argv: string[], model: Model): CliArgs {
         target: { type: 'string', multiple: true, short: 't' },
         import: { type: 'string', multiple: true, short: 'i' },
         objective: { type: 'string', short: 'o' },
+        tolerance: { type: 'string' },
+        'whole-machines': { type: 'boolean' },
+        'cost-imports': { type: 'boolean' },
+        alternates: { type: 'boolean' },
         'no-alternates': { type: 'boolean' },
+        'compare-alternates': { type: 'boolean' },
         exclude: { type: 'string', multiple: true },
         budget: { type: 'string', multiple: true },
         model: { type: 'string' },
@@ -80,13 +105,28 @@ export function parseCli(argv: string[], model: Model): CliArgs {
     if (known) return { item: known, cap: Infinity };
     return { item: item(name), cap: cap === undefined ? Infinity : number(cap, `--import "${t}"`) };
   });
-  let objective: ObjectiveId = 'resources';
+  let stack: ObjectiveId[] = ['resources'];
   if (parsed.objective !== undefined) {
-    const o = OBJECTIVES[parsed.objective.toLowerCase()];
-    if (!o)
-      throw new CliError(`Unknown --objective "${parsed.objective}" (resources or scarcity).`);
-    objective = o;
+    stack = parsed.objective.split(',').map((name) => {
+      const o = OBJECTIVES[name.trim().toLowerCase()];
+      if (!o)
+        throw new CliError(
+          `Unknown --objective "${name.trim()}" (resources, scarcity, machines, power, output or types).`,
+        );
+      return o;
+    });
   }
+  let tolerance: number | undefined;
+  if (parsed.tolerance !== undefined) {
+    const t = parsed.tolerance.trim().replace(/%$/, '');
+    const n = Number(t);
+    if (t === '' || !Number.isFinite(n))
+      throw new CliError(`--tolerance "${parsed.tolerance}" must be a percentage, like 0.5%.`);
+    // Out-of-range values go to the solver, which rejects them with its own message.
+    tolerance = n / 100;
+  }
+  if (parsed.alternates && parsed['no-alternates'])
+    throw new CliError('--alternates and --no-alternates contradict each other.');
   const recipeIds = new Set(model.recipes.map((r) => r.id));
   for (const id of parsed.exclude ?? [])
     if (!recipeIds.has(id)) throw new CliError(`Unknown recipe id "${id}" in --exclude.`);
@@ -106,12 +146,16 @@ export function parseCli(argv: string[], model: Model): CliArgs {
   return {
     request: {
       targets,
-      objective,
+      ...(stack.length === 1 ? { objective: stack[0]! } : { objectives: stack }),
+      ...(tolerance !== undefined ? { tolerance } : {}),
+      ...(parsed['whole-machines'] ? { wholeMachines: true } : {}),
+      ...(parsed['cost-imports'] ? { costImports: true } : {}),
       nodeBudget,
       ...(imports.length ? { imports } : {}),
-      recipes: { alternates: !parsed['no-alternates'], exclude: parsed.exclude ?? [] },
+      recipes: { alternates: parsed.alternates ?? false, exclude: parsed.exclude ?? [] },
     },
     json: parsed.json ?? false,
+    compareAlternates: parsed['compare-alternates'] ?? false,
     ...(parsed.model !== undefined ? { modelPath: parsed.model } : {}),
   };
 }
@@ -175,12 +219,23 @@ export function renderPlan(model: Model, result: SolveResult): string {
   const node = new Map(model.nodes.map((n) => [n.id, n]));
   const name = (id: string) => item.get(id) ?? id;
   const out: string[] = [];
-  out.push(
-    `Status: ${result.status}    Objective: ${result.objective}` +
-      (result.objectiveValue !== undefined ? ` = ${fmt(result.objectiveValue)}` : ''),
-  );
+  if (result.objectives.length > 1) {
+    out.push(`Status: ${result.status}    Objectives: ${result.objectives.join(' > ')}`);
+    for (const s of result.stages)
+      out.push(
+        `  ${s.objective} = ${fmt(s.value)} (optimum ${fmt(s.optimum)}` +
+          (s.gap ? `, gap ${fmt(s.gap * 100)}%` : '') +
+          ')',
+      );
+  } else
+    out.push(
+      `Status: ${result.status}    Objective: ${result.objective}` +
+        (result.objectiveValue !== undefined ? ` = ${fmt(result.objectiveValue)}` : ''),
+    );
   for (const d of result.diagnostics) out.push(`${d.severity}: ${d.message}`);
   if (result.status !== 'ok') return out.join('\n') + '\n';
+  if (result.outputScale !== undefined)
+    out.push(`Output scale: ${fmt(result.outputScale)} × the targets`);
 
   out.push('', 'Recipes');
   out.push(
@@ -212,6 +267,22 @@ export function renderPlan(model: Model, result: SolveResult): string {
     result.items.filter((i) => i.demand > 0).map((i) => ({ item: i.item, rate: i.demand })),
   );
   flows('Imports', result.imports);
+  if (result.importCosts?.length) {
+    const objectives = result.objectives.filter((o) => o !== 'output' && o !== 'resourceTypes');
+    out.push(
+      '',
+      'Import costs (per 1/min, standalone plan)',
+      table(
+        ['Item', 'Resource types', ...objectives],
+        result.importCosts.map((c) => [
+          name(c.item),
+          c.resourceTypes.map(name).join(', '),
+          ...objectives.map((o) => fmt(c.cost[o] ?? 0)),
+        ]),
+        2,
+      ),
+    );
+  }
   flows('Surplus and byproducts', result.surplus);
   if (result.nodes.length) {
     out.push(
@@ -232,6 +303,29 @@ export function renderPlan(model: Model, result: SolveResult): string {
     '',
     `Power: ${fmt(p.consumptionMW)} MW draw, ${fmt(p.generationMW)} MW generated, net ${fmt(p.netMW)} MW`,
   );
+  return out.join('\n') + '\n';
+}
+
+/** Renders the alternates report: the alternates that help, then the plan that uses them. */
+export function renderAlternates(model: Model, report: AlternatesReport): string {
+  const recipe = new Map(model.recipes.map((r) => [r.id, r.name]));
+  const out: string[] = [];
+  if (report.without.status !== 'ok' && report.with.status === 'ok')
+    out.push('Without alternates the request does not solve; with them it does.');
+  out.push(
+    report.used.length
+      ? `Alternates that help: ${report.used.map((id) => recipe.get(id) ?? id).join(', ')}`
+      : 'No alternate improves this plan.',
+  );
+  if (report.stages.length)
+    out.push(
+      '',
+      table(
+        ['Objective', 'Without', 'With'],
+        report.stages.map((s) => [s.objective, fmt(s.without), fmt(s.with)]),
+      ),
+    );
+  out.push('', 'Plan with alternates', renderPlan(model, report.with).trimEnd());
   return out.join('\n') + '\n';
 }
 
@@ -256,6 +350,13 @@ export async function runCli(
     const modelArg = argv.findIndex((a) => a === '--model');
     const model = await loadModel(modelArg >= 0 ? argv[modelArg + 1] : undefined);
     const args = parseCli(argv, model);
+    if (args.compareAlternates) {
+      const report = await compareAlternates(model, args.request, backend);
+      const stdout = args.json
+        ? JSON.stringify(report, null, 2) + '\n'
+        : renderAlternates(model, report);
+      return { code: report.with.status === 'ok' ? 0 : 1, stdout, stderr: '' };
+    }
     const result = await solve(model, args.request, backend);
     const stdout = args.json ? JSON.stringify(result, null, 2) + '\n' : renderPlan(model, result);
     return { code: result.status === 'ok' ? 0 : 1, stdout, stderr: '' };
