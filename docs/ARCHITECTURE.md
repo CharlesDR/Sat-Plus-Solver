@@ -135,11 +135,11 @@ Lexicographic:    f_k(x) ≤ f_k* + tol·max(|f_k*|, ε)                  for ea
 | O1  | Minimize raw resource use          | Σ_n NNE_n · usage_n, where NNE (normal-node-equivalent) is impure ½, normal 1, pure 2, and a fracking site counts at its NNE (13.33) | LP        |
 | O2  | Minimize scarcity-weighted use     | Σ_r usageNNE_r / **mapTotal**NNE_r (map-wide totals, not the factory budget). Weights can be overridden.                             | LP        |
 | O3  | Minimize machines                  | Σ_j x_j, or Σ m_j in whole-machines mode                                                                                             | LP / MILP |
-| O4  | Minimize power                     | Σ_j powerMW_j · x_j (net)                                                                                                            | LP        |
+| O4  | Minimize power                     | Σ_j max(powerMW_j, 0) · x_j: machine draw only, so generation never lowers it, except turbines (A16)                                 | LP        |
 | O5  | Maximize output given fixed inputs | max _t_, with target_i = _t_ · ratio_i. Bounded by imports and node budget.                                                          | LP        |
 | O6  | Minimize unique raw resource types | Σ_r y_r                                                                                                                              | MILP      |
 
-**Multi-priority.** Objectives are solved in order, each one fixed within a user tolerance before the next: **0.01% default, range 0.01%–90%**, with an absolute floor ε. A 1e-9 Σx regularizer picks a stable plan when there are ties.
+**Multi-priority.** Objectives are solved in order, each one fixed within a user tolerance before the next: **0.01% default, range 0.01%–90%**, with an absolute floor ε = 1e-6 (A15). The solver rejects a tolerance outside the range; the UI input clamps to it. A 1e-9 Σx regularizer picks a stable plan when there are ties.
 
 **Costing imports.** Imports are free by default. With the "cost imported inputs" toggle on, each `s_i` carries an **embodied cost** under this factory's objective stack:
 
@@ -346,6 +346,8 @@ Dependency rule: `data ← solver ← world ← web`, and `graph` depends on the
 | A12 | Alien Power Augmenter modeled as its 500 MW `BasePower`; its grid-wide percentage boost is not linear and is ignored              | `overrides.generatorOverrides`                                        |
 | A13 | Water, Crude Oil and Molten Tin are not flagged `Fluid` in the dataset                                                            | `overrides.markAsFluid`                                               |
 | A14 | Well Water excluded: its extractor draws 0 MW in the dataset (pressurizer power is not attributed)                                | `overrides.excludeRecipes`                                            |
+| A15 | Lexicographic absolute floor ε = 1e-6, so an optimum of 0 still leaves room                                                       | `LEX_EPSILON` in the solver                                           |
+| A16 | O4 never starts production to offset power. Turbines (steam → water, energized → spent slug slime) earn credit                    | Only when O4 is not first, capped at the count the stage before runs  |
 | R1  | **Booster module power draw is unknown**                                                                                          | `boosterPowerMW = 0`, flagged in the UI; please provide the value     |
 | R2  | The SF+ wiki export (archived Mar 2026) may lag the current SF+ version                                                           | All map numbers live in editable data files                           |
 | R3  | Fractional node usage                                                                                                             | The whole-machines toggle makes node usage integer                    |

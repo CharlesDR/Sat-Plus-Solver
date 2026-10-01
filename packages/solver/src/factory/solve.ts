@@ -1,4 +1,4 @@
-import type { Model, Recipe, ResourceNode } from '@sps/data';
+import { MW_ITEM_ID, type Model, type Recipe, type ResourceNode } from '@sps/data';
 import type {
   LpBackend,
   LpConstraint,
@@ -93,6 +93,11 @@ interface Problem {
   resources: Map<string, { recipes: string[]; cap: number }>;
   /** With `costImports`: embodied cost per import item. */
   importCosts: Map<string, ImportCost>;
+  /**
+   * O4 when not first: conversion generators credited in O4, capped at the
+   * machine count the stage before O4 ran them at (set once that stage is solved).
+   */
+  turbineCaps: Map<string, number>;
 }
 
 /** Clamps a tolerance input to [MIN_TOLERANCE, MAX_TOLERANCE] (for UI controls); NaN gives the default. */
@@ -192,7 +197,10 @@ export async function solve(
     );
   }
   const costs = new Map(
-    stack.map((o) => [o, objectiveCosts(model, o, request.scarcityWeights, recipes, nodes)]),
+    stack.map((o) => [
+      o,
+      objectiveCosts(model, o, request.scarcityWeights, recipes, nodes, stack.indexOf('power') > 0),
+    ]),
   );
   const resources = new Map<string, { recipes: string[]; cap: number }>();
   if (stack.includes('resourceTypes')) {
@@ -240,6 +248,7 @@ export async function solve(
     costs,
     resources,
     importCosts,
+    turbineCaps: new Map(),
   };
   const result = await solveStack(problem, backend, options, itemName, diagnostics);
   if (request.costImports && result.status === 'ok')
@@ -264,6 +273,13 @@ async function solveStack(
   let stats: SolveStats = { recipes: p.recipes.length, columns: 0, rows: 0 };
   let sol: LpSolution | undefined;
   for (const [k, objective] of p.stack.entries()) {
+    if (objective === 'power' && sol?.values) {
+      // "When required": O4 keeps conversion generators at most at the count
+      // the earlier stages run, so its credit never starts new ones.
+      for (const r of p.recipes)
+        if ((p.costs.get('power')!.get(r.id) ?? 0) < 0)
+          p.turbineCaps.set(r.id, Math.max(0, sol.values.get(recipeVar(r.id)) ?? 0));
+    }
     const run = async (tol: number) => {
       const lp = buildLp(p, 'normal', objective, lexLocks(p, optima, tol));
       if (k === 0) stats = { ...stats, columns: lp.variables.length, rows: lp.constraints.length };
@@ -573,7 +589,8 @@ function buildLp(
 
   for (const r of p.recipes) {
     const v = recipeVar(r.id);
-    variables.push({ name: v, lo: 0, hi: cap });
+    const turbine = mode === 'normal' ? p.turbineCaps.get(r.id) : undefined;
+    variables.push({ name: v, lo: 0, hi: turbine ?? cap });
     if (mode !== 'elastic') objective.push({ var: v, coef: REGULARIZER });
     for (const f of r.outputs) balance.get(f.item)!.push({ var: v, coef: f.rate });
     for (const f of r.inputs) balance.get(f.item)!.push({ var: v, coef: -f.rate });
@@ -668,6 +685,13 @@ function buildLp(
   return { sense: 'min', objective, variables, constraints };
 }
 
+/**
+ * A generator that also converts an item, like a turbine turning steam into
+ * water or energized slug slime into spent slime: it outputs more than `mw`.
+ */
+const isConversionGenerator = (r: Recipe) =>
+  r.kind === 'generator' && r.outputs.some((f) => f.item !== MW_ITEM_ID);
+
 /** Cost per machine of each recipe under one objective (§3.3); recipes without a cost are left out. */
 function objectiveCosts(
   model: Model,
@@ -675,6 +699,7 @@ function objectiveCosts(
   weights: Readonly<Record<string, number>> | undefined,
   recipes: readonly Recipe[],
   nodes: Map<string, ResourceNode>,
+  creditTurbines = false,
 ): Map<string, number> {
   const cost = new Map<string, number>();
   if (objective === 'machines') {
@@ -683,8 +708,14 @@ function objectiveCosts(
   }
   if (objective === 'power') {
     // Machine draw only: generation never lowers it, so O4 has no reason to
-    // start otherwise-idle generators.
-    for (const r of recipes) if (r.powerMW > 0) cost.set(r.id, r.powerMW);
+    // start otherwise-idle generators. The exception is conversion generators
+    // when O4 is not first: their generation is credited, but they are capped
+    // at what the earlier stages already run (see `turbineCaps`).
+    for (const r of recipes) {
+      if (r.powerMW > 0) cost.set(r.id, r.powerMW);
+      else if (creditTurbines && r.powerMW < 0 && isConversionGenerator(r))
+        cost.set(r.id, r.powerMW);
+    }
     return cost;
   }
   if (objective !== 'resources' && objective !== 'scarcity') return cost;

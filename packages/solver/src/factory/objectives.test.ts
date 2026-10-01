@@ -1,4 +1,4 @@
-import type { Model } from '@sps/data';
+import type { Model, Recipe } from '@sps/data';
 import { describe, expect, test } from 'vitest';
 import vanillaMini from '../../../../fixtures/vanilla-mini/model.json';
 import { createHighsBackend } from '../lp/highs';
@@ -271,6 +271,99 @@ describe('objectives', () => {
     );
     expect(r.objectiveValue).toBe(1);
     expect(r.importCosts![0]!.resourceTypes).toEqual(['iron-ore']);
+  });
+});
+
+describe('O4 and conversion generators (turbines)', () => {
+  // vanilla-mini plus a slime turbine: Energized Slime → Spent Slime + 100 MW.
+  // Spent Slime has no other source, and a heater can re-energize it from coal.
+  const flow = (item: string, rate: number) => ({ item, rate });
+  const extra = (
+    id: string,
+    kind: Recipe['kind'],
+    powerMW: number,
+    inputs: Recipe['inputs'],
+    outputs: Recipe['outputs'],
+  ): Recipe => ({
+    id,
+    name: id,
+    machine: id,
+    kind,
+    alternate: false,
+    tier: '0-0',
+    inputs,
+    outputs,
+    powerMW,
+    clock: 1,
+    source: 'dataset',
+  });
+  const slime: Model = {
+    ...model,
+    items: [
+      ...model.items,
+      ...['energized-slime', 'spent-slime'].map((id) => ({
+        id,
+        name: id,
+        form: 'fluid' as const,
+        sinkPoints: 0,
+        tier: '0-0',
+      })),
+    ],
+    recipes: [
+      ...model.recipes,
+      extra(
+        'energize-from-coal',
+        'production',
+        10,
+        [flow('coal', 30)],
+        [flow('energized-slime', 10)],
+      ),
+      extra(
+        'slime-turbine',
+        'generator',
+        -100,
+        [flow('energized-slime', 10)],
+        [flow('spent-slime', 10), flow('mw', 100)],
+      ),
+      extra(
+        'slime-heater',
+        'production',
+        0,
+        [flow('spent-slime', 10), flow('coal', 15)],
+        [flow('energized-slime', 10)],
+      ),
+    ],
+  };
+  const spent: SolveRequest = { targets: [flow('spent-slime', 10)] };
+  const turbines = (r: SolveResult) =>
+    r.recipes.find((x) => x.id === 'slime-turbine')?.machines ?? 0;
+
+  test('O4 first gets no credit, even for a turbine the plan needs', async () => {
+    const r = await solve(slime, { ...spent, objective: 'power' }, backend);
+    expect(turbines(r)).toBeCloseTo(1, 9);
+    expect(r.power.generationMW).toBeCloseTo(100, 9);
+    expect(r.objectiveValue).toBeCloseTo(r.power.consumptionMW, 9);
+  });
+
+  test('O4 after another objective credits the turbines that objective runs', async () => {
+    const r = await solve(slime, { ...spent, objectives: ['resources', 'power'] }, backend);
+    expect(turbines(r)).toBeCloseTo(1, 9);
+    const o4 = r.stages[1]!;
+    expect(o4.value).toBeCloseTo(r.power.consumptionMW - 100, 9);
+    expect(o4.value).toBeLessThan(0);
+  });
+
+  test('the credit never starts more turbines than the earlier stages run', async () => {
+    // At 90% tolerance O4 could burn more coal through the heater loop for
+    // more turbine credit; the cap keeps the turbines at the O1 count.
+    const r = await solve(
+      slime,
+      { ...spent, objectives: ['resources', 'power'], tolerance: MAX_TOLERANCE },
+      backend,
+    );
+    expect(turbines(r)).toBeLessThanOrEqual(1 + 1e-9);
+    expect(r.recipes.map((x) => x.id)).not.toContain('slime-heater');
+    expect(r.power.generationMW).toBeLessThanOrEqual(100 + 1e-6);
   });
 });
 

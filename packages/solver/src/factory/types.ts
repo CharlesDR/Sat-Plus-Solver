@@ -17,7 +17,7 @@ export interface ImportCap {
 
 /**
  * The six objectives of §3.3: O1 `resources`, O2 `scarcity`, O3 `machines`,
- * O4 `power` (machine draw only: generation never lowers it), O5 `output`
+ * O4 `power` (machine draw only; turbines an earlier stage runs are credited, A16), O5 `output`
  * (maximize), O6 `resourceTypes` (MILP).
  */
 export type ObjectiveId =
