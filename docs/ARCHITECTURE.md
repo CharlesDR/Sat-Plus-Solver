@@ -11,19 +11,19 @@ Items marked **[A#]** are assumptions, collected in §10.
 
 ## 1. Decisions at a glance
 
-| Area | Decision | Why (short) |
-|---|---|---|
-| Layering | **World → Groups (nestable) → Factories → Solver.** Links connect factories. Groups are organizational and aggregate their members. | Matches how players build: separate sites, shipped between |
-| World solve | **Each factory is solved independently, with links as boundary conditions.** Links are either fixed-rate or *pull*, where the rate is whatever the consumer needs. Resolution runs consumers first. | Every factory keeps its own objective stack. It's easy to understand and only changed factories re-solve. A joint optimization across all factories is in the backlog (§4.6). |
-| Formulation | LP over recipe rates plus node-usage variables, per factory. It becomes a MILP only when an objective needs integers. | Handles cycles, byproducts and several producers per item directly |
-| Solver | HiGHS compiled to WASM (`highs` npm), run in a Web Worker | Fast, robust, has MILP, MIT license |
-| Scarce resource | **Nodes per (resource, purity)** from `data/nodes.csv`. **One map-wide pool shared by all factories.** | Fluid modules and boosters make output per node non-linear in purity |
-| Extraction | Modular Miner routes are **generated** from a rate model that assumes max output. Dataset rows are used to calibrate and cross-check it. | You asked for max output (Mk.3, full boosters) |
-| Power | Per-factory consumption **and generation**. Generator recipes produce a `MW` pseudo-item, so a power plant can be a factory with a MW target. The world totals everything on a single grid **[A8]**. | Lets you plan power across the whole save |
-| Data pipeline | Build-time TS: raw JSON → parse → normalize → validate → `model.json` | One unit system; bad data fails the build |
-| Units | items/min, fluids m³/min, power MW (positive = consumption, negative = generation) | |
-| Stack | TypeScript, pnpm workspaces, Vite, React, Zustand, React Flow + ELK.js, TanStack Table, Vitest + fast-check | Details in §8 |
-| Hosting / sharing | Static GitHub Pages. The whole save is a JSON document: autosaved locally, exportable and importable, and shared by URL when small enough. | No backend |
+| Area              | Decision                                                                                                                                                                                             | Why (short)                                                                                                                                                                   |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Layering          | **World → Groups (nestable) → Factories → Solver.** Links connect factories. Groups are organizational and aggregate their members.                                                                  | Matches how players build: separate sites, shipped between                                                                                                                    |
+| World solve       | **Each factory is solved independently, with links as boundary conditions.** Links are either fixed-rate or _pull_, where the rate is whatever the consumer needs. Resolution runs consumers first.  | Every factory keeps its own objective stack. It's easy to understand and only changed factories re-solve. A joint optimization across all factories is in the backlog (§4.6). |
+| Formulation       | LP over recipe rates plus node-usage variables, per factory. It becomes a MILP only when an objective needs integers.                                                                                | Handles cycles, byproducts and several producers per item directly                                                                                                            |
+| Solver            | HiGHS compiled to WASM (`highs` npm), run in a Web Worker                                                                                                                                            | Fast, robust, has MILP, MIT license                                                                                                                                           |
+| Scarce resource   | **Nodes per (resource, purity)** from `data/nodes.csv`. **One map-wide pool shared by all factories.**                                                                                               | Fluid modules and boosters make output per node non-linear in purity                                                                                                          |
+| Extraction        | Modular Miner routes are **generated** from a rate model that assumes max output. Dataset rows are used to calibrate and cross-check it.                                                             | You asked for max output (Mk.3, full boosters)                                                                                                                                |
+| Power             | Per-factory consumption **and generation**. Generator recipes produce a `MW` pseudo-item, so a power plant can be a factory with a MW target. The world totals everything on a single grid **[A8]**. | Lets you plan power across the whole save                                                                                                                                     |
+| Data pipeline     | Build-time TS: raw JSON → parse → normalize → validate → `model.json`                                                                                                                                | One unit system; bad data fails the build                                                                                                                                     |
+| Units             | items/min, fluids m³/min, power MW (positive = consumption, negative = generation)                                                                                                                   |                                                                                                                                                                               |
+| Stack             | TypeScript, pnpm workspaces, Vite, React, Zustand, React Flow + ELK.js, TanStack Table, Vitest + fast-check                                                                                          | Details in §8                                                                                                                                                                 |
+| Hosting / sharing | Static GitHub Pages. The whole save is a JSON document: autosaved locally, exportable and importable, and shared by URL when small enough.                                                           | No backend                                                                                                                                                                    |
 
 ---
 
@@ -31,25 +31,25 @@ Items marked **[A#]** are assumptions, collected in §10.
 
 ### 2.1 Inputs
 
-| File | Role |
-|---|---|
-| `game_data.json` (+ `data.schema.json`) | 428 parts (51 fluids), 1146 recipes (128 alternates), 111 machines, 16 MultiMachines |
+| File                                                               | Role                                                                                                                                                                         |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `game_data.json` (+ `data.schema.json`)                            | 428 parts (51 fluids), 1146 recipes (128 alternates), 111 machines, 16 MultiMachines                                                                                         |
 | `Nodecount Sat Plus.xlsx` → converted once to **`data/nodes.csv`** | Node counts by resource: fracking sites, impure, normal, pure. Gains an optional `site_rate_m3_min` override column. This is the **map-wide node pool** for the world layer. |
-| `data/miner-model.json` (new) | Parameters for the miner rate model (§2.3) |
-| `data/overrides.json` (new) | Exclusions, ore↔node mapping, per-recipe fixes, overclock policy |
+| `data/miner-model.json` (new)                                      | Parameters for the miner rate model (§2.3)                                                                                                                                   |
+| `data/overrides.json` (new)                                        | Exclusions, ore↔node mapping, per-recipe fixes, overclock policy                                                                                                             |
 
 ### 2.2 Raw conventions → canonical form
 
-| Raw | Canonical |
-|---|---|
-| `Amount` is a string: `"3"`, `"7.5"`, `"1/3"`, or `"1 1/3"` (a mixed number) | Exact rational, converted to a float once, at the end |
-| `Amount < 0` is an input, `> 0` is an output | `inputs[]` and `outputs[]`, both with positive rates |
-| `BatchTime` is in seconds and is also a string (`"1/2"` to `"600"`) | `ratePerMin = amount × 60 / batchTime` |
-| Fluids are already in m³ (Water Extractor gives 180/min) | No ×1000 conversion. Validation fails above 10⁴/min. |
-| Machine `AveragePower`: negative is draw, positive is generation | `powerMW`: positive is draw, negative is generation. A generator recipe also **outputs `MW` = machine generation** (the pseudo-item, §3.1). |
-| Recipe-level `MinPower`/`AveragePower` (67 variable-power recipes) | `AveragePower` is the draw. Swapped pairs are logged **[A1]**. |
-| Recipe `Machine` may name a MultiMachine group | Resolved through MultiMachine defaults or the generated miner routes |
-| Two duplicate recipe names | IDs are `slug(name)`, plus `~` and a short content hash when names collide. IDs stay stable. |
+| Raw                                                                          | Canonical                                                                                                                                   |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Amount` is a string: `"3"`, `"7.5"`, `"1/3"`, or `"1 1/3"` (a mixed number) | Exact rational, converted to a float once, at the end                                                                                       |
+| `Amount < 0` is an input, `> 0` is an output                                 | `inputs[]` and `outputs[]`, both with positive rates                                                                                        |
+| `BatchTime` is in seconds and is also a string (`"1/2"` to `"600"`)          | `ratePerMin = amount × 60 / batchTime`                                                                                                      |
+| Fluids are already in m³ (Water Extractor gives 180/min)                     | No ×1000 conversion. Validation fails above 10⁴/min.                                                                                        |
+| Machine `AveragePower`: negative is draw, positive is generation             | `powerMW`: positive is draw, negative is generation. A generator recipe also **outputs `MW` = machine generation** (the pseudo-item, §3.1). |
+| Recipe-level `MinPower`/`AveragePower` (67 variable-power recipes)           | `AveragePower` is the draw. Swapped pairs are logged **[A1]**.                                                                              |
+| Recipe `Machine` may name a MultiMachine group                               | Resolved through MultiMachine defaults or the generated miner routes                                                                        |
+| Two duplicate recipe names                                                   | IDs are `slug(name)`, plus `~` and a short content hash when names collide. IDs stay stable.                                                |
 
 Excluded by default: `Handgun` (building crafting), `Ficsmas`, storage containers, Dimensional Depot, AWESOME Sink, and Geyser (no recipes). Space Elevator phases can be targets. `IgnoreInputMultiplier` and `SpaceElevatorMultiplier` are ignored **[A2]**.
 
@@ -64,16 +64,16 @@ wasteRate   = primaryRate × wasteRatio                     (e.g. Crushed Gangue
 fluidIn     = fluidBasePerMin × purity                     (not affected by boosters)
 ```
 
-| Parameter | Value used | Source |
-|---|---|---|
-| `purity` | impure ½, normal 1, pure 2 | MultiMachine `Capacities` |
-| `A_mk` | Mk.1 = 1, Mk.2 = 2, **Mk.3 = 4 (always used)** | MultiMachine `PartsRatio` 60/120/240 |
-| `fluidBonus` | Per (ore, fluid), from the dataset. Water 0.5, Muriatic 1.0, Slug Slime 2.5 (Kerr Crystal: 0.5), Energized Slime 2.5, Sulfuric 0.5, Nitric 1.0. | All 400+ fluid-module rows fit the formula |
-| `fluidBasePerMin` | 30 (Water, Sulfuric), 15 (Muriatic, Nitric, Energized Slime), Slug Slime 15 or 30 depending on ore | Dataset |
-| `boosterBonus` | **+3.0** (three booster slots, each full at +100%) | k-mods planner changelog v2.3 |
-| `processingMalus` | none 1.0, **Crusher 0.5**, **Smelter 0.5 [A3]** | Crusher derived from the dataset's Fluid-Crusher rows |
-| `conversionRatio` | From the dataset's Crusher/Smelter rows (e.g. Sand `1 1/3`) | Dataset |
-| Miner clock | 100%. Boosters take the place of overclocking. | Planner changelog v2.3 |
+| Parameter         | Value used                                                                                                                                      | Source                                                |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `purity`          | impure ½, normal 1, pure 2                                                                                                                      | MultiMachine `Capacities`                             |
+| `A_mk`            | Mk.1 = 1, Mk.2 = 2, **Mk.3 = 4 (always used)**                                                                                                  | MultiMachine `PartsRatio` 60/120/240                  |
+| `fluidBonus`      | Per (ore, fluid), from the dataset. Water 0.5, Muriatic 1.0, Slug Slime 2.5 (Kerr Crystal: 0.5), Energized Slime 2.5, Sulfuric 0.5, Nitric 1.0. | All 400+ fluid-module rows fit the formula            |
+| `fluidBasePerMin` | 30 (Water, Sulfuric), 15 (Muriatic, Nitric, Energized Slime), Slug Slime 15 or 30 depending on ore                                              | Dataset                                               |
+| `boosterBonus`    | **+3.0** (three booster slots, each full at +100%)                                                                                              | k-mods planner changelog v2.3                         |
+| `processingMalus` | none 1.0, **Crusher 0.5**, **Smelter 0.5 [A3]**                                                                                                 | Crusher derived from the dataset's Fluid-Crusher rows |
+| `conversionRatio` | From the dataset's Crusher/Smelter rows (e.g. Sand `1 1/3`)                                                                                     | Dataset                                               |
+| Miner clock       | 100%. Boosters take the place of overclocking.                                                                                                  | Planner changelog v2.3                                |
 
 Check: pure Montanion, Mk.3, Slug Slime → 4 × 60 × (2 + 2.5 + 3.0) = **1800/min = 900 on each belt** ✔ (unit test).
 
@@ -81,12 +81,12 @@ Check: pure Montanion, Mk.3, Slug Slime → 4 × 60 × (2 + 2.5 + 3.0) = **1800/
 
 **Other node-limited extractors** run at 250% clock, with power scaled by clock^`OverclockPowerExponent`:
 
-| Resource | Per node or site at max | Basis |
-|---|---|---|
-| Crude Oil (Oil Extractor nodes) | 90 × purity × 2.5 → 112.5 / 225 / 450 | Dataset 1.5/s |
-| Algal Mass | 60 × 2.5 = 150 | Dataset + MultiMachine |
-| Toxic Air (Air Collector) | 90 × 2.5 = 225 | Dataset 9 per 6 s |
-| **Fracking site** (Nitrogen, Chlorine, Crude Oil) | **1500 m³/min per site** [A6] | The N₂ benchmark: 13.33 normal-node-equivalents per cluster on average × 45 m³/min × 2.5. Can be overridden per resource in `nodes.csv`. |
+| Resource                                          | Per node or site at max               | Basis                                                                                                                                    |
+| ------------------------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Crude Oil (Oil Extractor nodes)                   | 90 × purity × 2.5 → 112.5 / 225 / 450 | Dataset 1.5/s                                                                                                                            |
+| Algal Mass                                        | 60 × 2.5 = 150                        | Dataset + MultiMachine                                                                                                                   |
+| Toxic Air (Air Collector)                         | 90 × 2.5 = 225                        | Dataset 9 per 6 s                                                                                                                        |
+| **Fracking site** (Nitrogen, Chlorine, Crude Oil) | **1500 m³/min per site** [A6]         | The N₂ benchmark: 13.33 normal-node-equivalents per cluster on average × 45 m³/min × 2.5. Can be overridden per resource in `nodes.csv`. |
 
 **Unlimited resources** (Water, Air, Excited Photonic Matter, Well Water) have no node constraint. Their extractor recipes stay in the LP, so their machines and power are counted, at 100% clock.
 
@@ -100,16 +100,16 @@ One factory means one `SolveRequest`, and one LP/MILP. Everything in this sectio
 
 ### 3.1 Sets and variables
 
-| Symbol | Meaning |
-|---|---|
-| *R* | Enabled recipes: dataset recipes after this factory's filters, plus generated extraction routes |
-| *I* | Items, plus the pseudo-item **`MW`**. Generator recipes output `MW`. Machine draw stays in the power accounting and is **not** an `MW` input, so a factory never has to power itself. |
-| *N* | Node classes (resource, purity) and fracking sites. Capacity `cap_n` is the factory's **node budget** (§4.4). |
-| `x_j ≥ 0` | Machine count for recipe *j*. For a generated miner route, this is also its node usage. |
-| `s_i ≥ 0` | **Import** of item *i*, `s_i ≤ importCap_i`. It comes from incoming links (§4) or from an unassigned import declared in this factory. |
-| `z_i ≥ 0` | Surplus of item *i*: byproducts and free disposal. At the world level, surplus is **available supply**. |
-| `y_r ∈ {0,1}` | Whether resource type *r* is used. MILP objectives only. |
-| `m_j ∈ ℤ≥0` | Whole machines. Only in "whole machines" mode. |
+| Symbol        | Meaning                                                                                                                                                                               |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| _R_           | Enabled recipes: dataset recipes after this factory's filters, plus generated extraction routes                                                                                       |
+| _I_           | Items, plus the pseudo-item **`MW`**. Generator recipes output `MW`. Machine draw stays in the power accounting and is **not** an `MW` input, so a factory never has to power itself. |
+| _N_           | Node classes (resource, purity) and fracking sites. Capacity `cap_n` is the factory's **node budget** (§4.4).                                                                         |
+| `x_j ≥ 0`     | Machine count for recipe _j_. For a generated miner route, this is also its node usage.                                                                                               |
+| `s_i ≥ 0`     | **Import** of item _i_, `s_i ≤ importCap_i`. It comes from incoming links (§4) or from an unassigned import declared in this factory.                                                 |
+| `z_i ≥ 0`     | Surplus of item _i_: byproducts and free disposal. At the world level, surplus is **available supply**.                                                                               |
+| `y_r ∈ {0,1}` | Whether resource type _r_ is used. MILP objectives only.                                                                                                                              |
+| `m_j ∈ ℤ≥0`   | Whole machines. Only in "whole machines" mode.                                                                                                                                        |
 
 ### 3.2 Constraints
 
@@ -127,20 +127,21 @@ Lexicographic:    f_k(x) ≤ f_k* + tol·max(|f_k*|, ε)                  for ea
 
 ### 3.3 Objectives
 
-| # | Objective | Expression | Type |
-|---|---|---|---|
-| O1 | Minimize raw resource use | Σ_n NNE_n · usage_n, where NNE (normal-node-equivalent) is impure ½, normal 1, pure 2, and a fracking site counts at its NNE (13.33) | LP |
-| O2 | Minimize scarcity-weighted use | Σ_r usageNNE_r / **mapTotal**NNE_r (map-wide totals, not the factory budget). Weights can be overridden. | LP |
-| O3 | Minimize machines | Σ_j x_j, or Σ m_j in whole-machines mode | LP / MILP |
-| O4 | Minimize power | Σ_j powerMW_j · x_j (net) | LP |
-| O5 | Maximize output given fixed inputs | max *t*, with target_i = *t* · ratio_i. Bounded by imports and node budget. | LP |
-| O6 | Minimize unique raw resource types | Σ_r y_r | MILP |
+| #   | Objective                          | Expression                                                                                                                           | Type      |
+| --- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | --------- |
+| O1  | Minimize raw resource use          | Σ_n NNE_n · usage_n, where NNE (normal-node-equivalent) is impure ½, normal 1, pure 2, and a fracking site counts at its NNE (13.33) | LP        |
+| O2  | Minimize scarcity-weighted use     | Σ_r usageNNE_r / **mapTotal**NNE_r (map-wide totals, not the factory budget). Weights can be overridden.                             | LP        |
+| O3  | Minimize machines                  | Σ_j x_j, or Σ m_j in whole-machines mode                                                                                             | LP / MILP |
+| O4  | Minimize power                     | Σ_j powerMW_j · x_j (net)                                                                                                            | LP        |
+| O5  | Maximize output given fixed inputs | max _t_, with target_i = _t_ · ratio_i. Bounded by imports and node budget.                                                          | LP        |
+| O6  | Minimize unique raw resource types | Σ_r y_r                                                                                                                              | MILP      |
 
 **Multi-priority.** Objectives are solved in order, each one fixed within a user tolerance before the next: **0.01% default, range 0.01%–90%**, with an absolute floor ε. A 1e-9 Σx regularizer picks a stable plan when there are ties.
 
 **Costing imports.** Imports are free by default. With the "cost imported inputs" toggle on, each `s_i` carries an **embodied cost** under this factory's objective stack:
+
 - **Linked imports** use the **actual** per-unit cost of the upstream factory's solved plan, prorated by output share.
-- **Unassigned imports** use a standalone LP that produces 1/min of *i*. These are cached.
+- **Unassigned imports** use a standalone LP that produces 1/min of _i_. These are cached.
 - For O6, an import brings in its embodied set of resource types.
 
 ### 3.4 Integer machine counts
@@ -149,13 +150,13 @@ The LP shows `x_j` and `ceil(x_j)`, with power reported on fractional counts. Th
 
 ### 3.5 Failure modes
 
-| Case | Detection | What the user sees |
-|---|---|---|
-| Target unreachable | Backward reachability before solving | "Nothing can produce X", with the closest disabled recipes that would fix it |
-| Infeasible | HiGHS status | Elastic re-solve. Reports the minimal relaxation: "needs 3.2 more pure Siterite nodes" or "needs 40/min more imported Steel Beam". |
-| Unbounded | HiGHS status (O5 with unlimited sources) | Name the direction and ask for a cap. Sanity cap of 1e7/min. |
-| Numerical / lexicographic infeasibility | Status or residual > 1e-6 | Automatically retry with 10× tolerance and warn |
-| MILP timeout | Time limit | Best solution found, plus its gap |
+| Case                                    | Detection                                | What the user sees                                                                                                                 |
+| --------------------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Target unreachable                      | Backward reachability before solving     | "Nothing can produce X", with the closest disabled recipes that would fix it                                                       |
+| Infeasible                              | HiGHS status                             | Elastic re-solve. Reports the minimal relaxation: "needs 3.2 more pure Siterite nodes" or "needs 40/min more imported Steel Beam". |
+| Unbounded                               | HiGHS status (O5 with unlimited sources) | Name the direction and ask for a cap. Sanity cap of 1e7/min.                                                                       |
+| Numerical / lexicographic infeasibility | Status or residual > 1e-6                | Automatically retry with 10× tolerance and warn                                                                                    |
+| MILP timeout                            | Time limit                               | Best solution found, plus its gap                                                                                                  |
 
 ---
 
@@ -163,21 +164,21 @@ The LP shows `x_j` and `ceil(x_j)`, with power reported on fractional counts. Th
 
 ### 4.1 Domain model
 
-| Entity | Fields | Notes |
-|---|---|---|
-| `World` | `factories[]`, `groups[]`, `links[]`, `defaults` (recipe toggles, objective stack, tolerance), `nodePool` (from `nodes.csv`, editable), `meta` (`v`, `dataHash`) | One per game save. This is the root of all state and of the share payload. |
-| `Group` | `id`, `name`, `parentId?`, `collapsed` | Nestable folders. No solve semantics. Shown as one aggregated node in the outer graph. |
-| `Factory` | `id`, `name`, `groupId?`, `request` (targets, objectives, tolerance, toggles that inherit `defaults` with per-factory overrides), `unassignedImports[]`, `nodeBudget` (`'pool'` or explicit per-node caps), `priority`, `notes` | Leaf. Each one is solved by the factory layer. |
-| `Link` | `id`, `from` (factory), `to` (factory), `item`, `mode` (`fixed` with a rate, or `pull`), `transport?` (`belt`, `pipe`, `train`, `truck`, `drone`, `unspecified`, plus a tier) | Directed and single-item. Several links between the same pair are allowed. |
+| Entity    | Fields                                                                                                                                                                                                                          | Notes                                                                                  |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `World`   | `factories[]`, `groups[]`, `links[]`, `defaults` (recipe toggles, objective stack, tolerance), `nodePool` (from `nodes.csv`, editable), `meta` (`v`, `dataHash`)                                                                | One per game save. This is the root of all state and of the share payload.             |
+| `Group`   | `id`, `name`, `parentId?`, `collapsed`                                                                                                                                                                                          | Nestable folders. No solve semantics. Shown as one aggregated node in the outer graph. |
+| `Factory` | `id`, `name`, `groupId?`, `request` (targets, objectives, tolerance, toggles that inherit `defaults` with per-factory overrides), `unassignedImports[]`, `nodeBudget` (`'pool'` or explicit per-node caps), `priority`, `notes` | Leaf. Each one is solved by the factory layer.                                         |
+| `Link`    | `id`, `from` (factory), `to` (factory), `item`, `mode` (`fixed` with a rate, or `pull`), `transport?` (`belt`, `pipe`, `train`, `truck`, `drone`, `unspecified`, plus a tier)                                                   | Directed and single-item. Several links between the same pair are allowed.             |
 
 In this model, a factory's **exports** are its targets plus its surplus `z`. A link can draw from either. Its **imports** are the incoming links plus any unassigned imports.
 
 ### 4.2 Link semantics
 
-| Mode | Effect on the consumer | Effect on the producer |
-|---|---|---|
-| `fixed` (rate *q*) | `importCap_i += q` | `demand_i += q` |
-| `pull` | `importCap_i = ∞` from this link. The resolved rate *q* is the consumer's actual `s_i` share. | `demand_i += q` (resolved) |
+| Mode               | Effect on the consumer                                                                        | Effect on the producer     |
+| ------------------ | --------------------------------------------------------------------------------------------- | -------------------------- |
+| `fixed` (rate _q_) | `importCap_i += q`                                                                            | `demand_i += q`            |
+| `pull`             | `importCap_i = ∞` from this link. The resolved rate _q_ is the consumer's actual `s_i` share. | `demand_i += q` (resolved) |
 
 A link that draws on a producer's existing surplus without raising its demand is shown as "fed by surplus" when `q ≤ z_i` before linking. Either way the math is the same.
 
@@ -198,20 +199,21 @@ A link that draws on a producer's existing surplus without raising its demand is
 
 ### 4.5 World analytics
 
-| View | Content |
-|---|---|
-| **Item ledger** (save-wide and per group) | For each item: produced, consumed, imported, exported, **surplus or available supply**, **unmet demand** (unassigned imports plus short links), and overproduction (surplus that no link takes) |
-| **Factory table** | Status (ok, infeasible, short), targets met, imports and exports, power draw and generation, nodes used, machine count |
-| **Link table** | Item, rate requested vs delivered, mode, transport. Belt or pipe count = `ceil(rate / capacity)`, using belt capacities from the dataset (60…1200/min). Pipe capacities are configurable **[A10]**. |
-| **Power** | Consumption and generation per factory and group, plus the save total. Net balance on the single grid **[A8]**. "Size power plant" sets a power factory's `MW` target to the current deficit. |
-| **Nodes** | Map pool vs usage per (resource, purity), by factory, with over-allocation highlighted |
-| **Outer graph** | Factories and groups as nodes, with badges for status, power and nodes. Edges are links, grouped per factory pair and labeled by item and rate. Unmet imports and unclaimed surplus appear as stubs. **Item trace:** pick an item to highlight every factory and link that touches it. A collapsed group shows only the flows that cross its boundary. |
+| View                                      | Content                                                                                                                                                                                                                                                                                                                                                |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Item ledger** (save-wide and per group) | For each item: produced, consumed, imported, exported, **surplus or available supply**, **unmet demand** (unassigned imports plus short links), and overproduction (surplus that no link takes)                                                                                                                                                        |
+| **Factory table**                         | Status (ok, infeasible, short), targets met, imports and exports, power draw and generation, nodes used, machine count                                                                                                                                                                                                                                 |
+| **Link table**                            | Item, rate requested vs delivered, mode, transport. Belt or pipe count = `ceil(rate / capacity)`, using belt capacities from the dataset (60…1200/min). Pipe capacities are configurable **[A10]**.                                                                                                                                                    |
+| **Power**                                 | Consumption and generation per factory and group, plus the save total. Net balance on the single grid **[A8]**. "Size power plant" sets a power factory's `MW` target to the current deficit.                                                                                                                                                          |
+| **Nodes**                                 | Map pool vs usage per (resource, purity), by factory, with over-allocation highlighted                                                                                                                                                                                                                                                                 |
+| **Outer graph**                           | Factories and groups as nodes, with badges for status, power and nodes. Edges are links, grouped per factory pair and labeled by item and rate. Unmet imports and unclaimed surplus appear as stubs. **Item trace:** pick an item to highlight every factory and link that touches it. A collapsed group shows only the flows that cross its boundary. |
 
 **Group aggregation** is defined recursively: a group's ledger, power and node usage equal the sum over its descendants. Links between factories inside the same group are internal and are hidden when the group is collapsed.
 
 ### 4.6 Considered and deferred: joint world optimization
 
 The alternative is one block LP over all factories, coupled by link-flow variables and a shared node-pool constraint. It would enforce map limits exactly and could choose where production happens. It is deferred because:
+
 - per-factory objective stacks don't combine cleanly;
 - it changes every factory whenever one edit is made;
 - the model grows with the number of factories, and MILP objectives get much slower.
@@ -222,12 +224,12 @@ The backlog (PLAN M11) adds it as an opt-in "optimize world" action that reuses 
 
 ## 5. Solver choice
 
-| Option | Pros | Cons | Verdict |
-|---|---|---|---|
-| **HiGHS via WASM** (`highs` npm) | Top-tier open-source LP/MILP, presolve, reliable status codes, MIT license, about 2.6 MB WASM | Large first download (lazy-loaded in a worker) | **Chosen** |
-| javascript-lp-solver | Tiny | Naive simplex, fragile numerics, weak MILP and diagnostics | Rejected |
-| glpk.js | Mature | GPL license, slower MILP | Fallback only |
-| Backend service | Any solver | Hosting, latency, and it breaks offline and static sharing | Not needed |
+| Option                           | Pros                                                                                          | Cons                                                       | Verdict       |
+| -------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------- |
+| **HiGHS via WASM** (`highs` npm) | Top-tier open-source LP/MILP, presolve, reliable status codes, MIT license, about 2.6 MB WASM | Large first download (lazy-loaded in a worker)             | **Chosen**    |
+| javascript-lp-solver             | Tiny                                                                                          | Naive simplex, fragile numerics, weak MILP and diagnostics | Rejected      |
+| glpk.js                          | Mature                                                                                        | GPL license, slower MILP                                   | Fallback only |
+| Backend service                  | Any solver                                                                                    | Hosting, latency, and it breaks offline and static sharing | Not needed    |
 
 **Performance.** One factory model is about 1.3k columns × 450 rows before pruning, and a few hundred after reverse-reachability pruning. Expect 10–100 ms per lexicographic stage **[A7]**. A world of 30 factories cold-solves in about 3 s, and a single edit re-solves only the dirty factories. The solver runs in a Web Worker (a pool of 2, so independent SCCs solve in parallel).
 
@@ -244,14 +246,14 @@ miner-model.json┤        ─► generate extraction routes ─► validate ─
 overrides.json ─┘                                              └─ build fails on any error
 ```
 
-| Validation | Severity |
-|---|---|
-| zod schema, parts referenced but undefined, unparseable numbers | error |
-| `nodes.csv` resources map to parts; counts are non-negative integers | error |
-| Machines resolve; batch time > 0; fluid magnitude check | error |
-| Free-lunch loop LP (§3.2) | error unless whitelisted |
-| Generated routes differ from dataset rows at 0 boosters | warning (in the report) |
-| Swapped power pair, unused parts, duplicate names | warning |
+| Validation                                                           | Severity                 |
+| -------------------------------------------------------------------- | ------------------------ |
+| zod schema, parts referenced but undefined, unparseable numbers      | error                    |
+| `nodes.csv` resources map to parts; counts are non-negative integers | error                    |
+| Machines resolve; batch time > 0; fluid magnitude check              | error                    |
+| Free-lunch loop LP (§3.2)                                            | error unless whitelisted |
+| Generated routes differ from dataset rows at 0 boosters              | warning (in the report)  |
+| Swapped power pair, unused parts, duplicate names                    | warning                  |
 
 Output: `model.json` holds `items[]` (including `MW`), `recipes[]`, `nodes[]` (id, resource, purity, map count, NNE), `extractionRoutes[]`, `beltCapacities[]` and `meta`.
 
@@ -272,12 +274,12 @@ apps/
   web/      React UI (world view and factory view), Zustand store, persistence, workers
 ```
 
-| Package | Public API (sketch) |
-|---|---|
-| `data` | `buildModel(paths) → { model, report }` |
-| `solver` | `solve(model, request, backend) → SolveResult` |
-| `world` | `resolveWorld(world, model, solveFactory, cache) → WorldResult` (per-factory results, resolved links, ledgers, power, node usage, diagnostics) |
-| `graph` | `factoryGraph(result)`, `worldGraph(worldResult, {collapsedGroups, traceItem})`, `layout(g)` |
+| Package  | Public API (sketch)                                                                                                                            |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data`   | `buildModel(paths) → { model, report }`                                                                                                        |
+| `solver` | `solve(model, request, backend) → SolveResult`                                                                                                 |
+| `world`  | `resolveWorld(world, model, solveFactory, cache) → WorldResult` (per-factory results, resolved links, ledgers, power, node usage, diagnostics) |
+| `graph`  | `factoryGraph(result)`, `worldGraph(worldResult, {collapsedGroups, traceItem})`, `layout(g)`                                                   |
 
 Dependency rule: `data ← solver ← world ← web`, and `graph` depends on the `solver`/`world` result types only. `solver` and `world` never import from `web`. ESLint enforces this.
 
@@ -287,58 +289,58 @@ Dependency rule: `data ← solver ← world ← web`, and `graph` depends on the
 
 ## 8. Tech stack
 
-| Concern | Choice | Justification |
-|---|---|---|
-| Language / monorepo | TypeScript (strict), pnpm workspaces | Shared types end to end |
-| Build | Vite | WASM and worker support, fast dev server |
-| UI | React 19 | Ecosystem for graph and table components |
-| State | Zustand. The store **is** the `World` document from M3 on: a single-factory world, so there is no later migration. | The state doubles as the save/share payload |
-| Graphs (both layers) | React Flow (@xyflow/react) + ELK.js (layered, in a worker) | Interactive, handles cycles. ELK compound nodes cover nested groups. |
-| Tables | TanStack Table | Ledgers, factory, link and recipe tables |
-| Styling | Tailwind | |
-| Persistence | Autosave to localStorage (save slots, try/catch), `.json` export/import as the main format, URL hash (lz-string) when the compressed payload is under 8 KB, otherwise prompt to export. Payload carries `v` and `dataHash`. | Full saves can be large |
-| Tests | Vitest, fast-check, Playwright | |
-| CI / deploy | GitHub Actions → GitHub Pages | |
+| Concern              | Choice                                                                                                                                                                                                                      | Justification                                                        |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Language / monorepo  | TypeScript (strict), pnpm workspaces                                                                                                                                                                                        | Shared types end to end                                              |
+| Build                | Vite                                                                                                                                                                                                                        | WASM and worker support, fast dev server                             |
+| UI                   | React 19                                                                                                                                                                                                                    | Ecosystem for graph and table components                             |
+| State                | Zustand. The store **is** the `World` document from M3 on: a single-factory world, so there is no later migration.                                                                                                          | The state doubles as the save/share payload                          |
+| Graphs (both layers) | React Flow (@xyflow/react) + ELK.js (layered, in a worker)                                                                                                                                                                  | Interactive, handles cycles. ELK compound nodes cover nested groups. |
+| Tables               | TanStack Table                                                                                                                                                                                                              | Ledgers, factory, link and recipe tables                             |
+| Styling              | Tailwind                                                                                                                                                                                                                    |                                                                      |
+| Persistence          | Autosave to localStorage (save slots, try/catch), `.json` export/import as the main format, URL hash (lz-string) when the compressed payload is under 8 KB, otherwise prompt to export. Payload carries `v` and `dataHash`. | Full saves can be large                                              |
+| Tests                | Vitest, fast-check, Playwright                                                                                                                                                                                              |                                                                      |
+| CI / deploy          | GitHub Actions → GitHub Pages                                                                                                                                                                                               |                                                                      |
 
 ---
 
 ## 9. Testing strategy
 
-| Layer | Tests |
-|---|---|
-| Parsing / normalization | Table-driven rationals; Iron Plate snapshot (30 in → 20 out, 4 MW); generator recipe outputs the right `MW` |
-| Miner model | Pure Montanion + Slime → 900 on each belt; generated routes match dataset rows at 0 boosters (except whitelisted ones) |
-| Solver **properties** (fast-check) | Item balance within 1e-6; all variables ≥ −1e-9; nodes ≤ budget; disabled recipes unused; lexicographic stages respect tolerance; scaling linearity |
-| Solver **golden** | `fixtures/golden/*.json`: vanilla-mini cases you can check in satisfactory-tools now; **SF+ cases pending from you** |
+| Layer                                                | Tests                                                                                                                                                                                                                                                                                                                             |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Parsing / normalization                              | Table-driven rationals; Iron Plate snapshot (30 in → 20 out, 4 MW); generator recipe outputs the right `MW`                                                                                                                                                                                                                       |
+| Miner model                                          | Pure Montanion + Slime → 900 on each belt; generated routes match dataset rows at 0 boosters (except whitelisted ones)                                                                                                                                                                                                            |
+| Solver **properties** (fast-check)                   | Item balance within 1e-6; all variables ≥ −1e-9; nodes ≤ budget; disabled recipes unused; lexicographic stages respect tolerance; scaling linearity                                                                                                                                                                               |
+| Solver **golden**                                    | `fixtures/golden/*.json`: vanilla-mini cases you can check in satisfactory-tools now; **SF+ cases pending from you**                                                                                                                                                                                                              |
 | World **properties** (random worlds, DAG and cyclic) | **Conservation:** for each item, world surplus = Σ factory surplus − Σ link deliveries drawn from surplus. Each link's delivered rate ≤ requested, and equals it when the producer is feasible. Group aggregates = Σ descendants. Pull resolution reaches a fixed point; a `fixed` link never changes a producer's other targets. |
-| World **scenarios** | Linear chain A→B→C (pull); diamond; a 2-factory pull cycle that converges; a non-convergent cycle reports the cycle; infeasible upstream marks links short; node over-allocation flagged; power deficit and "size power plant" closing it |
-| World caching | Editing one factory re-solves only it and its upstream pull dependents (count the calls to `solveFactory`) |
-| Graph | Edge rates conserve per node; deterministic layout; collapsed group shows only boundary flows |
-| Persistence | Round trip World → JSON/URL → World is deep-equal; version migration; dataHash mismatch warns |
-| E2E (Playwright) | Create 2 factories → link → upstream target updates → ledger shows surplus → drill into factory → toggle alternate → back to world → export → import |
-| Performance | One SF+ factory with 5 targets and a 3-stage stack solves in < 1 s (Node). A 30-factory world cold-solves in < 5 s. |
+| World **scenarios**                                  | Linear chain A→B→C (pull); diamond; a 2-factory pull cycle that converges; a non-convergent cycle reports the cycle; infeasible upstream marks links short; node over-allocation flagged; power deficit and "size power plant" closing it                                                                                         |
+| World caching                                        | Editing one factory re-solves only it and its upstream pull dependents (count the calls to `solveFactory`)                                                                                                                                                                                                                        |
+| Graph                                                | Edge rates conserve per node; deterministic layout; collapsed group shows only boundary flows                                                                                                                                                                                                                                     |
+| Persistence                                          | Round trip World → JSON/URL → World is deep-equal; version migration; dataHash mismatch warns                                                                                                                                                                                                                                     |
+| E2E (Playwright)                                     | Create 2 factories → link → upstream target updates → ledger shows surplus → drill into factory → toggle alternate → back to world → export → import                                                                                                                                                                              |
+| Performance                                          | One SF+ factory with 5 targets and a 3-stage stack solves in < 1 s (Node). A 30-factory world cold-solves in < 5 s.                                                                                                                                                                                                               |
 
 ---
 
 ## 10. Risks, assumptions and open questions
 
-| ID | Item | Mitigation / default |
-|---|---|---|
-| A1 | Some variable-power recipes have `MinPower`/`AveragePower` swapped | Use `AveragePower`; list them in the report |
-| A2 | `IgnoreInputMultiplier` / `SpaceElevatorMultiplier` meaning unknown | Ignored |
-| A3 | Smelter malus assumed to be 0.5, like the Crusher | One value in `miner-model.json` |
-| A4 | Crusher/Smelter + fluid allowed for every ore | Flag in `miner-model.json` |
-| A5 | Impure Sulfur Powder gangue: 20 in the dataset vs 15 from the formula | The dataset value wins |
-| A6 | Fracking = 1500 m³/min per site. Actual Chlorine clusters are about 900; oil site counts differ (3 in the sheet vs 2 on the map). | Per-resource override in `nodes.csv` |
-| A7 | Performance estimates are unmeasured | Benchmarks in M2 and M5 |
-| A8 | Single power grid for the whole save | A per-factory `grid` tag in the backlog |
-| A9 | The map node limit is checked across factories but not enforced | Over-allocation warning, explicit budgets, joint solve in the backlog |
-| A10 | Pipe capacities aren't in the dataset | Configurable (defaults 300/600 m³/min) |
-| R1 | **Booster module power draw is unknown** | `boosterPowerMW = 0`, flagged in the UI; please provide the value |
-| R2 | The SF+ wiki export (archived Mar 2026) may lag the current SF+ version | All map numbers live in editable data files |
-| R3 | Fractional node usage | The whole-machines toggle makes node usage integer |
-| R4 | Pull cycles may oscillate or diverge | Iteration limit, cycle report, suggest a `fixed` link |
-| R5 | Graph readability (a big world or a big factory) | Collapsible groups, item trace, filters |
-| R6 | Large saves exceed URL size | JSON export is the main format; URL only under 8 KB |
+| ID  | Item                                                                                                                              | Mitigation / default                                                  |
+| --- | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| A1  | Some variable-power recipes have `MinPower`/`AveragePower` swapped                                                                | Use `AveragePower`; list them in the report                           |
+| A2  | `IgnoreInputMultiplier` / `SpaceElevatorMultiplier` meaning unknown                                                               | Ignored                                                               |
+| A3  | Smelter malus assumed to be 0.5, like the Crusher                                                                                 | One value in `miner-model.json`                                       |
+| A4  | Crusher/Smelter + fluid allowed for every ore                                                                                     | Flag in `miner-model.json`                                            |
+| A5  | Impure Sulfur Powder gangue: 20 in the dataset vs 15 from the formula                                                             | The dataset value wins                                                |
+| A6  | Fracking = 1500 m³/min per site. Actual Chlorine clusters are about 900; oil site counts differ (3 in the sheet vs 2 on the map). | Per-resource override in `nodes.csv`                                  |
+| A7  | Performance estimates are unmeasured                                                                                              | Benchmarks in M2 and M5                                               |
+| A8  | Single power grid for the whole save                                                                                              | A per-factory `grid` tag in the backlog                               |
+| A9  | The map node limit is checked across factories but not enforced                                                                   | Over-allocation warning, explicit budgets, joint solve in the backlog |
+| A10 | Pipe capacities aren't in the dataset                                                                                             | Configurable (defaults 300/600 m³/min)                                |
+| R1  | **Booster module power draw is unknown**                                                                                          | `boosterPowerMW = 0`, flagged in the UI; please provide the value     |
+| R2  | The SF+ wiki export (archived Mar 2026) may lag the current SF+ version                                                           | All map numbers live in editable data files                           |
+| R3  | Fractional node usage                                                                                                             | The whole-machines toggle makes node usage integer                    |
+| R4  | Pull cycles may oscillate or diverge                                                                                              | Iteration limit, cycle report, suggest a `fixed` link                 |
+| R5  | Graph readability (a big world or a big factory)                                                                                  | Collapsible groups, item trace, filters                               |
+| R6  | Large saves exceed URL size                                                                                                       | JSON export is the main format; URL only under 8 KB                   |
 
 **Sources:** fluid bonuses, Crusher malus and `fluidBasePerMin` were derived from `game_data.json`. The miner formula is from `SFPMinerRates.h` (DerDoesewicht/PioneerProductionPlanner). Booster values are from the k-mods Production Planner changelog. Resource-well clusters are from `resourceWells.json` (Satisfactory-KMods/SatisfactoryPlusWiki). The world-layer feature set was modeled on satisfactory-factories.app (imports and exports between factories, flow visualization, power planning) and on the Outposts in Satisfactory Modeler.
