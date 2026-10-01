@@ -7,6 +7,7 @@ export const PACKAGE_NAME = '@sps/world';
 export * from './document';
 export * from './editing';
 export * from './migrate';
+export * from './persist';
 export {
   COST_PASSES,
   CYCLE_ITERATION_LIMIT,
