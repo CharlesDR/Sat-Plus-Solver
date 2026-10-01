@@ -20,3 +20,5 @@ export { findFreeLunch } from './checks/freeLunch';
 export type { FreeLunchResult } from './checks/freeLunch';
 export { solve } from './factory/solve';
 export type * from './factory/types';
+export { summarizePlan, formatRate } from './factory/summary';
+export type { PlanSummary, SummaryFlow, SummaryNode, SummaryRecipe } from './factory/summary';
