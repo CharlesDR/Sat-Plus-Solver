@@ -137,6 +137,31 @@ describe('world store', () => {
     expect(store.getState().world.meta.dataHash).toBe('h1');
     expect(store.getState().dataHashMismatch).toEqual({ world: 'h1', model: 'h2' });
   });
+
+  test('loadWorld replaces the document and re-checks its data hash (M9)', () => {
+    const store = createWorldStore();
+    // Before the model is known, a loaded world is taken as is.
+    const early = createWorld('old');
+    store.getState().loadWorld(early);
+    expect(store.getState().world).toBe(early);
+    expect(store.getState().dataHashMismatch).toBeUndefined();
+    store.getState().attachData('h1');
+    expect(store.getState().dataHashMismatch).toEqual({ world: 'old', model: 'h1' });
+
+    const same = createWorld('h1');
+    store.getState().loadWorld(same);
+    expect(store.getState().world).toBe(same);
+    expect(store.getState().dataHashMismatch).toBeUndefined();
+
+    store.getState().loadWorld(createWorld(''));
+    expect(store.getState().world.meta.dataHash).toBe('h1');
+
+    const other = createWorld('h0');
+    other.factories[0]!.name = 'Imported';
+    store.getState().loadWorld(other);
+    expect(store.getState().world).toBe(other);
+    expect(store.getState().dataHashMismatch).toEqual({ world: 'h0', model: 'h1' });
+  });
 });
 
 describe('world editing (M8)', () => {
