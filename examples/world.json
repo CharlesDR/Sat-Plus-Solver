@@ -1,0 +1,243 @@
+{
+  "meta": {
+    "v": 2,
+    "dataHash": ""
+  },
+  "factories": [
+    {
+      "id": "iron-works",
+      "name": "Iron Works",
+      "groupId": "starter",
+      "request": {
+        "targets": []
+      },
+      "unassignedImports": [],
+      "nodeBudget": "pool",
+      "priority": 0,
+      "notes": "Makes the plates the frame factory pulls."
+    },
+    {
+      "id": "frames",
+      "name": "Frame Factory",
+      "groupId": "starter",
+      "request": {
+        "targets": [
+          {
+            "item": "modular-frame",
+            "rate": 5
+          }
+        ]
+      },
+      "unassignedImports": [],
+      "nodeBudget": "pool",
+      "priority": 0,
+      "notes": ""
+    },
+    {
+      "id": "steel-mill",
+      "name": "Steel Mill",
+      "request": {
+        "targets": [
+          {
+            "item": "steel-beam",
+            "rate": 10
+          }
+        ]
+      },
+      "unassignedImports": [],
+      "nodeBudget": "pool",
+      "priority": 0,
+      "notes": ""
+    },
+    {
+      "id": "coal-power",
+      "name": "Coal Power",
+      "groupId": "power",
+      "request": {
+        "targets": [
+          {
+            "item": "mw",
+            "rate": 300
+          }
+        ],
+        "excludeRecipes": [
+          "alien-power-augmenter",
+          "biomass-burner",
+          "carbon-powder-coal-generator",
+          "coal-coal-generator",
+          "ficsonium-fuel-rod-nuclear-power-plant",
+          "fuel-fuel-generator",
+          "ionized-fuel-fuel-generator",
+          "leaves-biomass-burner",
+          "liquid-biofuel-fuel-generator",
+          "mycelia-biomass-burner",
+          "nuclear-heater-mk-1-boiler-ficsonium-fuel-rod",
+          "nuclear-heater-mk-1-boiler-ficsonium-fuel-rod-slime",
+          "nuclear-heater-mk-1-boiler-plutonium-fuel-rod",
+          "nuclear-heater-mk-1-boiler-plutonium-fuel-rod-slime",
+          "nuclear-heater-mk-1-boiler-uranium-fuel-rod",
+          "nuclear-heater-mk-1-boiler-uranium-fuel-rod-slime",
+          "nuclear-heater-mk-2-boiler-ficsonium-fuel-rod",
+          "nuclear-heater-mk-2-boiler-ficsonium-fuel-rod-slime",
+          "nuclear-heater-mk-2-boiler-plutonium-fuel-rod",
+          "nuclear-heater-mk-2-boiler-plutonium-fuel-rod-slime",
+          "nuclear-heater-mk-2-boiler-uranium-fuel-rod",
+          "nuclear-heater-mk-2-boiler-uranium-fuel-rod-slime",
+          "petroleum-coke-coal-generator",
+          "plutonium-fuel-rod-nuclear-power-plant",
+          "rocket-fuel-fuel-generator",
+          "solid-biofuel-biomass-burner",
+          "solid-biomass-heater-mk-1-biomass",
+          "solid-biomass-heater-mk-1-biomass-slime",
+          "solid-biomass-heater-mk-1-compact-biomass",
+          "solid-biomass-heater-mk-1-compact-biomass-slime",
+          "solid-biomass-heater-mk-1-fabric",
+          "solid-biomass-heater-mk-1-fabric-slime",
+          "solid-biomass-heater-mk-1-leaves",
+          "solid-biomass-heater-mk-1-leaves-slime",
+          "solid-biomass-heater-mk-1-mycelia",
+          "solid-biomass-heater-mk-1-mycelia-slime",
+          "solid-biomass-heater-mk-1-packaged-liquid-biofuel~2911c9",
+          "solid-biomass-heater-mk-1-packaged-liquid-biofuel~be47fe",
+          "solid-biomass-heater-mk-1-solid-biofuel",
+          "solid-biomass-heater-mk-1-solid-biofuel-slime",
+          "solid-biomass-heater-mk-1-wood",
+          "solid-biomass-heater-mk-1-wood-slime",
+          "solid-biomass-heater-mk-2-biomass",
+          "solid-biomass-heater-mk-2-biomass-slime",
+          "solid-biomass-heater-mk-2-compact-biomass",
+          "solid-biomass-heater-mk-2-compact-biomass-slime",
+          "solid-biomass-heater-mk-2-fabric",
+          "solid-biomass-heater-mk-2-fabric-slime",
+          "solid-biomass-heater-mk-2-leaves",
+          "solid-biomass-heater-mk-2-leaves-slime",
+          "solid-biomass-heater-mk-2-mycelia",
+          "solid-biomass-heater-mk-2-mycelia-slime",
+          "solid-biomass-heater-mk-2-packaged-liquid-biofuel~17a10c",
+          "solid-biomass-heater-mk-2-packaged-liquid-biofuel~aedb78",
+          "solid-biomass-heater-mk-2-solid-biofuel",
+          "solid-biomass-heater-mk-2-solid-biofuel-slime",
+          "solid-biomass-heater-mk-2-wood",
+          "solid-biomass-heater-mk-2-wood-slime",
+          "solid-fuel-heater-mk-1-carbon-powder",
+          "solid-fuel-heater-mk-1-carbon-powder-slime",
+          "solid-fuel-heater-mk-1-coal-slime",
+          "solid-fuel-heater-mk-1-petroleum-coke",
+          "solid-fuel-heater-mk-1-petroleum-coke-slime",
+          "solid-fuel-heater-mk-1-sulfur-powder",
+          "solid-fuel-heater-mk-1-sulfur-powder-slime",
+          "solid-fuel-heater-mk-2-carbon-powder",
+          "solid-fuel-heater-mk-2-carbon-powder-slime",
+          "solid-fuel-heater-mk-2-coal",
+          "solid-fuel-heater-mk-2-coal-slime",
+          "solid-fuel-heater-mk-2-petroleum-coke",
+          "solid-fuel-heater-mk-2-petroleum-coke-slime",
+          "solid-fuel-heater-mk-2-sulfur-powder",
+          "solid-fuel-heater-mk-2-sulfur-powder-slime",
+          "solution-heater-mk-1-ethylene-gas",
+          "solution-heater-mk-1-ethylene-gas-slime",
+          "solution-heater-mk-1-excited-photonic-matter",
+          "solution-heater-mk-1-excited-photonic-matter-slug-slime",
+          "solution-heater-mk-1-fuel",
+          "solution-heater-mk-1-fuel-slime",
+          "solution-heater-mk-1-hydrogen",
+          "solution-heater-mk-1-hydrogen-slime",
+          "solution-heater-mk-1-ionized-fuel",
+          "solution-heater-mk-1-ionized-fuel-slime",
+          "solution-heater-mk-1-liquid-biofuel",
+          "solution-heater-mk-1-liquid-biofuel-slime",
+          "solution-heater-mk-1-natural-gas",
+          "solution-heater-mk-1-natural-gas-slime",
+          "solution-heater-mk-1-rocket-fuel",
+          "solution-heater-mk-1-rocket-fuel-slime",
+          "solution-heater-mk-1-turbofuel",
+          "solution-heater-mk-1-turbofuel-slime",
+          "solution-heater-mk-2-ethylene-gas",
+          "solution-heater-mk-2-ethylene-gas-slime",
+          "solution-heater-mk-2-excited-photonic-matter",
+          "solution-heater-mk-2-excited-photonic-matter-slug-slime",
+          "solution-heater-mk-2-fuel",
+          "solution-heater-mk-2-fuel-slime",
+          "solution-heater-mk-2-hydrogen",
+          "solution-heater-mk-2-hydrogen-slime",
+          "solution-heater-mk-2-ionized-fuel",
+          "solution-heater-mk-2-ionized-fuel-slime",
+          "solution-heater-mk-2-liquid-biofuel",
+          "solution-heater-mk-2-liquid-biofuel-slime",
+          "solution-heater-mk-2-natural-gas",
+          "solution-heater-mk-2-natural-gas-slime",
+          "solution-heater-mk-2-rocket-fuel",
+          "solution-heater-mk-2-rocket-fuel-slime",
+          "solution-heater-mk-2-turbofuel",
+          "solution-heater-mk-2-turbofuel-slime",
+          "turbine-generator-super-hv-slug-slime",
+          "turbine-generator-super-hv-steam",
+          "turbine-mk-1-hv-generator-slime",
+          "turbine-mk-1-mv-generator-slime",
+          "turbine-mk-1-mv-generator-steam",
+          "turbine-mk-2-hv-generator-slime",
+          "turbine-mk-2-hv-generator-steam",
+          "turbine-mk-2-mv-generator-slime",
+          "turbine-mk-2-mv-generator-steam",
+          "turbofuel-fuel-generator",
+          "uranium-fuel-rod-nuclear-power-plant",
+          "wood-biomass-burner"
+        ]
+      },
+      "unassignedImports": [],
+      "nodeBudget": "pool",
+      "priority": 0,
+      "notes": "Coal heaters and steam turbines only."
+    }
+  ],
+  "groups": [
+    {
+      "id": "starter",
+      "name": "Starter Base",
+      "collapsed": false
+    },
+    {
+      "id": "power",
+      "name": "Power",
+      "collapsed": false
+    }
+  ],
+  "links": [
+    {
+      "id": "plates",
+      "from": "iron-works",
+      "to": "frames",
+      "item": "iron-plate",
+      "mode": {
+        "kind": "pull"
+      },
+      "transport": {
+        "kind": "belt",
+        "tier": 1
+      }
+    },
+    {
+      "id": "rods",
+      "from": "iron-works",
+      "to": "frames",
+      "item": "iron-rod",
+      "mode": {
+        "kind": "fixed",
+        "rate": 10
+      },
+      "transport": {
+        "kind": "belt",
+        "tier": 1
+      }
+    }
+  ],
+  "defaults": {
+    "objectives": ["resources"],
+    "tolerance": 0.0001,
+    "alternates": false,
+    "wholeMachines": false,
+    "costImports": false,
+    "excludeRecipes": []
+  },
+  "nodePool": {}
+}

@@ -17,6 +17,9 @@ importers:
       '@sps/solver':
         specifier: workspace:*
         version: link:packages/solver
+      '@sps/world':
+        specifier: workspace:*
+        version: link:packages/world
       '@types/node':
         specifier: ^22.20.4
         version: 22.20.4

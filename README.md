@@ -20,9 +20,10 @@ pnpm build       # production build of the web app
 pnpm e2e         # Playwright smoke tests against the build (run pnpm build first)
 pnpm build:data  # data/generated/model.json + report.md
 pnpm solve --target "Iron Plate:60" [--import "Iron Ingot:30"] [--objective scarcity]
+pnpm world solve examples/world.json [--json]
 ```
 
-`pnpm solve` prints one factory's plan (recipes, machines, imports, byproducts, nodes, power). Run it without arguments for every option. The web app shows the same table: pick a target item and rate, and it solves in a Web Worker.
+`pnpm solve` prints one factory's plan (recipes, machines, imports, byproducts, nodes, power). Run it without arguments for every option. The web app shows the same table: pick a target item and rate, and it solves in a Web Worker. `pnpm world solve` resolves a saved world (factories, links, groups) and prints its factory, link, item-ledger, power and node tables.
 
 In a sandbox with a preinstalled Chromium, point Playwright at it with `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chrome pnpm e2e`.
 

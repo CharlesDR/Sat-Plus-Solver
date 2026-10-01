@@ -16,12 +16,14 @@
     "dev": "pnpm --filter @sps/web dev",
     "build:data": "tsx tooling/build-data.ts",
     "solve": "tsx tooling/solve.ts",
-    "e2e": "pnpm --filter @sps/web e2e"
+    "e2e": "pnpm --filter @sps/web e2e",
+    "world": "tsx tooling/world.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@sps/data": "workspace:*",
     "@sps/solver": "workspace:*",
+    "@sps/world": "workspace:*",
     "@types/node": "^22.20.4",
     "eslint": "^10.11.0",
     "eslint-plugin-react-hooks": "^7.1.1",
