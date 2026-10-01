@@ -1,3 +1,4 @@
+import type { LayoutEngine } from '@sps/graph';
 import { DEFAULT_FACTORY_ID } from '@sps/world';
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from 'zustand';
@@ -6,15 +7,19 @@ import { NodeBudgetEditor } from './controls/NodeBudgetEditor';
 import { RecipeToggles } from './controls/RecipeToggles';
 import { SettingsPanel } from './controls/SettingsPanel';
 import { TargetsEditor } from './controls/TargetsEditor';
+import { Flowchart } from './flowchart/Flowchart';
+import type { Selection } from './selection';
 import type { SolverClient } from './solver/client';
 import type { Catalog } from './solver/protocol';
 import type { Scope, WorldStore } from './store';
 import { SummaryTable } from './SummaryTable';
+import type { SolveOutcome } from './solver/client';
 import { usePlan, type PlanState } from './usePlan';
 
 const FACTORY = DEFAULT_FACTORY_ID;
 
-export function App({ client, store }: { client: SolverClient; store: WorldStore }) {
+export function App(props: { client: SolverClient; store: WorldStore; layout: LayoutEngine }) {
+  const { client, store, layout } = props;
   const mismatch = useStore(store, (s) => s.dataHashMismatch);
   const [catalog, setCatalog] = useState<Catalog | undefined>();
   const [initError, setInitError] = useState<string | undefined>();
@@ -45,7 +50,13 @@ export function App({ client, store }: { client: SolverClient; store: WorldStore
       ) : !catalog ? (
         <p aria-busy="true">Loading the solver…</p>
       ) : (
-        <FactoryView client={client} store={store} catalog={catalog} factoryId={FACTORY} />
+        <FactoryView
+          client={client}
+          store={store}
+          layout={layout}
+          catalog={catalog}
+          factoryId={FACTORY}
+        />
       )}
     </main>
   );
@@ -55,10 +66,12 @@ export function App({ client, store }: { client: SolverClient; store: WorldStore
 function FactoryView(props: {
   client: SolverClient;
   store: WorldStore;
+  layout: LayoutEngine;
   catalog: Catalog;
   factoryId: string;
 }) {
-  const { client, store, catalog, factoryId } = props;
+  const { client, store, layout, catalog, factoryId } = props;
+  const [selection, setSelection] = useState<Selection>();
   const world = useStore(store, (s) => s.world);
   const actions = store.getState();
   const factory = world.factories.find((f) => f.id === factoryId);
@@ -131,12 +144,34 @@ function FactoryView(props: {
           />
         </details>
       </section>
-      <PlanView plan={plan} />
+      <PlanView
+        plan={plan}
+        layout={layout}
+        selection={selection}
+        onSelect={(id, from) => setSelection(id === undefined ? undefined : { id, from })}
+      />
     </div>
   );
 }
 
-function PlanView({ plan }: { plan: PlanState }) {
+function PlanView(props: {
+  plan: PlanState;
+  layout: LayoutEngine;
+  selection: Selection | undefined;
+  onSelect: (id: string | undefined, from: Selection['from']) => void;
+}) {
+  const { plan, layout, selection, onSelect } = props;
+  const solved = (o: SolveOutcome) => (
+    <>
+      <Flowchart
+        engine={layout}
+        graph={o.graph}
+        selection={selection}
+        onSelect={(id) => onSelect(id, 'graph')}
+      />
+      <SummaryTable plan={o.plan} selection={selection} onSelect={(id) => onSelect(id, 'table')} />
+    </>
+  );
   switch (plan.kind) {
     case 'idle':
       return <p>Pick an item and a rate to plan a factory.</p>;
@@ -150,18 +185,14 @@ function PlanView({ plan }: { plan: PlanState }) {
       return (
         <div aria-busy="true">
           <p className="solving">Solving…</p>
-          {plan.previous && (
-            <div className="stale">
-              <SummaryTable plan={plan.previous.plan} />
-            </div>
-          )}
+          {plan.previous && <div className="stale">{solved(plan.previous)}</div>}
         </div>
       );
     case 'done':
       return (
         <div aria-busy="false" data-testid="plan">
           <p className="timing">Solved in {Math.round(plan.outcome.ms)} ms.</p>
-          <SummaryTable plan={plan.outcome.plan} />
+          {solved(plan.outcome)}
         </div>
       );
   }

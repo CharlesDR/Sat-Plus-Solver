@@ -1,9 +1,10 @@
 import type { Model } from '@sps/data';
+import { factoryGraph } from '@sps/graph';
 import { createHighsBackend, solve, summarizePlan } from '@sps/solver';
 import { DEFAULT_FACTORY_ID, createWorld } from '@sps/world';
 import { describe, expect, test } from 'vitest';
 import miniJson from '../../../../fixtures/vanilla-mini/model.json';
-import { createSolverService, modelCatalog, targetCatalog } from './service';
+import { createSolverService, modelCatalog, modelLabels, targetCatalog } from './service';
 
 const mini = miniJson as unknown as Model;
 const backend = createHighsBackend();
@@ -47,24 +48,26 @@ describe('solver service', () => {
     const world = createWorld('vanilla-mini');
     world.factories[0]!.request.targets.push({ item: 'iron-plate', rate: 60 });
 
-    const plan = await service.solve(world, DEFAULT_FACTORY_ID);
-    const direct = summarizePlan(
+    const solved = await service.solve(world, DEFAULT_FACTORY_ID);
+    const { plan, graph } = solved;
+    const result = await solve(
       mini,
-      await solve(
-        mini,
-        {
-          targets: [{ item: 'iron-plate', rate: 60 }],
-          objective: 'resources',
-          recipes: { alternates: false, exclude: [] },
-        },
-        backend,
-      ),
+      {
+        targets: [{ item: 'iron-plate', rate: 60 }],
+        objective: 'resources',
+        recipes: { alternates: false, exclude: [] },
+      },
+      backend,
     );
-    expect(plan).toEqual(direct);
+    expect(plan).toEqual(summarizePlan(mini, result));
     expect(plan.status).toBe('ok');
     expect(plan.targets).toEqual([{ item: 'iron-plate', name: 'Iron Plate', rate: 60 }]);
-    // The summary crosses the worker boundary, so it must survive structured cloning.
-    expect(structuredClone(plan)).toEqual(plan);
+    // The flowchart comes from the same result, with display names.
+    expect(graph).toEqual(factoryGraph(result, modelLabels(mini)));
+    expect(graph.nodes.map((n) => n.label)).toContain('Iron Plate');
+    expect(graph.nodes.find((n) => n.kind === 'target')?.label).toBe('Iron Plate');
+    // Both cross the worker boundary, so they must survive structured cloning.
+    expect(structuredClone(solved)).toEqual(solved);
   });
 
   test('solver diagnostics come back in the summary', async () => {
@@ -76,8 +79,9 @@ describe('solver service', () => {
         .filter((r) => r.outputs.some((o) => o.item === 'iron-plate'))
         .map((r) => [r.id, false]),
     );
-    const plan = await service.solve(world, DEFAULT_FACTORY_ID);
+    const { plan, graph } = await service.solve(world, DEFAULT_FACTORY_ID);
     expect(plan.status).toBe('unreachable');
+    expect(graph).toEqual({ nodes: [], edges: [] });
     expect(plan.diagnostics[0]?.severity).toBe('error');
     expect(plan.recipes).toEqual([]);
   });

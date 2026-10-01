@@ -20,6 +20,7 @@ function fakeWorker() {
 }
 
 const plan = (objectiveValue: number) => ({ objectiveValue }) as PlanSummary;
+const graph = { nodes: [], edges: [] };
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
 describe('solver client', () => {
@@ -56,8 +57,8 @@ describe('solver client', () => {
     expect(sent.map((m) => m.world)).toEqual([w1]);
     await expect(p2).resolves.toBeNull();
 
-    reply({ type: 'solved', id: sent[0]!.id, plan: plan(1), ms: 5 });
-    await expect(p1).resolves.toEqual({ plan: plan(1), ms: 5 });
+    reply({ type: 'solved', id: sent[0]!.id, plan: plan(1), graph, ms: 5 });
+    await expect(p1).resolves.toEqual({ plan: plan(1), graph, ms: 5 });
     expect(sent.map((m) => m.world)).toEqual([w1, w3]);
 
     reply({ type: 'failed', id: sent[1]!.id, message: 'nope' });
@@ -69,7 +70,7 @@ describe('solver client', () => {
     const client = createSolverClient(worker);
     let settled: unknown = 'pending';
     const p = client.solve(createWorld(), 'f').then((v) => (settled = v));
-    reply({ type: 'solved', id: sent[0]!.id + 99, plan: plan(1), ms: 1 });
+    reply({ type: 'solved', id: sent[0]!.id + 99, plan: plan(1), graph, ms: 1 });
     await flush();
     expect(settled).toBe('pending');
     client.dispose();
