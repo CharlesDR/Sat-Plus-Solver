@@ -1,0 +1,39 @@
+{
+  "$comment": "Extraction model parameters (docs/ARCHITECTURE.md §2.3). Rationals are strings. Every rate comes from the dataset; these are only multipliers and choices.",
+  "modularMiner": {
+    "$comment": "effective = max(minEffective, purity + (fluidBonus + boosterBonus) × processingMalus); baseRate = A_mk × 60 × effective. A_mk comes from MultiMachine PartsRatio of the chosen Mk.",
+    "multiMachineGroup": "Modular Miner",
+    "mk": 3,
+    "beltOutputs": 2,
+    "boosterBonus": "3",
+    "boosterSlots": 3,
+    "boosterPowerMW": "0",
+    "$boosterPowerMW": "R1: booster module power draw is unknown; 0 until provided.",
+    "minEffective": "1/2",
+    "processingMalus": { "crusher": "1/2", "smelter": "1/2" },
+    "$processingMalus": "Crusher derived from dataset Fluid-Crusher rows; Smelter assumed equal (A3).",
+    "allowProcessingWithFluid": true,
+    "$allowProcessingWithFluid": "A4: Crusher/Smelter + fluid allowed for every ore.",
+    "machines": {
+      "none": "Modular Miner Mk.{mk}",
+      "crusher": "Modular Miner Mk.{mk} (Crusher Module)",
+      "smelter": "Modular Miner Mk.{mk} (Smelter Module)",
+      "fluid": "Modular Miner Mk.{mk} (Fluid Module)",
+      "fluid+crusher": "Modular Miner Mk.{mk} (Fluid-Crusher Module)",
+      "fluid+smelter": "Modular Miner Mk.{mk} (Fluid-Crusher Module)"
+    },
+    "$machines": "A11: no Fluid-Smelter machine exists in the dataset; its power is taken from the Fluid-Crusher machine."
+  },
+  "nodeExtractors": {
+    "$comment": "Non-miner extractors on limited nodes run fully overclocked. Power scales as clock^exponent (machine OverclockPowerExponent, else defaultPowerExponent).",
+    "clock": "5/2",
+    "defaultPowerExponent": "1321929/1000000"
+  },
+  "fracking": {
+    "$comment": "Per-site rate = siteNormalEquivalents × (extractor rate on a normal node) × clock, unless nodes.csv site_rate_m3_min overrides it (A6). 40/3 = mean normal-node-equivalents of the six SF+ Nitrogen clusters.",
+    "extractorMachine": "Resource Well Extractor",
+    "pressurizerMachine": "Resource Well Pressurizer",
+    "siteNormalEquivalents": "40/3",
+    "clock": "5/2"
+  }
+}
