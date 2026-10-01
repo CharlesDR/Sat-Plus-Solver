@@ -14,6 +14,8 @@ export interface SummaryRecipe {
   machines: number;
   machinesCeil: number;
   powerMW: number;
+  /** Heaters only (A17): boiler load 0–1; `machines` is then the whole heater count. */
+  boilerLoad?: number;
 }
 
 export interface SummaryFlow {
@@ -64,6 +66,7 @@ export function summarizePlan(model: Model, result: SolveResult): PlanSummary {
       machines: r.machines,
       machinesCeil: r.machinesCeil,
       powerMW: r.powerMW,
+      ...(r.boilerLoad !== undefined ? { boilerLoad: r.boilerLoad } : {}),
     })),
     targets: result.items.filter((i) => i.demand > 0).map((i) => flow(i.item, i.demand)),
     imports: result.imports.map((r) => flow(r.item, r.rate)),
@@ -79,6 +82,27 @@ export function summarizePlan(model: Model, result: SolveResult): PlanSummary {
       };
     }),
     power: { ...result.power },
+  };
+}
+
+/**
+ * The Recipes table of the plan, as text cells (CLI and web share it). A
+ * `Boiler` column (load %, A17) appears only when the plan builds a heater:
+ * its Count is whole heaters, which burn full fuel; the boiler side runs at
+ * the load shown.
+ */
+export function recipeTable(plan: PlanSummary): { head: string[]; rows: string[][] } {
+  const heaters = plan.recipes.some((r) => r.boilerLoad !== undefined);
+  return {
+    head: ['Recipe', 'Machine', 'Count', 'Build', ...(heaters ? ['Boiler'] : []), 'MW'],
+    rows: plan.recipes.map((r) => [
+      r.name,
+      r.machine,
+      formatRate(r.machines),
+      String(r.machinesCeil),
+      ...(heaters ? [r.boilerLoad === undefined ? '' : `${formatRate(r.boilerLoad * 100)}%`] : []),
+      formatRate(r.powerMW),
+    ]),
   };
 }
 

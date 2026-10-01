@@ -3,7 +3,7 @@ import { createHighsBackend, solve } from '@sps/solver';
 import { beforeAll, describe, expect, test } from 'vitest';
 import { runPipeline } from './build-data';
 import { loadVanillaMini } from './golden';
-import { CliError, parseCli, runCli } from './solve';
+import { CliError, parseCli, renderPlan, runCli } from './solve';
 
 const MINI = 'fixtures/vanilla-mini/model.json';
 const mini = loadVanillaMini();
@@ -295,6 +295,18 @@ describe('full SF+ model', () => {
     const { result } = await runPipeline();
     model = result.model!;
   }, 120_000);
+
+  test('Steam 20/min: one whole heater burns full fuel, the table shows its boiler load (A17)', async () => {
+    const r = await solve(model, { targets: [{ item: 'steam', rate: 20 }] }, createHighsBackend());
+    expect(r.status).toBe('ok');
+    const heaters = r.recipes.filter((x) => x.boilerLoad !== undefined);
+    expect(heaters).toHaveLength(1);
+    expect(heaters[0]!.machines).toBe(1);
+    const text = renderPlan(model, r);
+    expect(text).toMatch(/Count\s+Build\s+Boiler\s+MW/);
+    expect(text).toMatch(/Heater.*\s1\s+1\s+20%\s/);
+    expect(r.surplus.find((s) => s.item === 'steam')).toBeUndefined();
+  });
 
   test('5 targets solve in under 1 s, including loading HiGHS', async () => {
     const start = performance.now();

@@ -53,7 +53,7 @@ References like §4.3 point into `ARCHITECTURE.md`.
 ### M3 — Vertical slice (web)
 
 - Vite + React. The solver and HiGHS run in a worker. The Zustand store holds a `World` with one implicit factory. One target picker and the summary table: recipes, machines (fractional and rounded up), node usage, byproducts, power.
-- **Acceptance:** "Iron Plate, 60/min" matches the CLI table. Playwright smoke test. No main-thread block over 50 ms during a solve.
+- **Acceptance:** "Iron Plate, 60/min" matches the CLI table. Playwright smoke test. No main-thread block over 50 ms during a solve. A plan with heaters shows whole heaters and their boiler load % in both tables (A17).
 
 ### M4 — Full objectives + power
 

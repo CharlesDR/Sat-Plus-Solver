@@ -1,4 +1,4 @@
-import { formatRate as fmt, type PlanSummary, type SummaryFlow } from '@sps/solver';
+import { formatRate as fmt, recipeTable, type PlanSummary, type SummaryFlow } from '@sps/solver';
 
 /** The plan summary, laid out like the `pnpm solve` table (same sections and numbers). */
 export function SummaryTable({ plan }: { plan: PlanSummary }) {
@@ -20,18 +20,7 @@ export function SummaryTable({ plan }: { plan: PlanSummary }) {
       )}
       {plan.status === 'ok' && (
         <>
-          <Table
-            title="Recipes"
-            head={['Recipe', 'Machine', 'Count', 'Build', 'MW']}
-            textColumns={2}
-            rows={plan.recipes.map((r) => [
-              r.name,
-              r.machine,
-              fmt(r.machines),
-              String(r.machinesCeil),
-              fmt(r.powerMW),
-            ])}
-          />
+          <Table title="Recipes" textColumns={2} {...recipeTable(plan)} />
           <Flows title="Targets" rows={plan.targets} />
           <Flows title="Imports" rows={plan.imports} />
           <Flows title="Surplus and byproducts" rows={plan.byproducts} />

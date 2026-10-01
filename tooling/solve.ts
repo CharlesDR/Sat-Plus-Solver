@@ -23,6 +23,7 @@ import {
   compareAlternates,
   createHighsBackend,
   formatRate,
+  recipeTable,
   solve,
   summarizePlan,
   type AlternatesReport,
@@ -233,19 +234,8 @@ export function renderPlan(model: Model, result: SolveResult): string {
     out.push(`Output scale: ${fmt(result.outputScale)} × the targets`);
 
   out.push('', 'Recipes');
-  out.push(
-    table(
-      ['Recipe', 'Machine', 'Count', 'Build', 'MW'],
-      plan.recipes.map((r) => [
-        r.name,
-        r.machine,
-        fmt(r.machines),
-        String(r.machinesCeil),
-        fmt(r.powerMW),
-      ]),
-      2,
-    ),
-  );
+  const recipes = recipeTable(plan);
+  out.push(table(recipes.head, recipes.rows, 2));
   const flows = (title: string, rows: SummaryFlow[]) => {
     if (!rows.length) return;
     out.push(
