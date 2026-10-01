@@ -29,27 +29,6 @@ main {
   margin: 0 auto;
   padding: 16px;
 }
-.target-picker {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: end;
-}
-.target-picker label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 13px;
-  color: var(--muted);
-}
-.target-picker input {
-  font: inherit;
-  padding: 6px 8px;
-  min-width: 14em;
-}
-.target-picker input[aria-invalid='true'] {
-  outline: 2px solid var(--error);
-}
 .hint,
 .timing,
 .solving {
@@ -88,4 +67,137 @@ main {
 }
 .summary {
   overflow-x: auto;
+}
+fieldset {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  margin: 12px 0;
+  padding: 8px 12px 12px;
+}
+legend {
+  font-weight: 600;
+  padding: 0 4px;
+}
+.controls label {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.controls label.check {
+  flex-direction: row;
+  align-items: center;
+  color: var(--fg);
+  font-size: inherit;
+}
+.controls input,
+.controls select,
+.controls button {
+  font: inherit;
+}
+.controls input:not([type='checkbox']):not([type='radio']) {
+  padding: 4px 6px;
+}
+.controls input[aria-invalid='true'] {
+  outline: 2px solid var(--error);
+}
+.controls .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 8px;
+}
+.targets .row input[list],
+.imports .row input[list] {
+  min-width: 14em;
+}
+.scope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  margin: 12px 0 0;
+}
+.setting {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 6px 0;
+}
+.objectives ol {
+  margin: 0 0 6px;
+  padding-left: 1.5em;
+}
+.objectives li span {
+  display: inline-block;
+  min-width: 16em;
+}
+button.link {
+  background: none;
+  border: none;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  font-size: 13px;
+}
+details {
+  margin: 8px 0;
+}
+summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.recipe-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 420px;
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+}
+.recipe-list li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--line);
+}
+.recipe-list li.off .name {
+  color: var(--muted);
+}
+.recipe-list .meta {
+  color: var(--muted);
+  font-size: 13px;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.badge {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 4px;
+  font-size: 12px;
+}
+.nodes table {
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+.nodes td,
+.nodes th {
+  padding: 2px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.nodes td input {
+  width: 6em;
+}
+.nodes .num {
+  text-align: right;
+}
+.nodes .text {
+  text-align: left;
 }

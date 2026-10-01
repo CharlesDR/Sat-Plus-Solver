@@ -26,11 +26,15 @@ describe('solver client', () => {
   test('ready carries the catalog and data hash', async () => {
     const { worker, reply } = fakeWorker();
     const client = createSolverClient(worker);
-    reply({ type: 'ready', catalog: [{ id: 'a', name: 'A' }], dataHash: 'h' });
-    await expect(client.ready).resolves.toEqual({
-      catalog: [{ id: 'a', name: 'A' }],
-      dataHash: 'h',
-    });
+    const catalog = {
+      targets: [{ id: 'a', name: 'A' }],
+      items: [],
+      recipes: [],
+      nodes: [],
+      tiers: [],
+    };
+    reply({ type: 'ready', catalog, dataHash: 'h' });
+    await expect(client.ready).resolves.toEqual({ catalog, dataHash: 'h' });
   });
 
   test('init errors reject ready', async () => {

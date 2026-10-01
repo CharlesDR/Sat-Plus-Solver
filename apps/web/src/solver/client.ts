@@ -4,7 +4,7 @@
  */
 import type { PlanSummary } from '@sps/solver';
 import type { World } from '@sps/world';
-import type { CatalogItem, FromWorker, ToWorker } from './protocol';
+import type { Catalog, FromWorker, ToWorker } from './protocol';
 
 /** The part of `Worker` the client uses (a fake in tests). */
 export interface WorkerLike {
@@ -14,7 +14,7 @@ export interface WorkerLike {
 }
 
 export interface SolverReady {
-  catalog: CatalogItem[];
+  catalog: Catalog;
   dataHash: string;
 }
 
