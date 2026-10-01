@@ -1,0 +1,26 @@
+{
+  "name": "steel-beam-15",
+  "description": "Steel Beam 15/min with alternates: Solid Steel Ingot needs 2/3 the ore and coal of Steel Ingot.",
+  "model": "vanilla-mini",
+  "request": {
+    "targets": [
+      {
+        "item": "steel-beam",
+        "rate": 15
+      }
+    ]
+  },
+  "expected": {
+    "status": "ok",
+    "recipes": {
+      "steel-beam": 1,
+      "solid-steel-ingot": 1,
+      "iron-ingot": 1.3333333333333333,
+      "mine-iron-ore": 0.6666666666666666,
+      "mine-coal": 0.6666666666666666
+    },
+    "objectiveValue": 1.3333333333333333,
+    "imports": {},
+    "surplus": {}
+  }
+}

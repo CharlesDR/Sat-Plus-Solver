@@ -1,0 +1,24 @@
+{
+  "name": "iron-plate-60",
+  "description": "Iron Plate 60/min. satisfactory-tools: 3 Constructors (Iron Plate), 3 Smelters, 90 Iron Ore/min.",
+  "model": "vanilla-mini",
+  "request": {
+    "targets": [
+      {
+        "item": "iron-plate",
+        "rate": 60
+      }
+    ]
+  },
+  "expected": {
+    "status": "ok",
+    "recipes": {
+      "iron-plate": 3,
+      "iron-ingot": 3,
+      "mine-iron-ore": 1.5
+    },
+    "objectiveValue": 1.5,
+    "imports": {},
+    "surplus": {}
+  }
+}

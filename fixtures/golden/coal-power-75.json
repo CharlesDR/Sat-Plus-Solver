@@ -1,0 +1,29 @@
+{
+  "name": "coal-power-75",
+  "description": "75 MW from coal: 1 Coal Generator burns 15 Coal and 45 Water per minute. Exercises the MW pseudo-item.",
+  "model": "vanilla-mini",
+  "request": {
+    "targets": [
+      {
+        "item": "mw",
+        "rate": 75
+      }
+    ]
+  },
+  "expected": {
+    "status": "ok",
+    "recipes": {
+      "coal-generator": 1,
+      "mine-coal": 0.25,
+      "extract-water": 0.375
+    },
+    "objectiveValue": 0.25,
+    "power": {
+      "consumptionMW": 8.75,
+      "generationMW": 75,
+      "netMW": -66.25
+    },
+    "imports": {},
+    "surplus": {}
+  }
+}

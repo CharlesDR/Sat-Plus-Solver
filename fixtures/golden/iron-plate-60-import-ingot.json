@@ -1,0 +1,32 @@
+{
+  "name": "iron-plate-60-import-ingot",
+  "description": "Iron Plate 60/min with 30 Iron Ingot/min imported: 3 Constructors, 2 Smelters, 60 Iron Ore/min.",
+  "model": "vanilla-mini",
+  "request": {
+    "targets": [
+      {
+        "item": "iron-plate",
+        "rate": 60
+      }
+    ],
+    "imports": [
+      {
+        "item": "iron-ingot",
+        "cap": 30
+      }
+    ]
+  },
+  "expected": {
+    "status": "ok",
+    "recipes": {
+      "iron-plate": 3,
+      "iron-ingot": 2,
+      "mine-iron-ore": 1
+    },
+    "imports": {
+      "iron-ingot": 30
+    },
+    "objectiveValue": 1,
+    "surplus": {}
+  }
+}
