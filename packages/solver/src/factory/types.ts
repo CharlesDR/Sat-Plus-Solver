@@ -170,10 +170,12 @@ export interface StageResult {
   gap?: number;
 }
 
-/** Embodied cost of 1/min of an import (§3.3), from its standalone plan. */
+/** Embodied cost of an import (§3.3, A18), from its standalone plan at the imported rate. */
 export interface ImportCost {
   item: string;
-  /** Cost per 1/min under each objective of the stack (`output` excluded). */
+  /** The rate the cost was computed at: what the plan imports (1/min if it imports none). */
+  rate: number;
+  /** Cost per 1/min at `rate`, under each objective of the stack (`output` excluded). */
   cost: Partial<Record<ObjectiveId, number>>;
   /** Node resources its standalone plan uses: what it brings in under O6. */
   resourceTypes: string[];

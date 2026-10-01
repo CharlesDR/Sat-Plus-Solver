@@ -295,6 +295,22 @@ describe('solver properties', () => {
     );
   }, 60_000);
 
+  test('random heater models with costed imports: 200 cases give checked plans (A18)', async () => {
+    await fc.assert(
+      fc.asyncProperty(caseOf(randomHeaterModel), async ({ model, request }) => {
+        const r = await solveAndCheck(model, { ...request, costImports: true });
+        if (r.status !== 'ok') return;
+        // Each import is costed at the rate the plan imports it.
+        for (const c of r.importCosts ?? []) {
+          const s = r.imports.find((i) => i.item === c.item)?.rate ?? 0;
+          if (s >= MIN_RATE && !r.diagnostics.some((d) => d.code === 'import-cost'))
+            expect(Math.abs(c.rate - s)).toBeLessThanOrEqual(TOL * Math.max(1, s));
+        }
+      }),
+      { numRuns: 200, seed: SEED },
+    );
+  }, 120_000);
+
   test('scaling linearity: k × targets gives k × objective when nothing binds', async () => {
     const unbounded = Object.fromEntries(mini.nodes.map((n) => [n.id, Infinity]));
     await fc.assert(

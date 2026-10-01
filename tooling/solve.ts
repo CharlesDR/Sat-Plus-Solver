@@ -255,12 +255,13 @@ export function renderPlan(model: Model, result: SolveResult): string {
     const objectives = result.objectives.filter((o) => o !== 'output' && o !== 'resourceTypes');
     out.push(
       '',
-      'Import costs (per 1/min, standalone plan)',
+      'Import costs (per 1/min at the imported rate, standalone plan)',
       table(
-        ['Item', 'Resource types', ...objectives],
+        ['Item', 'Resource types', 'At /min', ...objectives],
         result.importCosts.map((c) => [
           name(c.item),
           c.resourceTypes.map(name).join(', '),
+          fmt(c.rate),
           ...objectives.map((o) => fmt(c.cost[o] ?? 0)),
         ]),
         2,
