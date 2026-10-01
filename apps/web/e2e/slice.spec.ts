@@ -6,6 +6,7 @@
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
+import { openFactory } from './helpers';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
@@ -69,7 +70,7 @@ test('Iron Plate 60/min matches the CLI table without blocking the main thread',
   const expected = parseCliTables(cli);
   expect(expected.tables.map((t) => t.title)).toContain('Recipes');
 
-  await page.goto('/');
+  await openFactory(page);
   const item = page.getByLabel('Target item');
   await expect(item).toBeVisible();
 
@@ -116,7 +117,7 @@ test('Iron Plate 60/min matches the CLI table without blocking the main thread',
 });
 
 test('clearing the target returns to the empty state', async ({ page }) => {
-  await page.goto('/');
+  await openFactory(page);
   const item = page.getByLabel('Target item');
   await item.fill('Iron Plate');
   await expect(page.getByTestId('plan')).toBeVisible();

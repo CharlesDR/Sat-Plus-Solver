@@ -5,11 +5,13 @@
  */
 export const PACKAGE_NAME = '@sps/world';
 export * from './document';
+export * from './editing';
 export * from './migrate';
 export {
   COST_PASSES,
   CYCLE_ITERATION_LIMIT,
   CYCLE_TOLERANCE,
+  DEFAULT_PIPE_CAPACITIES,
   resolveWorld,
   type ResolveOptions,
 } from './resolve';

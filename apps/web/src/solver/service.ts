@@ -3,33 +3,84 @@
  * Node tests with the same model and backend types.
  */
 import { MW_ITEM_ID, type Model } from '@sps/data';
-import { factoryGraph, type FactoryGraph, type GraphLabels } from '@sps/graph';
-import { compareTiers, solve, summarizePlan, type LpBackend, type PlanSummary } from '@sps/solver';
-import { factorySolveRequest, type World } from '@sps/world';
-import type { Catalog, CatalogItem } from './protocol';
-
-/** A solved factory: the table summary and the flowchart (M7), both built in the worker. */
-export interface SolvedFactory {
-  plan: PlanSummary;
-  graph: FactoryGraph;
-}
+import { factoryGraph, type GraphLabels } from '@sps/graph';
+import { compareTiers, solve, summarizePlan, type LpBackend } from '@sps/solver';
+import {
+  createSolveCache,
+  DEFAULT_PIPE_CAPACITIES,
+  resolveWorld,
+  sizePowerPlant,
+  type SolveFactory,
+  type World,
+  type WorldResult,
+} from '@sps/world';
+import type {
+  Catalog,
+  CatalogItem,
+  FocusPlan,
+  WorldSolved,
+  WorldSolveRequest,
+  WorldSummary,
+} from './protocol';
 
 export interface SolverService {
   dataHash: string;
   catalog: Catalog;
-  solve(world: World, factoryId: string): Promise<SolvedFactory>;
+  /**
+   * Resolves the whole world (§4.3), memoizing factory solves across calls,
+   * and returns its summary plus the focused factory's plan and flowchart.
+   */
+  solve(request: WorldSolveRequest): Promise<WorldSolved>;
 }
+
+/** Memoized factory solves kept between world solves; the oldest go first. */
+export const CACHE_LIMIT = 500;
 
 export function createSolverService(model: Model, backend: LpBackend): SolverService {
   const labels = modelLabels(model);
+  const cache = createSolveCache();
+  const solveFactory: SolveFactory = (r) => solve(model, r, backend);
   return {
     dataHash: model.meta.dataHash,
     catalog: modelCatalog(model),
-    async solve(world, factoryId) {
-      const request = factorySolveRequest(world, model, factoryId);
-      const result = await solve(model, request, backend);
-      return { plan: summarizePlan(model, result), graph: factoryGraph(result, labels) };
+    async solve({ world, focus, action }) {
+      let result: WorldResult;
+      let edited: World | undefined;
+      if (action?.kind === 'size-power') {
+        const sized = await sizePowerPlant(world, model, solveFactory, action.factoryId, cache);
+        result = sized.result;
+        edited = sized.world;
+      } else result = await resolveWorld(world, model, solveFactory, cache);
+      for (const key of cache.keys()) {
+        if (cache.size <= CACHE_LIMIT) break;
+        cache.delete(key);
+      }
+      const f = focus !== undefined ? result.factories.find((x) => x.id === focus) : undefined;
+      const plan: FocusPlan | undefined = f && {
+        factoryId: f.id,
+        plan: summarizePlan(model, f.result),
+        graph: factoryGraph(f.result, labels),
+      };
+      return {
+        world: summarizeWorld(result),
+        ...(plan ? { focus: plan } : {}),
+        ...(edited ? { edited } : {}),
+      };
     },
+  };
+}
+
+/** The world result without each factory's full solve result (it stays in the worker). */
+export function summarizeWorld(result: WorldResult): WorldSummary {
+  return {
+    ...result,
+    factories: result.factories.map((f) => {
+      const { result: solved, ...rest } = f;
+      return {
+        ...rest,
+        diagnostics: solved.diagnostics.map((d) => ({ severity: d.severity, message: d.message })),
+      };
+    }),
   };
 }
 
@@ -86,5 +137,14 @@ export function modelCatalog(model: Model): Catalog {
       }))
       .sort(byName((n) => n.label)),
     tiers,
+    fluids: model.items
+      .filter((i) => i.form === 'fluid')
+      .map((i) => i.id)
+      .sort(),
+    belts: model.beltCapacities.map((b) => ({ ...b })),
+    pipes: Object.entries(DEFAULT_PIPE_CAPACITIES).map(([tier, perMin]) => ({
+      tier: Number(tier),
+      perMin,
+    })),
   };
 }

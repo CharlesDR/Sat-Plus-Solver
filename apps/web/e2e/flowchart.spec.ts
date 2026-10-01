@@ -3,13 +3,14 @@
  * rates, and selection syncs both ways between the flowchart and the table.
  */
 import { expect, test, type Page } from '@playwright/test';
+import { openFactory } from './helpers';
 
 const node = (page: Page, id: string) =>
   page.getByTestId('flowchart').locator(`.react-flow__node[data-id="${id}"]`);
 const row = (page: Page, id: string) => page.locator(`[data-testid=plan] tr[data-node="${id}"]`);
 
 test('Iron Plate 60/min: flowchart nodes, edge rates and two-way selection', async ({ page }) => {
-  await page.goto('/');
+  await openFactory(page);
   await page.getByLabel('Per minute').fill('60');
   await page.getByLabel('Target item').fill('Iron Plate');
   await expect(page.getByTestId('plan-status')).toContainText('Status: ok');

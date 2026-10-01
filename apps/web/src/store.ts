@@ -4,11 +4,13 @@
  * shares the rest, so unchanged factories keep their identity.
  */
 import type { ItemRate, ObjectiveId } from '@sps/solver';
+import * as edit from '@sps/world';
 import {
   clampTolerance,
   createWorld,
   type Factory,
   type FactoryRequest,
+  type LinkSpec,
   type UnassignedImport,
   type World,
   type WorldDefaults,
@@ -43,6 +45,25 @@ export interface WorldState {
   setNodeBudget(factoryId: string, budget: Factory['nodeBudget']): void;
   /** Records the loaded model's hash; a different non-empty hash is a warning, not an error. */
   attachData(dataHash: string): void;
+
+  // World editing (M8). Bad edits throw `WorldEditError` and leave the world unchanged.
+  /** Returns the new factory's id. */
+  addFactory(name: string, groupId?: string): string;
+  removeFactory(id: string): void;
+  renameFactory(id: string, name: string): void;
+  setFactoryGroup(id: string, groupId: string | undefined): void;
+  /** Returns the new group's id. */
+  addGroup(name: string, parentId?: string): string;
+  removeGroup(id: string): void;
+  renameGroup(id: string, name: string): void;
+  setGroupParent(id: string, parentId: string | undefined): void;
+  setGroupCollapsed(id: string, collapsed: boolean): void;
+  /** Returns the new link's id. */
+  addLink(spec: LinkSpec): string;
+  updateLink(id: string, spec: LinkSpec): void;
+  removeLink(id: string): void;
+  /** Replaces the document with an edited copy ("allocate remaining", "size power plant"). */
+  replaceWorld(world: World): void;
 }
 
 export type WorldStore = ReturnType<typeof createWorldStore>;
@@ -91,6 +112,19 @@ export function createWorldStore(initial: World = createWorld()) {
     const editDefaults = (edit: (d: WorldDefaults) => WorldDefaults) =>
       set(({ world }) => ({ world: { ...world, defaults: edit(world.defaults) } }));
 
+    /** Applies a pure world edit. */
+    const apply = (f: (w: World) => World) => set(({ world }) => ({ world: f(world) }));
+    /** Applies a pure world edit that creates something, returning its id. */
+    const create = (f: (w: World) => { world: World; id: string }) => {
+      let id = '';
+      set(({ world }) => {
+        const out = f(world);
+        id = out.id;
+        return { world: out.world };
+      });
+      return id;
+    };
+
     return {
       world: initial,
       setTargets: (factoryId, targets) =>
@@ -134,6 +168,19 @@ export function createWorldStore(initial: World = createWorld()) {
             return { world: { ...world, meta: { ...world.meta, dataHash } } };
           return { dataHashMismatch: { world: world.meta.dataHash, model: dataHash } };
         }),
+      addFactory: (name, groupId) => create((w) => edit.addFactory(w, name, groupId)),
+      removeFactory: (id) => apply((w) => edit.removeFactory(w, id)),
+      renameFactory: (id, name) => apply((w) => edit.renameFactory(w, id, name)),
+      setFactoryGroup: (id, groupId) => apply((w) => edit.setFactoryGroup(w, id, groupId)),
+      addGroup: (name, parentId) => create((w) => edit.addGroup(w, name, parentId)),
+      removeGroup: (id) => apply((w) => edit.removeGroup(w, id)),
+      renameGroup: (id, name) => apply((w) => edit.renameGroup(w, id, name)),
+      setGroupParent: (id, parentId) => apply((w) => edit.setGroupParent(w, id, parentId)),
+      setGroupCollapsed: (id, collapsed) => apply((w) => edit.setGroupCollapsed(w, id, collapsed)),
+      addLink: (spec) => create((w) => edit.addLink(w, spec)),
+      updateLink: (id, spec) => apply((w) => edit.updateLink(w, id, spec)),
+      removeLink: (id) => apply((w) => edit.removeLink(w, id)),
+      replaceWorld: (world) => set({ world }),
     };
   });
 }

@@ -1,11 +1,8 @@
 /**
- * Main-thread side of the solver worker. Solves run one at a time; while one
+ * Main-thread side of the solver worker. World solves run one at a time; while one
  * runs, only the newest pending request is kept, so fast edits never pile up.
  */
-import type { FactoryGraph } from '@sps/graph';
-import type { PlanSummary } from '@sps/solver';
-import type { World } from '@sps/world';
-import type { Catalog, FromWorker, ToWorker } from './protocol';
+import type { Catalog, FromWorker, ToWorker, WorldSolved, WorldSolveRequest } from './protocol';
 
 /** The part of `Worker` the client uses (a fake in tests). */
 export interface WorkerLike {
@@ -19,23 +16,20 @@ export interface SolverReady {
   dataHash: string;
 }
 
-export interface SolveOutcome {
-  plan: PlanSummary;
-  /** The plan's flowchart, not yet laid out. */
-  graph: FactoryGraph;
+/** A solved world (the focused plan's flowchart is not yet laid out) and how long it took. */
+export interface SolveOutcome extends WorldSolved {
   ms: number;
 }
 
 export interface SolverClient {
   ready: Promise<SolverReady>;
   /** Resolves `null` when a newer request replaced this one before it was sent. */
-  solve(world: World, factoryId: string): Promise<SolveOutcome | null>;
+  solve(request: WorldSolveRequest): Promise<SolveOutcome | null>;
   dispose(): void;
 }
 
 interface Pending {
-  world: World;
-  factoryId: string;
+  request: WorldSolveRequest;
   resolve: (o: SolveOutcome | null) => void;
   reject: (e: Error) => void;
 }
@@ -54,7 +48,14 @@ export function createSolverClient(worker: WorkerLike): SolverClient {
   const send = (p: Pending) => {
     const id = nextId++;
     inFlight = { ...p, id };
-    worker.postMessage({ type: 'solve', id, world: p.world, factoryId: p.factoryId });
+    const { world, focus, action } = p.request;
+    worker.postMessage({
+      type: 'solve',
+      id,
+      world,
+      ...(focus !== undefined ? { focus } : {}),
+      ...(action !== undefined ? { action } : {}),
+    });
   };
 
   worker.addEventListener('message', (e) => {
@@ -64,8 +65,14 @@ export function createSolverClient(worker: WorkerLike): SolverClient {
     if (!inFlight || msg.id !== inFlight.id) return;
     const done = inFlight;
     inFlight = undefined;
-    if (msg.type === 'solved') done.resolve({ plan: msg.plan, graph: msg.graph, ms: msg.ms });
-    else done.reject(new Error(msg.message));
+    if (msg.type === 'solved') {
+      done.resolve({
+        world: msg.world,
+        ms: msg.ms,
+        ...(msg.focus ? { focus: msg.focus } : {}),
+        ...(msg.edited ? { edited: msg.edited } : {}),
+      });
+    } else done.reject(new Error(msg.message));
     if (queued) {
       const next = queued;
       queued = undefined;
@@ -75,9 +82,9 @@ export function createSolverClient(worker: WorkerLike): SolverClient {
 
   return {
     ready,
-    solve(world, factoryId) {
+    solve(request) {
       return new Promise((resolve, reject) => {
-        const p: Pending = { world, factoryId, resolve, reject };
+        const p: Pending = { request, resolve, reject };
         if (!inFlight) return send(p);
         queued?.resolve(null);
         queued = p;

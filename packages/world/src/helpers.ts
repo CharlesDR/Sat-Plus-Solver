@@ -6,7 +6,7 @@ import { MW_ITEM_ID, type Model } from '@sps/data';
 import type { World } from './document';
 import { createSolveCache, type SolveCache } from './hash';
 import { resolveWorld, type ResolveOptions } from './resolve';
-import type { SolveFactory, WorldResult } from './types';
+import type { FactoryResult, SolveFactory, WorldResult } from './types';
 
 /**
  * Sets `factoryId`'s node budget to the map pool minus every other factory's
@@ -14,8 +14,8 @@ import type { SolveFactory, WorldResult } from './types';
  */
 export function allocateRemaining(
   world: World,
-  model: Pick<Model, 'nodes'>,
-  result: WorldResult,
+  model: { nodes: readonly Pick<Model['nodes'][number], 'id' | 'count'>[] },
+  result: { factories: readonly Pick<FactoryResult, 'id' | 'nodes'>[] },
   factoryId: string,
 ): World {
   if (!world.factories.some((f) => f.id === factoryId))

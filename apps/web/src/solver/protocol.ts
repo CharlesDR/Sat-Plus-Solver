@@ -1,8 +1,8 @@
 /** Messages between the main thread and the solver worker. */
-import type { NodePurity } from '@sps/data';
+import type { BeltCapacity, NodePurity } from '@sps/data';
 import type { FactoryGraph } from '@sps/graph';
 import type { PlanSummary } from '@sps/solver';
-import type { World } from '@sps/world';
+import type { FactoryResult, World, WorldResult } from '@sps/world';
 
 /** An item the target picker offers. */
 export interface CatalogItem {
@@ -45,12 +45,54 @@ export interface Catalog {
   nodes: CatalogNode[];
   /** Distinct recipe tiers above `0-0`, in tier order. */
   tiers: string[];
+  /** Fluid item ids (a link carrying one defaults to pipes), sorted. */
+  fluids: string[];
+  /** Belt capacity per tier, items/min, from the dataset. */
+  belts: BeltCapacity[];
+  /** Pipe capacity per tier, m³/min (A10). */
+  pipes: BeltCapacity[];
 }
 
-export type ToWorker = { type: 'solve'; id: number; world: World; factoryId: string };
+/** A factory's world result without its full solve result, which stays in the worker. */
+export interface FactorySummary extends Omit<FactoryResult, 'result'> {
+  diagnostics: { severity: 'error' | 'warning'; message: string }[];
+}
+
+/** The world result the UI shows (PLAN M8). */
+export interface WorldSummary extends Omit<WorldResult, 'factories'> {
+  factories: FactorySummary[];
+}
+
+/** The plan of the factory open in the factory view, as solved in the world. */
+export interface FocusPlan {
+  factoryId: string;
+  plan: PlanSummary;
+  graph: FactoryGraph;
+}
+
+/** World edits that need the solver: "size power plant" (§4.5). */
+export type WorldAction = { kind: 'size-power'; factoryId: string };
+
+/** What one world solve asks for. */
+export interface WorldSolveRequest {
+  world: World;
+  /** Factory whose plan and flowchart to return too. */
+  focus?: string | undefined;
+  /** Runs before the solve; its edited world comes back in `edited`. */
+  action?: WorldAction | undefined;
+}
+
+/** A solved world: the world summary, the focused plan, and the edited world of an action. */
+export interface WorldSolved {
+  world: WorldSummary;
+  focus?: FocusPlan;
+  edited?: World;
+}
+
+export type ToWorker = { type: 'solve'; id: number } & WorldSolveRequest;
 
 export type FromWorker =
   | { type: 'ready'; catalog: Catalog; dataHash: string }
   | { type: 'init-error'; message: string }
-  | { type: 'solved'; id: number; plan: PlanSummary; graph: FactoryGraph; ms: number }
+  | ({ type: 'solved'; id: number; ms: number } & WorldSolved)
   | { type: 'failed'; id: number; message: string };
