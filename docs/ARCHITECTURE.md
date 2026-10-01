@@ -338,7 +338,7 @@ Dependency rule: `data ← solver ← world ← web`, and `graph` depends on the
 | A4  | Crusher/Smelter + fluid allowed for every ore                                                                                     | Flag in `miner-model.json`                                            |
 | A5  | Impure Sulfur Powder gangue: 20 in the dataset vs 15 from the formula                                                             | The dataset value wins                                                |
 | A6  | Fracking = 1500 m³/min per site. Actual Chlorine clusters are about 900; oil site counts differ (3 in the sheet vs 2 on the map). | Per-resource override in `nodes.csv`                                  |
-| A7  | Performance estimates are unmeasured                                                                                              | Benchmarks in M2 and M5                                               |
+| A7  | Performance estimates were unmeasured. M2: full SF+ model, 5 targets, O1 solves in ~80 ms cold, ~40 ms warm (Node)                | Benchmarks in M2 and M5                                               |
 | A8  | Single power grid for the whole save                                                                                              | A per-factory `grid` tag in the backlog                               |
 | A9  | The map node limit is checked across factories but not enforced                                                                   | Over-allocation warning, explicit budgets, joint solve in the backlog |
 | A10 | Pipe capacities aren't in the dataset                                                                                             | Configurable (defaults 300/600 m³/min)                                |

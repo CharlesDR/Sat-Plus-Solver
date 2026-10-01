@@ -14,7 +14,8 @@
     "test:watch": "vitest",
     "build": "pnpm --filter @sps/web build",
     "dev": "pnpm --filter @sps/web dev",
-    "build:data": "tsx tooling/build-data.ts"
+    "build:data": "tsx tooling/build-data.ts",
+    "solve": "tsx tooling/solve.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
