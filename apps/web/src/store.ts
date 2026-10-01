@@ -34,7 +34,9 @@ export type Scope = { kind: 'world' } | { kind: 'factory'; id: string };
 export interface WorldState {
   world: World;
   /** Set when the world was made against different game data than the loaded model. */
-  dataHashMismatch?: { world: string; model: string };
+  dataHashMismatch?: { world: string; model: string } | undefined;
+  /** The loaded model's data hash, once the solver is ready. */
+  modelHash?: string;
   /** Replaces the factory's targets. */
   setTargets(factoryId: string, targets: ItemRate[]): void;
   /** Sets a setting in a scope; `undefined` on a factory removes its override (inherit). */
@@ -45,6 +47,11 @@ export interface WorldState {
   setNodeBudget(factoryId: string, budget: Factory['nodeBudget']): void;
   /** Records the loaded model's hash; a different non-empty hash is a warning, not an error. */
   attachData(dataHash: string): void;
+  /**
+   * Replaces the document with a loaded one (a save slot, a file or a share
+   * link) and checks its data hash against the model's (PLAN M9).
+   */
+  loadWorld(world: World): void;
 
   // World editing (M8). Bad edits throw `WorldEditError` and leave the world unchanged.
   /** Returns the new factory's id. */
@@ -162,12 +169,13 @@ export function createWorldStore(initial: World = createWorld()) {
           nodeBudget: budget === 'pool' ? 'pool' : { ...budget },
         })),
       attachData: (dataHash) =>
-        set(({ world }) => {
-          if (world.meta.dataHash === dataHash) return {};
-          if (world.meta.dataHash === '')
-            return { world: { ...world, meta: { ...world.meta, dataHash } } };
-          return { dataHashMismatch: { world: world.meta.dataHash, model: dataHash } };
-        }),
+        set(({ world }) => ({ modelHash: dataHash, ...checkData(world, dataHash) })),
+      loadWorld: (world) =>
+        set(({ modelHash }) =>
+          modelHash === undefined
+            ? { world, dataHashMismatch: undefined }
+            : checkData(world, modelHash),
+        ),
       addFactory: (name, groupId) => create((w) => edit.addFactory(w, name, groupId)),
       removeFactory: (id) => apply((w) => edit.removeFactory(w, id)),
       renameFactory: (id, name) => apply((w) => edit.renameFactory(w, id, name)),
@@ -183,6 +191,20 @@ export function createWorldStore(initial: World = createWorld()) {
       replaceWorld: (world) => set({ world }),
     };
   });
+}
+
+/**
+ * A world against the model's data hash: a world with no hash adopts the
+ * model's; a different hash is flagged, and the world still loads.
+ */
+function checkData(world: World, model: string): Pick<WorldState, 'world' | 'dataHashMismatch'> {
+  if (world.meta.dataHash === model) return { world, dataHashMismatch: undefined };
+  if (world.meta.dataHash === '')
+    return {
+      world: { ...world, meta: { ...world.meta, dataHash: model } },
+      dataHashMismatch: undefined,
+    };
+  return { world, dataHashMismatch: { world: world.meta.dataHash, model } };
 }
 
 /** The settings a factory runs with, and which of them it overrides. */

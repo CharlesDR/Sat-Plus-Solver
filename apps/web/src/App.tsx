@@ -1,5 +1,5 @@
 import type { LayoutEngine } from '@sps/graph';
-import { allocateRemaining } from '@sps/world';
+import { allocateRemaining, extractFactory } from '@sps/world';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useStore } from 'zustand';
 import { Field } from './controls/Field';
@@ -9,6 +9,10 @@ import { RecipeToggles } from './controls/RecipeToggles';
 import { SettingsPanel } from './controls/SettingsPanel';
 import { TargetsEditor } from './controls/TargetsEditor';
 import { Flowchart } from './flowchart/Flowchart';
+import type { Saves } from './persistence/saves';
+import { SavePanel } from './persistence/SavePanel';
+import type { Boot } from './persistence/session';
+import { ShareControls } from './persistence/ShareControls';
 import type { Selection } from './selection';
 import type { SolveOutcome, SolverClient } from './solver/client';
 import type { Catalog, FocusPlan } from './solver/protocol';
@@ -21,8 +25,14 @@ import { WorldView } from './world/WorldView';
 /** Where the user is: the world canvas (home), or one factory drilled into. */
 type View = { kind: 'world' } | { kind: 'factory'; id: string };
 
-export function App(props: { client: SolverClient; store: WorldStore; layout: LayoutEngine }) {
-  const { client, store, layout } = props;
+export function App(props: {
+  client: SolverClient;
+  store: WorldStore;
+  layout: LayoutEngine;
+  saves: Saves;
+  boot: Boot;
+}) {
+  const { client, store, layout, saves, boot } = props;
   const mismatch = useStore(store, (s) => s.dataHashMismatch);
   const [catalog, setCatalog] = useState<Catalog | undefined>();
   const [initError, setInitError] = useState<string | undefined>();
@@ -46,6 +56,7 @@ export function App(props: { client: SolverClient; store: WorldStore; layout: La
           {mismatch.model}. Results may differ.
         </p>
       )}
+      <SavePanel store={store} saves={saves} boot={boot} />
       {initError ? (
         <p className="error" role="alert">
           The solver failed to start: {initError}
@@ -244,6 +255,24 @@ function FactoryView(props: {
           </label>
         </div>
         <SettingsPanel store={store} scope={scope} catalog={catalog} />
+        <details>
+          <summary>Share this factory</summary>
+          <p>Shares this factory alone: its links become targets and imports.</p>
+          <ShareControls
+            world={() =>
+              extractFactory(
+                store.getState().world,
+                factoryId,
+                Object.fromEntries(summary?.links.map((l) => [l.id, l.requested]) ?? []),
+              )
+            }
+            name={factory.name}
+            what="this factory"
+            disabled={
+              !summary && world.links.some((l) => l.from === factoryId && l.mode.kind === 'pull')
+            }
+          />
+        </details>
         <details>
           <summary>Recipes</summary>
           <RecipeToggles store={store} scope={scope} recipes={catalog.recipes} />

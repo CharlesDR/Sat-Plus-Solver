@@ -509,3 +509,23 @@ label.inline {
 .group-frame button {
   pointer-events: all;
 }
+.saves {
+  margin-bottom: 0.75rem;
+}
+.saves table td {
+  padding: 0.15rem 0.5rem 0.15rem 0;
+}
+.notice {
+  color: var(--muted);
+}
+.share-link label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.share-link input {
+  width: 100%;
+  max-width: 40rem;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
