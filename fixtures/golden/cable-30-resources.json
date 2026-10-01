@@ -9,7 +9,10 @@
         "rate": 30
       }
     ],
-    "objective": "resources"
+    "objective": "resources",
+    "recipes": {
+      "alternates": true
+    }
   },
   "expected": {
     "status": "ok",

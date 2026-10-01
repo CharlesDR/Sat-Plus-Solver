@@ -20,6 +20,8 @@ const backend = createHighsBackend();
 
 const ids = (r: SolveResult) => r.recipes.map((x) => x.id);
 const cable30: SolveRequest = { targets: [{ item: 'cable', rate: 30 }] };
+/** Iron Wire (an alternate) is what makes copper-free Cable possible. */
+const withAlternates = { recipes: { alternates: true } } as const;
 
 describe('lexicographic stack', () => {
   test('a secondary objective changes the plan while the primary stays within tolerance', async () => {
@@ -29,7 +31,7 @@ describe('lexicographic stack', () => {
     expect(ids(primary)).toContain('wire');
     const stacked = await solve(
       model,
-      { ...cable30, objectives: ['resources', 'scarcity'], tolerance: 0.2 },
+      { ...cable30, ...withAlternates, objectives: ['resources', 'scarcity'], tolerance: 0.2 },
       backend,
     );
     expect(stacked.status).toBe('ok');
@@ -243,6 +245,7 @@ describe('objectives', () => {
         { item: 'cable', rate: 30 },
         { item: 'iron-plate', rate: 20 },
       ],
+      ...withAlternates,
     };
     const types = (r: SolveResult) => new Set(r.nodes.map((n) => n.node)).size;
     const o1 = await solve(model, req, backend);

@@ -42,8 +42,8 @@ export const MAX_TOLERANCE = 0.9;
 export const DEFAULT_TOLERANCE = MIN_TOLERANCE;
 /** Absolute floor ε of the lexicographic constraint, so an optimum of 0 still gets some room. */
 export const LEX_EPSILON = 1e-6;
-/** Default of `RecipeFilter.alternates`. */
-export const DEFAULT_ALTERNATES = true;
+/** Default of `RecipeFilter.alternates`: standard recipes only (alternates are opt-in). */
+export const DEFAULT_ALTERNATES = false;
 /** Default time limit of a MILP stage, in seconds (§3.4). */
 export const MILP_TIME_LIMIT_SECONDS = 5;
 /** Elastic slack below this is solver noise, not a relaxation. */

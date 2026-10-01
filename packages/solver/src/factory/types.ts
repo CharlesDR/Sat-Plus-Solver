@@ -33,7 +33,7 @@ export const OBJECTIVE_IDS: readonly ObjectiveId[] = [
 ];
 
 export interface RecipeFilter {
-  /** Include alternate recipes. Default true. */
+  /** Include alternate recipes. Default false (`DEFAULT_ALTERNATES`); `compareAlternates` shows which would help. */
   alternates?: boolean;
   /** Recipe ids to leave out. */
   exclude?: readonly string[];
