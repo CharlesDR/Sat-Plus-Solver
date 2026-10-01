@@ -34,6 +34,19 @@ export const DEFAULT_PIPE_CAPACITIES: Readonly<Record<number, number>> = { 1: 30
 export interface ResolveOptions {
   /** Pipe capacity per tier, m³/min (A10). Default 300 (Mk1) and 600 (Mk2). */
   pipeCapacities?: Readonly<Record<number, number>>;
+  /** Called as each factory starts solving (memoized ones too), for a progress display. */
+  onProgress?: (progress: ResolveProgress) => void;
+}
+
+/** Where a world solve is: the factory starting now, and how far the pass has got. */
+export interface ResolveProgress {
+  factory: string;
+  /** Factories started in this pass, this one included; a pull cycle's sweeps count again. */
+  step: number;
+  /** Factories in the world. */
+  factories: number;
+  /** Resolution pass, from 1 (more while linked import costs settle). */
+  pass: number;
 }
 
 const byId = <T extends { id: string }>(a: T, b: T) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
@@ -67,6 +80,8 @@ interface Context {
   /** Producer → items and objectives its linked consumers are costed under. */
   needs: Map<string, { items: Set<string>; objectives: Set<ObjectiveId> }>;
   run: (request: SolveRequest) => Promise<{ key: string; result: Solved['result'] }>;
+  /** Reports a factory starting to solve (`ResolveOptions.onProgress`). */
+  started: (factory: string) => void;
 }
 
 /**
@@ -119,6 +134,8 @@ export async function resolveWorld(
   });
 
   const stats = { solves: 0, cacheHits: 0, passes: 0 };
+  let step = 0;
+  let stepPass = 0;
   const ctx: Context = {
     world,
     model,
@@ -138,6 +155,12 @@ export async function resolveWorld(
       const result = await solveFactory(request);
       cache.set(key, { canonical, result });
       return { key, result };
+    },
+    started(factory) {
+      if (!options.onProgress) return;
+      if (stepPass !== stats.passes) [step, stepPass] = [0, stats.passes];
+      step++;
+      options.onProgress({ factory, step, factories: factories.length, pass: stats.passes });
     },
   };
   for (const l of links) {
@@ -190,6 +213,7 @@ async function resolvePass(
   const pull = new Map<string, number>();
 
   const solveOne = async (id: string) => {
+    ctx.started(id);
     const request = effectiveRequest(ctx, id, pull, linked.get(id));
     for (const l of ctx.out.get(id) ?? []) {
       const r = l.mode.kind === 'fixed' ? l.mode.rate : (pull.get(l.id) ?? 0);

@@ -1,7 +1,7 @@
 /** Messages between the main thread and the solver worker. */
 import type { BeltCapacity, NodePurity } from '@sps/data';
 import type { FactoryGraph } from '@sps/graph';
-import type { PlanSummary } from '@sps/solver';
+import type { Diagnostic, PlanSummary } from '@sps/solver';
 import type { FactoryResult, World, WorldResult } from '@sps/world';
 
 /** An item the target picker offers. */
@@ -55,7 +55,8 @@ export interface Catalog {
 
 /** A factory's world result without its full solve result, which stays in the worker. */
 export interface FactorySummary extends Omit<FactoryResult, 'result'> {
-  diagnostics: { severity: 'error' | 'warning'; message: string }[];
+  /** The factory's own solve diagnostics, structured so the UI can offer fixes. */
+  diagnostics: Diagnostic[];
 }
 
 /** The world result the UI shows (PLAN M8). */
@@ -91,8 +92,18 @@ export interface WorldSolved {
 
 export type ToWorker = { type: 'solve'; id: number } & WorldSolveRequest;
 
+/** How far the running world solve has got (ResolveProgress). */
+export interface SolveProgress {
+  /** Name of the factory solving now. */
+  factory: string;
+  step: number;
+  factories: number;
+  pass: number;
+}
+
 export type FromWorker =
   | { type: 'ready'; catalog: Catalog; dataHash: string }
   | { type: 'init-error'; message: string }
   | ({ type: 'solved'; id: number; ms: number } & WorldSolved)
+  | { type: 'progress'; id: number; progress: SolveProgress }
   | { type: 'failed'; id: number; message: string };

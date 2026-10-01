@@ -10,6 +10,7 @@ import {
   DEFAULT_PIPE_CAPACITIES,
   resolveWorld,
   sizePowerPlant,
+  type ResolveOptions,
   type SolveFactory,
   type World,
   type WorldResult,
@@ -18,6 +19,7 @@ import type {
   Catalog,
   CatalogItem,
   FocusPlan,
+  SolveProgress,
   WorldSolved,
   WorldSolveRequest,
   WorldSummary,
@@ -29,8 +31,9 @@ export interface SolverService {
   /**
    * Resolves the whole world (§4.3), memoizing factory solves across calls,
    * and returns its summary plus the focused factory's plan and flowchart.
+   * `onProgress` hears each factory as it starts.
    */
-  solve(request: WorldSolveRequest): Promise<WorldSolved>;
+  solve(request: WorldSolveRequest, onProgress?: (p: SolveProgress) => void): Promise<WorldSolved>;
 }
 
 /** Memoized factory solves kept between world solves; the oldest go first. */
@@ -43,14 +46,25 @@ export function createSolverService(model: Model, backend: LpBackend): SolverSer
   return {
     dataHash: model.meta.dataHash,
     catalog: modelCatalog(model),
-    async solve({ world, focus, action }) {
+    async solve({ world, focus, action }, onProgress) {
+      const names = new Map(world.factories.map((f) => [f.id, f.name]));
+      const options: ResolveOptions = onProgress
+        ? { onProgress: (p) => onProgress({ ...p, factory: names.get(p.factory) ?? p.factory }) }
+        : {};
       let result: WorldResult;
       let edited: World | undefined;
       if (action?.kind === 'size-power') {
-        const sized = await sizePowerPlant(world, model, solveFactory, action.factoryId, cache);
+        const sized = await sizePowerPlant(
+          world,
+          model,
+          solveFactory,
+          action.factoryId,
+          cache,
+          options,
+        );
         result = sized.result;
         edited = sized.world;
-      } else result = await resolveWorld(world, model, solveFactory, cache);
+      } else result = await resolveWorld(world, model, solveFactory, cache, options);
       for (const key of cache.keys()) {
         if (cache.size <= CACHE_LIMIT) break;
         cache.delete(key);
@@ -78,7 +92,7 @@ export function summarizeWorld(result: WorldResult): WorldSummary {
       const { result: solved, ...rest } = f;
       return {
         ...rest,
-        diagnostics: solved.diagnostics.map((d) => ({ severity: d.severity, message: d.message })),
+        diagnostics: [...solved.diagnostics],
       };
     }),
   };

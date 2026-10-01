@@ -15,6 +15,7 @@ export {
   DEFAULT_PIPE_CAPACITIES,
   resolveWorld,
   type ResolveOptions,
+  type ResolveProgress,
 } from './resolve';
 export { createSolveCache, hashString, solveKey, stableStringify, type SolveCache } from './hash';
 export { allocateRemaining, sizePowerPlant, SIZE_POWER_ITERATIONS } from './helpers';

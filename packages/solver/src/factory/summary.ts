@@ -37,7 +37,8 @@ export interface PlanSummary {
   status: SolveStatus;
   objective: ObjectiveId;
   objectiveValue?: number;
-  diagnostics: Pick<Diagnostic, 'severity' | 'message'>[];
+  /** Structured, so the web app can offer fixes (M10). */
+  diagnostics: Diagnostic[];
   recipes: SummaryRecipe[];
   /** Targets plus world demand, per item. */
   targets: SummaryFlow[];
@@ -58,7 +59,7 @@ export function summarizePlan(model: Model, result: SolveResult): PlanSummary {
     status: result.status,
     objective: result.objective,
     ...(result.objectiveValue !== undefined ? { objectiveValue: result.objectiveValue } : {}),
-    diagnostics: result.diagnostics.map((d) => ({ severity: d.severity, message: d.message })),
+    diagnostics: [...result.diagnostics],
     recipes: result.recipes.map((r) => ({
       id: r.id,
       name: r.name,

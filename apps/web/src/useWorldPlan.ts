@@ -1,11 +1,14 @@
 import type { World } from '@sps/world';
 import { startTransition, useCallback, useEffect, useState } from 'react';
 import type { SolveOutcome, SolverClient } from './solver/client';
-import type { WorldAction } from './solver/protocol';
+import type { SolveProgress, WorldAction } from './solver/protocol';
 
 export type WorldPlanState =
-  /** `previous` is the last result, shown until the new one arrives. */
-  | { kind: 'solving'; previous?: SolveOutcome }
+  /**
+   * `previous` is the last result, shown until the new one arrives;
+   * `progress` is the factory the worker is on, once it has started.
+   */
+  | { kind: 'solving'; previous?: SolveOutcome; progress?: SolveProgress }
   | { kind: 'done'; outcome: SolveOutcome }
   | { kind: 'error'; message: string };
 
@@ -29,10 +32,19 @@ export function useWorldPlan(
   const [settled, setSettled] = useState<Settled | undefined>();
   // Bumped when an action's request may have replaced this hook's own.
   const [attempt, setAttempt] = useState(0);
+  // Keyed by the request it belongs to, so a stale report never shows on a newer solve.
+  const [heard, setHeard] = useState<{
+    world: World;
+    focus: string | undefined;
+    p: SolveProgress;
+  }>();
 
   useEffect(() => {
     let live = true;
-    client.solve({ world, focus }).then(
+    const heard = (p: SolveProgress) => {
+      if (live) setHeard({ world, focus, p });
+    };
+    client.solve({ world, focus }, heard).then(
       // A transition lets React render a large result in slices instead of one long task.
       (outcome) => {
         if (live && outcome) startTransition(() => setSettled({ world, focus, outcome }));
@@ -59,9 +71,14 @@ export function useWorldPlan(
   );
 
   const previous = settled?.outcome;
+  const progress = heard?.world === world && heard.focus === focus ? heard.p : undefined;
   let state: WorldPlanState;
   if (settled?.world !== world || settled.focus !== focus)
-    state = previous ? { kind: 'solving', previous } : { kind: 'solving' };
+    state = {
+      kind: 'solving',
+      ...(previous ? { previous } : {}),
+      ...(progress ? { progress } : {}),
+    };
   else if (settled.error !== undefined) state = { kind: 'error', message: settled.error };
   else state = settled.outcome ? { kind: 'done', outcome: settled.outcome } : { kind: 'solving' };
   return { state, run };

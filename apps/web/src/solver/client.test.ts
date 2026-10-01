@@ -6,16 +6,21 @@ import type { FromWorker, ToWorker, WorldSummary } from './protocol';
 function fakeWorker() {
   const sent: ToWorker[] = [];
   let listener: ((e: MessageEvent<FromWorker>) => void) | undefined;
+  let onError: ((e: { message?: string }) => void) | undefined;
   const worker: WorkerLike & { terminated: boolean } = {
     terminated: false,
     postMessage: (m) => sent.push(m),
-    addEventListener: (_type, fn) => (listener = fn),
+    addEventListener: ((type: 'message' | 'error', fn: never) => {
+      if (type === 'message') listener = fn;
+      else onError = fn;
+    }) as WorkerLike['addEventListener'],
     terminate() {
       this.terminated = true;
     },
   };
   const reply = (m: FromWorker) => listener!({ data: m } as MessageEvent<FromWorker>);
-  return { worker, sent, reply };
+  const crash = (message?: string) => onError!(message === undefined ? {} : { message });
+  return { worker, sent, reply, crash };
 }
 
 const summary = (machines: number) => ({ machines }) as WorldSummary;
@@ -81,5 +86,30 @@ describe('solver client', () => {
     await p;
     expect(settled).toBeNull();
     expect(worker.terminated).toBe(true);
+  });
+
+  test('progress reaches the request in flight only', async () => {
+    const { worker, sent, reply } = fakeWorker();
+    const client = createSolverClient(worker);
+    const heard: string[] = [];
+    const p = client.solve({ world: createWorld() }, (x) => heard.push(x.factory));
+    const progress = { factory: 'Smelter', step: 1, factories: 2, pass: 1 };
+    reply({ type: 'progress', id: sent[0]!.id, progress });
+    reply({ type: 'progress', id: sent[0]!.id + 1, progress: { ...progress, factory: 'Other' } });
+    reply({ type: 'solved', id: sent[0]!.id, world: summary(1), ms: 1 });
+    await p;
+    expect(heard).toEqual(['Smelter']);
+  });
+
+  test('a crashed worker fails ready, the solve in flight, the queued one and later ones', async () => {
+    const { worker, crash } = fakeWorker();
+    const client = createSolverClient(worker);
+    const p1 = client.solve({ world: createWorld('1') });
+    const p2 = client.solve({ world: createWorld('2') });
+    crash('out of memory');
+    await expect(client.ready).rejects.toThrow('The solver stopped unexpectedly: out of memory');
+    await expect(p1).rejects.toThrow('out of memory');
+    await expect(p2).rejects.toThrow('out of memory');
+    await expect(client.solve({ world: createWorld('3') })).rejects.toThrow('stopped');
   });
 });
