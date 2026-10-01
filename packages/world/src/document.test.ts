@@ -34,7 +34,7 @@ describe('World document', () => {
     expect(w.defaults).toEqual({
       objectives: ['resources'],
       tolerance: TOLERANCE_DEFAULT,
-      alternates: true,
+      alternates: false,
       excludeRecipes: [],
     });
   });
@@ -66,7 +66,7 @@ describe('factorySolveRequest', () => {
     expect(factorySolveRequest(world(), model, DEFAULT_FACTORY_ID)).toEqual({
       targets: [{ item: 'iron-plate', rate: 60 }],
       objective: 'resources',
-      recipes: { alternates: true, exclude: [] },
+      recipes: { alternates: false, exclude: [] },
       nodeBudget: 'pool',
     });
   });

@@ -96,7 +96,7 @@ export function defaultWorldDefaults(): WorldDefaults {
   return {
     objectives: ['resources'],
     tolerance: TOLERANCE_DEFAULT,
-    alternates: true,
+    alternates: false,
     excludeRecipes: [],
   };
 }

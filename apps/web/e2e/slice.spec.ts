@@ -1,6 +1,7 @@
 /**
  * M3 acceptance (docs/PLAN.md): "Iron Plate, 60/min" in the page matches the
- * `pnpm solve` table, and no main-thread task over 50 ms runs during the solve.
+ * `pnpm solve` table (alternates off, the app default), and no main-thread
+ * task over 50 ms runs during the solve.
  */
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -57,10 +58,14 @@ async function pageTables(page: Page): Promise<CliTable[]> {
 test('Iron Plate 60/min matches the CLI table without blocking the main thread', async ({
   page,
 }) => {
-  const cli = execFileSync('pnpm', ['-s', 'solve', '--target', 'Iron Plate:60'], {
-    cwd: ROOT,
-    encoding: 'utf8',
-  });
+  const cli = execFileSync(
+    'pnpm',
+    ['-s', 'solve', '--target', 'Iron Plate:60', '--no-alternates'],
+    {
+      cwd: ROOT,
+      encoding: 'utf8',
+    },
+  );
   const expected = parseCliTables(cli);
   expect(expected.tables.map((t) => t.title)).toContain('Recipes');
 

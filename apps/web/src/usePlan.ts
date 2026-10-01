@@ -1,5 +1,5 @@
 import type { World } from '@sps/world';
-import { useEffect, useState } from 'react';
+import { startTransition, useEffect, useState } from 'react';
 import type { SolveOutcome, SolverClient } from './solver/client';
 
 export type PlanState =
@@ -25,11 +25,12 @@ export function usePlan(client: SolverClient, world: World, factoryId: string): 
     if (!hasTargets) return;
     let live = true;
     client.solve(world, factoryId).then(
+      // A transition lets React render a large plan in slices instead of one long task.
       (outcome) => {
-        if (live && outcome) setSettled({ world, outcome });
+        if (live && outcome) startTransition(() => setSettled({ world, outcome }));
       },
       (e: unknown) => {
-        if (live) setSettled({ world, error: (e as Error).message });
+        if (live) startTransition(() => setSettled({ world, error: (e as Error).message }));
       },
     );
     return () => {

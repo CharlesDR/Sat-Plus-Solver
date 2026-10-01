@@ -31,7 +31,11 @@ describe('solver service', () => {
       mini,
       await solve(
         mini,
-        { targets: [{ item: 'iron-plate', rate: 60 }], objective: 'resources' },
+        {
+          targets: [{ item: 'iron-plate', rate: 60 }],
+          objective: 'resources',
+          recipes: { alternates: false, exclude: [] },
+        },
         backend,
       ),
     );
