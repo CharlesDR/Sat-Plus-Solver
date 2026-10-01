@@ -63,6 +63,18 @@ export interface SolveRequest {
    * of it in a standalone plan under this stack, from the map pool.
    */
   costImports?: boolean;
+  /**
+   * With `costImports`: embodied costs given for some imports, used as they
+   * are instead of a standalone plan. The world layer passes the upstream
+   * factory's marginal costs here for linked imports (§3.3, A18).
+   */
+  importCosts?: readonly ImportCost[];
+  /**
+   * Also report the marginal cost of these delivered items under these
+   * objectives (`SolveResult.marginalCosts`): what a linked consumer is
+   * charged per 1/min (§3.3, A18).
+   */
+  marginalCosts?: { items: readonly string[]; objectives: readonly ObjectiveId[] };
   /** O2 weight per resource item id, replacing 1 / map-total NNE. Must be ≥ 0. */
   scarcityWeights?: Readonly<Record<string, number>>;
   recipes?: RecipeFilter;
@@ -195,6 +207,16 @@ export interface SolveResult {
   outputScale?: number;
   /** With `costImports`: the embodied cost per import, sorted by item. */
   importCosts?: ImportCost[];
+  /**
+   * With `request.marginalCosts`: per requested item the plan handles, its
+   * marginal cost per 1/min under each requested objective, sorted by item.
+   * Each is the dual of the item's balance row in an LP of that objective
+   * alone, with the plan's heater (and other integer) counts fixed (A18), so
+   * a whole heater's fuel stays charged to the factory that builds it.
+   * `rate` is the item's demand in this plan; `resourceTypes` are the node
+   * resources the plan uses.
+   */
+  marginalCosts?: ImportCost[];
   /** Recipes with a positive machine count, sorted by id. */
   recipes: RecipeUsage[];
   /** Every item that moves, sorted by id. */

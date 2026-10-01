@@ -102,6 +102,10 @@ interface Problem {
    * machine count the stage before O4 ran them at (set once that stage is solved).
    */
   turbineCaps: Map<string, number>;
+  /** O2 weight overrides, for costing objectives outside the stack. */
+  scarcityWeights?: Readonly<Record<string, number>>;
+  /** `request.marginalCosts`: items and objectives to report marginal costs for. */
+  marginal?: { items: string[]; objectives: ObjectiveId[] };
 }
 
 /** Clamps a tolerance input to [MIN_TOLERANCE, MAX_TOLERANCE] (for UI controls); NaN gives the default. */
@@ -238,6 +242,17 @@ export async function solve(
     resources,
     importCosts: new Map(),
     turbineCaps: new Map(),
+    ...(request.scarcityWeights ? { scarcityWeights: request.scarcityWeights } : {}),
+    ...(request.marginalCosts
+      ? {
+          marginal: {
+            items: [...new Set(request.marginalCosts.items)].sort(),
+            objectives: [...new Set(request.marginalCosts.objectives)].filter(
+              (o) => o !== 'output' && o !== 'resourceTypes',
+            ),
+          },
+        }
+      : {}),
   };
   if (!request.costImports || !importCaps.size)
     return solveStack(problem, backend, options, itemName, []);
@@ -265,7 +280,22 @@ async function solveCosted(
   options: LpOptions,
   itemName: (id: string) => string,
 ): Promise<SolveResult> {
-  const items = [...base.importCaps.keys()].sort();
+  // Given costs (linked imports, from the world layer) are used as they are.
+  const given = new Map<string, ImportCost>();
+  for (const c of request.importCosts ?? [])
+    if (base.importCaps.has(c.item)) given.set(c.item, { ...c, cost: { ...c.cost } });
+  const items = [...base.importCaps.keys()].filter((i) => !given.has(i)).sort();
+  if (!items.length) {
+    const plan = await solveStack(
+      { ...base, importCosts: given, resources: withImportTypes(base, given) },
+      backend,
+      options,
+      itemName,
+      [],
+    );
+    if (plan.status === 'ok') plan.importCosts = [...given.values()].sort(byItem);
+    return plan;
+  }
   const free = await solveStack(
     { ...base, turbineCaps: new Map() },
     backend,
@@ -280,7 +310,7 @@ async function solveCosted(
     for (const i of plan.imports)
       if (rates.has(i.item) && i.rate >= MIN_RATE) rates.set(i.item, i.rate);
     const warnings: Diagnostic[] = [];
-    const costs = new Map<string, ImportCost>();
+    const costs = new Map<string, ImportCost>(given);
     for (const item of items) {
       const c = await embodiedCost(
         base.model,
@@ -305,12 +335,7 @@ async function solveCosted(
   let next = await costAt(free);
   for (let round = 0; ; round++) {
     const costs = next.costs;
-    // Under O6, a resource type only imports bring in still counts once.
-    const resources = new Map(base.resources);
-    if (base.stack.includes('resourceTypes'))
-      for (const c of costs.values())
-        for (const r of c.resourceTypes)
-          if (!resources.has(r)) resources.set(r, { recipes: [], cap: 0 });
+    const resources = withImportTypes(base, costs);
     const plan = await solveStack(
       { ...base, importCosts: costs, resources, turbineCaps: new Map() },
       backend,
@@ -341,6 +366,19 @@ async function solveCosted(
       'this is the cheapest plan found, costed at its own import rates.',
   });
   return best;
+}
+
+/** Under O6, a resource type that only imports bring in still counts once. */
+function withImportTypes(
+  base: Problem,
+  costs: ReadonlyMap<string, ImportCost>,
+): Problem['resources'] {
+  const resources = new Map(base.resources);
+  if (base.stack.includes('resourceTypes'))
+    for (const c of costs.values())
+      for (const r of c.resourceTypes)
+        if (!resources.has(r)) resources.set(r, { recipes: [], cap: 0 });
+  return resources;
 }
 
 /** A plan's stage values with its imports charged `own` instead of `solvedWith` costs. */
@@ -494,7 +532,63 @@ async function solveStack(
     value: stageValue(p, o.objective, sol!.values!),
   }));
   result.objectiveValue = result.stages[0]!.value;
+  if (p.marginal) result.marginalCosts = await marginalCosts(p, result, sol!, backend, options);
   return result;
+}
+
+/**
+ * Marginal cost per 1/min of each requested item the plan handles (A18): per
+ * objective, the dual of the item's balance row in an LP of that objective
+ * alone, without the tie-break regularizer, with every integer count (heaters
+ * always, whole machines, O6 indicators) fixed at the plan's value. A MILP has
+ * no duals; fixing the counts keeps a whole heater's fuel on this factory.
+ * An objective whose LP fails is left out, so the consumer falls back to a
+ * standalone plan for it.
+ */
+async function marginalCosts(
+  p: Problem,
+  plan: SolveResult,
+  sol: LpSolution,
+  backend: LpBackend,
+  options: LpOptions,
+): Promise<ImportCost[]> {
+  const { items: wanted, objectives } = p.marginal!;
+  const items = wanted.filter((i) => p.items.includes(i));
+  const costs = new Map(items.map((i) => [i, {} as Partial<Record<ObjectiveId, number>>]));
+  for (const o of objectives) {
+    const q: Problem = p.costs.has(o)
+      ? p
+      : {
+          ...p,
+          costs: new Map([
+            ...p.costs,
+            [o, objectiveCosts(p.model, o, p.scarcityWeights, p.recipes, p.nodes)],
+          ]),
+        };
+    const lp = buildLp(q, 'normal', o);
+    const variables = lp.variables.map(({ integer, ...v }) => {
+      if (!integer) return v;
+      const n = Math.round(sol.values!.get(v.name) ?? 0);
+      return { ...v, lo: n, hi: n };
+    });
+    const s = await backend.solve({ ...lp, objective: objectiveTerms(q, o), variables }, options);
+    if (s.status !== 'optimal' || !s.duals) continue;
+    for (const item of items) {
+      const dual = s.duals.get(balanceRow(item)) ?? 0;
+      // Free disposal makes duals ≥ 0; anything below is solver noise.
+      costs.get(item)![o] = dual > SLACK_TOL ? dual : 0;
+    }
+  }
+  const resourceOf = new Map(p.model.nodes.map((n) => [n.id, n.resource]));
+  const resourceTypes = [
+    ...new Set(plan.nodes.map((n) => resourceOf.get(n.node) ?? n.node)),
+  ].sort();
+  return items.map((item) => ({
+    item,
+    rate: plan.items.find((f) => f.item === item)?.demand ?? 0,
+    cost: costs.get(item)!,
+    resourceTypes,
+  }));
 }
 
 /**
@@ -1107,6 +1201,14 @@ function validate(
     if (Number.isNaN(i.cap) || i.cap < 0)
       return bad(`Import cap for ${i.item} must be ≥ 0 (got ${i.cap}).`);
   }
+  for (const c of request.importCosts ?? []) {
+    if (!known.has(c.item)) return bad(`Unknown import-cost item "${c.item}".`);
+    for (const [o, v] of Object.entries(c.cost))
+      if (!Number.isFinite(v) || v < 0)
+        return bad(`Import cost of ${c.item} under ${o} must be a finite number ≥ 0 (got ${v}).`);
+  }
+  for (const o of request.marginalCosts?.objectives ?? [])
+    if (!OBJECTIVE_IDS.includes(o)) return bad(`Unknown marginal-cost objective "${String(o)}".`);
   for (const [r, w] of Object.entries(request.scarcityWeights ?? {}))
     if (!Number.isFinite(w) || w < 0)
       return bad(`Scarcity weight for ${r} must be a finite number ≥ 0 (got ${w}).`);

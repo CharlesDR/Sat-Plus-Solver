@@ -4,13 +4,14 @@
  * values that JSON can't carry. Any shape change bumps `WORLD_VERSION` and adds
  * a migration plus a migration test (CLAUDE.md).
  *
- * M3 uses a single implicit factory. Links, groups and resolution arrive in M5;
- * their shapes are fixed here so the store never needs a migration for them.
+ * M3 used a single implicit factory; M5 resolves links and groups
+ * (`resolveWorld`). v2 (M5) added the whole-machines and cost-imports toggles;
+ * `migrateWorld` upgrades older documents.
  */
 import type { Model } from '@sps/data';
 import type { ItemRate, ObjectiveId, SolveRequest } from '@sps/solver';
 
-export const WORLD_VERSION = 1;
+export const WORLD_VERSION = 2;
 
 /** Lexicographic tolerance bounds (CLAUDE.md): 0.01%–90%, default 0.01%. */
 export const TOLERANCE_MIN = 0.0001;
@@ -28,11 +29,15 @@ export interface WorldMeta {
 
 /** Settings every factory inherits unless it overrides them. */
 export interface WorldDefaults {
-  /** Objective stack, highest priority first. Only the first entry is used until M4. */
+  /** Objective stack, highest priority first. */
   objectives: ObjectiveId[];
   /** Fraction, clamped to [TOLERANCE_MIN, TOLERANCE_MAX]. */
   tolerance: number;
   alternates: boolean;
+  /** Whole machines (§3.4): integer machine counts, a MILP. */
+  wholeMachines: boolean;
+  /** Cost imported inputs (§3.3): linked imports at the upstream plan's marginal cost. */
+  costImports: boolean;
   /** Recipe ids disabled everywhere. */
   excludeRecipes: string[];
 }
@@ -43,6 +48,8 @@ export interface FactoryRequest {
   objectives?: ObjectiveId[];
   tolerance?: number;
   alternates?: boolean;
+  wholeMachines?: boolean;
+  costImports?: boolean;
   excludeRecipes?: string[];
 }
 
@@ -97,6 +104,8 @@ export function defaultWorldDefaults(): WorldDefaults {
     objectives: ['resources'],
     tolerance: TOLERANCE_DEFAULT,
     alternates: false,
+    wholeMachines: false,
+    costImports: false,
     excludeRecipes: [],
   };
 }
@@ -133,8 +142,8 @@ export function clampTolerance(t: number): number {
 /**
  * The solver request for one factory on its own: defaults merged with the
  * factory's overrides. Link demand and link imports are added by world
- * resolution in M5; here only unassigned imports apply. `model` supplies the
- * map node counts that pool edits apply to.
+ * resolution (`resolveWorld`); here only unassigned imports apply. `model`
+ * supplies the map node counts that pool edits apply to.
  */
 export function factorySolveRequest(
   world: World,
@@ -145,15 +154,18 @@ export function factorySolveRequest(
   if (!factory) throw new Error(`Unknown factory "${factoryId}".`);
   const d = world.defaults;
   const r = factory.request;
-  const objective = (r.objectives ?? d.objectives)[0] ?? 'resources';
+  const objectives = [...(r.objectives ?? d.objectives)];
   const exclude = [...new Set([...d.excludeRecipes, ...(r.excludeRecipes ?? [])])].sort();
   const imports = factory.unassignedImports.map((i) => ({ item: i.item, cap: i.cap ?? Infinity }));
   return {
     targets: r.targets.map((t) => ({ ...t })),
-    objective,
+    objectives: objectives.length ? objectives : ['resources'],
+    tolerance: r.tolerance ?? d.tolerance,
     recipes: { alternates: r.alternates ?? d.alternates, exclude },
     nodeBudget: nodeBudget(world, model, factory),
     ...(imports.length ? { imports } : {}),
+    ...((r.wholeMachines ?? d.wholeMachines) ? { wholeMachines: true } : {}),
+    ...((r.costImports ?? d.costImports) ? { costImports: true } : {}),
   };
 }
 

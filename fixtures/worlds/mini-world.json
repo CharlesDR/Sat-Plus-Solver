@@ -1,0 +1,54 @@
+{
+  "meta": { "v": 2, "dataHash": "" },
+  "factories": [
+    {
+      "id": "smelter",
+      "name": "Smelter",
+      "groupId": "base",
+      "request": { "targets": [] },
+      "unassignedImports": [],
+      "nodeBudget": "pool",
+      "priority": 0,
+      "notes": ""
+    },
+    {
+      "id": "plates",
+      "name": "Plate Works",
+      "groupId": "base",
+      "request": { "targets": [{ "item": "reinforced-iron-plate", "rate": 5 }] },
+      "unassignedImports": [],
+      "nodeBudget": "pool",
+      "priority": 0,
+      "notes": ""
+    },
+    {
+      "id": "power",
+      "name": "Power Plant",
+      "request": { "targets": [{ "item": "mw", "rate": 75 }] },
+      "unassignedImports": [],
+      "nodeBudget": "pool",
+      "priority": 0,
+      "notes": ""
+    }
+  ],
+  "groups": [{ "id": "base", "name": "Base", "collapsed": false }],
+  "links": [
+    {
+      "id": "ingots",
+      "from": "smelter",
+      "to": "plates",
+      "item": "iron-ingot",
+      "mode": { "kind": "pull" },
+      "transport": { "kind": "belt", "tier": 1 }
+    }
+  ],
+  "defaults": {
+    "objectives": ["resources"],
+    "tolerance": 0.0001,
+    "alternates": false,
+    "wholeMachines": false,
+    "costImports": false,
+    "excludeRecipes": []
+  },
+  "nodePool": {}
+}

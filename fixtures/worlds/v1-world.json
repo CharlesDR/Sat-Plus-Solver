@@ -1,0 +1,23 @@
+{
+  "meta": { "v": 1, "dataHash": "abc123" },
+  "factories": [
+    {
+      "id": "factory-main",
+      "name": "Factory",
+      "request": { "targets": [{ "item": "iron-plate", "rate": 60 }], "objectives": ["scarcity"] },
+      "unassignedImports": [{ "item": "iron-ingot" }],
+      "nodeBudget": "pool",
+      "priority": 0,
+      "notes": "saved by M3"
+    }
+  ],
+  "groups": [],
+  "links": [],
+  "defaults": {
+    "objectives": ["resources"],
+    "tolerance": 0.0001,
+    "alternates": false,
+    "excludeRecipes": ["cast-screw"]
+  },
+  "nodePool": { "node:iron-ore:normal": 12 }
+}
