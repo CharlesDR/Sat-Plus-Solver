@@ -116,4 +116,38 @@ describe('findFreeLunch', () => {
     const recycle = recipe('slime', [['ore', 10]], [['slime', 30]]);
     expect((await findFreeLunch(model([mining, recycle]), backend)).found).toBe(false);
   });
+
+  /** A heater (A17): fuel f → exhaust x on the heater side, water → 2 steam on the boiler side. */
+  const heater = (): Recipe => ({
+    ...recipe('heater', [], []),
+    heater: true,
+    inputs: [
+      { item: 'water', rate: 20 },
+      { item: 'f', rate: 10, heater: true },
+    ],
+    outputs: [
+      { item: 'steam', rate: 40 },
+      { item: 'x', rate: 10, heater: true },
+    ],
+  });
+
+  test('a heater can burn with its boiler idle, so a fuel loop through its exhaust is found (A17)', async () => {
+    // No water source: only the heater side can run, and x → f multiplies fuel.
+    const r = await findFreeLunch(
+      model([heater(), recipe('x-to-f', [['x', 10]], [['f', 12]])]),
+      backend,
+    );
+    expect(r.found).toBe(true);
+    expect(r.recipes.map((x) => x.id).sort()).toEqual(['heater', 'x-to-f']);
+    expect(r.items.map((i) => i.id)).toEqual(['f']);
+  });
+
+  test('a boiler never runs without its heater burning fuel (A17)', async () => {
+    // Steam → water closes the boiler loop with steam to spare, but fuel f has no source.
+    const r = await findFreeLunch(
+      model([heater(), recipe('condense', [['steam', 10]], [['water', 10]])]),
+      backend,
+    );
+    expect(r.found).toBe(false);
+  });
 });

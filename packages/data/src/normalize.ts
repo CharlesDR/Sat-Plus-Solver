@@ -7,7 +7,7 @@ import {
   type DraftRecipe,
   type RFlow,
 } from './context';
-import { abs, cmp, div, isNegative, isZero, mul, rat, toNumber, ZERO } from './rational';
+import { abs, cmp, div, eq, isNegative, isZero, mul, rat, toNumber, ZERO } from './rational';
 import type { RawRecipe } from './raw';
 
 /** True for rows owned by the Modular Miner route generator (extraction.ts). */
@@ -129,7 +129,7 @@ export function normalizeOne(ctx: Ctx, r: RawRecipe): DraftRecipe | undefined {
     return undefined;
   }
 
-  return {
+  const draft: DraftRecipe = {
     raw: r,
     name: r.Name,
     machine: machine.Name,
@@ -141,4 +141,54 @@ export function normalizeOne(ctx: Ctx, r: RawRecipe): DraftRecipe | undefined {
     clock: 1,
     source: 'dataset',
   };
+  if (ctx.overrides.heaterMachines[machine.Name] && !classifyHeater(ctx, draft)) return undefined;
+  return draft;
+}
+
+/**
+ * Splits a heater recipe (A17) into its boiler pair (one `boilerPairs` entry,
+ * at its ratio) and its heater side (every other flow: fuel and heater
+ * byproducts), marking the heater side. The same item can sit on both sides
+ * (Hydrogen heaters take Water into the boiler and emit Water as exhaust);
+ * those flows stay separate. Records an error and returns false when the
+ * recipe does not fit the shape.
+ */
+export function classifyHeater(ctx: Ctx, draft: DraftRecipe): boolean {
+  const where = `heater recipe "${draft.name}"`;
+  const pairs = ctx.overrides.boilerPairs.filter(
+    (p) =>
+      draft.inputs.filter((f) => f.part === p.input).length === 1 &&
+      draft.outputs.filter((f) => f.part === p.output).length === 1,
+  );
+  if (pairs.length !== 1) {
+    ctx.issues.error(
+      'heater.boilerPair',
+      `${where}: needs exactly one boiler pair from overrides.boilerPairs, found ${pairs.length}`,
+    );
+    return false;
+  }
+  const pair = pairs[0]!;
+  const into = draft.inputs.find((f) => f.part === pair.input)!;
+  const out = draft.outputs.find((f) => f.part === pair.output)!;
+  const ratio = req(ctx, pair.ratio, `overrides.boilerPairs ${pair.input} → ${pair.output} ratio`);
+  if (!eq(div(out.rate, into.rate), ratio)) {
+    ctx.issues.error(
+      'heater.ratio',
+      `${where}: ${pair.output} per ${pair.input} is ${toNumber(div(out.rate, into.rate))}, expected ${pair.ratio}`,
+    );
+    return false;
+  }
+  if (draft.kind !== 'production') {
+    ctx.issues.error('heater.kind', `${where}: a heater recipe must not generate power`);
+    return false;
+  }
+  if (!draft.inputs.some((f) => f !== into)) {
+    ctx.issues.error('heater.fuel', `${where}: has no fuel input`);
+    return false;
+  }
+  const mark = (f: RFlow): RFlow => (f === into || f === out ? f : { ...f, heater: true });
+  draft.inputs = draft.inputs.map(mark);
+  draft.outputs = draft.outputs.map(mark);
+  draft.heater = true;
+  return true;
 }

@@ -15,6 +15,8 @@ import type { MinerRoute, Purity, RecipeKind } from './model';
 export interface RFlow {
   part: string;
   rate: Rational; // per machine per minute (MW for the power pseudo-item), > 0
+  /** Heater side of a heater recipe (A17). */
+  heater?: true;
 }
 
 /** Pre-emission recipe: exact rates, names instead of ids. */
@@ -36,6 +38,8 @@ export interface DraftRecipe {
   source: 'dataset' | 'generated';
   /** Generated Modular Miner route, with part names (converted to ids on emission). */
   route?: MinerRoute;
+  /** Heater/boiler recipe (A17). */
+  heater?: true;
 }
 
 export const PURITIES: readonly Purity[] = ['impure', 'normal', 'pure'];

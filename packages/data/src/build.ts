@@ -114,6 +114,28 @@ export function buildModel(inputs: BuildInputs): BuildResult {
     ctx.nodeRows.push(row);
   }
 
+  // Heater machines (A17): every listed machine exists, and no "Heater" is left unlisted.
+  for (const name of Object.keys(ctx.overrides.heaterMachines))
+    if (!ctx.machines.has(name))
+      issues.error(
+        'override.unknownMachine',
+        `overrides.heaterMachines: unknown machine "${name}"`,
+      );
+  for (const m of data.Machines)
+    if (
+      /heater/i.test(m.Name) &&
+      !ctx.overrides.heaterMachines[m.Name] &&
+      !ctx.overrides.excludeMachines[m.Name]
+    )
+      issues.error(
+        'heater.unclassified',
+        `Machine "${m.Name}" looks like a heater but is not in overrides.heaterMachines (A17)`,
+      );
+  for (const p of ctx.overrides.boilerPairs)
+    for (const part of [p.input, p.output])
+      if (!ctx.parts.has(part))
+        issues.error('override.unknownPart', `overrides.boilerPairs: unknown part "${part}"`);
+
   const drafts: DraftRecipe[] = normalizeDatasetRecipes(ctx);
   const extraction = buildExtraction(ctx);
   drafts.push(...extraction.drafts);
@@ -161,11 +183,15 @@ export function buildModel(inputs: BuildInputs): BuildResult {
   let maxFluidRate = 0;
   const fluidParts = new Set(data.Parts.filter(isFluid).map((p) => p.Name));
 
-  const toFlows = (flows: { part: string; rate: Rational }[]) =>
+  const toFlows = (flows: { part: string; rate: Rational; heater?: true }[]) =>
     flows.map((f) => {
       if (f.part !== MW_PART && fluidParts.has(f.part))
         maxFluidRate = Math.max(maxFluidRate, toNumber(f.rate));
-      return { item: itemId.get(f.part)!, rate: toNumber(f.rate) };
+      return {
+        item: itemId.get(f.part)!,
+        rate: toNumber(f.rate),
+        ...(f.heater ? { heater: true as const } : {}),
+      };
     });
 
   const recipes: Recipe[] = [];
@@ -194,6 +220,7 @@ export function buildModel(inputs: BuildInputs): BuildResult {
       powerMW: d.powerMW,
       clock: d.clock,
       source: d.source,
+      ...(d.heater ? { heater: true as const } : {}),
     };
     if (d.node) {
       const [resource, purity] = d.node.split('|') as [string, string];

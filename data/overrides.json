@@ -60,5 +60,30 @@
   "virtualTargetMachines": {
     "Space Elevator": "Phase deliveries become a virtual output item so a phase can be picked as a target."
   },
-  "freeLunchWhitelist": {}
+  "freeLunchWhitelist": {},
+  "heaterMachines": {
+    "$comment": "A17 (Charles, 2026-10-01): each recipe on these machines splits into a heater side (fuel and heater byproducts such as Flue Gas, Sour Gas or nuclear waste), which always runs at 100% per whole machine, and a boiler side (one pair from boilerPairs), which scales with throughput. A machine with 'Heater' in its name that is not listed here fails the build.",
+    "Solid Biomass Heater Mk.1 (MP)": "Modular Power heater: fuel and heater byproducts run at 100% per whole machine; only the boiler pair varies (A17).",
+    "Solid Biomass Heater Mk.2 (MP)": "Modular Power heater: fuel and heater byproducts run at 100% per whole machine; only the boiler pair varies (A17).",
+    "Solid Fuel Heater Mk.1 (MP)": "Modular Power heater: fuel and heater byproducts run at 100% per whole machine; only the boiler pair varies (A17).",
+    "Solid Fuel Heater Mk.2 (MP)": "Modular Power heater: fuel and heater byproducts run at 100% per whole machine; only the boiler pair varies (A17).",
+    "Solution Heater Mk.1 (MP)": "Modular Power heater: fuel and heater byproducts run at 100% per whole machine; only the boiler pair varies (A17).",
+    "Solution Heater Mk.2 (MP)": "Modular Power heater: fuel and heater byproducts run at 100% per whole machine; only the boiler pair varies (A17).",
+    "Nuclear Heater Mk.1 (MP)": "Modular Power heater: fuel and heater byproducts run at 100% per whole machine; only the boiler pair varies (A17).",
+    "Nuclear Heater Mk.2 (MP)": "Modular Power heater: fuel and heater byproducts run at 100% per whole machine; only the boiler pair varies (A17)."
+  },
+  "boilerPairs": [
+    {
+      "input": "Water",
+      "output": "Steam",
+      "ratio": "2",
+      "reason": "A17: boiler side of steam heaters; every dataset heater makes 2 Steam per Water."
+    },
+    {
+      "input": "Spent Slug Slime",
+      "output": "Energized Slug Slime",
+      "ratio": "1",
+      "reason": "A17: boiler side of slime heaters; every dataset heater energizes slime 1:1."
+    }
+  ]
 }

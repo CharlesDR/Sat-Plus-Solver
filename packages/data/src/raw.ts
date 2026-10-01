@@ -120,6 +120,10 @@ export const OverridesConfig = z.object({
   ),
   virtualTargetMachines: Reasons,
   freeLunchWhitelist: Reasons,
+  heaterMachines: Reasons,
+  boilerPairs: z.array(
+    z.object({ input: z.string(), output: z.string(), ratio: RationalString, reason: z.string() }),
+  ),
 });
 export type OverridesConfig = z.infer<typeof OverridesConfig>;
 

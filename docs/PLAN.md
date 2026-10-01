@@ -37,6 +37,7 @@ References like §4.3 point into `ARCHITECTURE.md`.
   - Generated routes match dataset rows at 0 boosters, except the whitelisted ones, which are listed in the report.
   - Iron Plate snapshot: 30 in, 20 out, 4 MW.
   - The Coal generator recipe outputs `MW` equal to its machine generation.
+  - Heater snapshot (A17): Solid Fuel Heater Mk.1 (Coal) has a heater side of 15 Coal → 15 Flue Gas and a boiler side of 20 Water → 40 Steam; the Hydrogen heaters keep boiler Water and exhaust Water apart. An unclassified heater fails the build.
 
 ### M2 — Factory solver core + CLI
 
