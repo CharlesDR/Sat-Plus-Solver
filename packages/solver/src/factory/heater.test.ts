@@ -1,7 +1,7 @@
 import type { Model, Recipe } from '@sps/data';
 import { describe, expect, test } from 'vitest';
 import { createHighsBackend } from '../lp/highs';
-import { solve } from './solve';
+import { MIN_RATE, solve } from './solve';
 import type { SolveResult } from './types';
 
 /**
@@ -229,5 +229,81 @@ describe('heaters (A17)', () => {
   test('is deterministic', async () => {
     const req = { targets: [{ item: 'steam', rate: 70 }] };
     expect(await solve(model, req, backend)).toEqual(await solve(model, req, backend));
+  });
+
+  test('O3 counts a heater as a whole machine, not its boiler load (M4)', async () => {
+    const r = await solve(
+      model,
+      { targets: [{ item: 'steam', rate: 20 }], objective: 'machines' },
+      backend,
+    );
+    expect(usage(r, 'coal-heater')!.boilerLoad).toBeCloseTo(0.5, 9);
+    // 1 heater + 10/120 water extractors + 15/60 coal miners.
+    expect(r.objectiveValue).toBeCloseTo(1 + 10 / 120 + 0.25, 9);
+  });
+
+  test('an imported Steam is costed at the rate imported, not 1/min × rate (A18)', async () => {
+    // This factory has no coal nodes, so all 300 Steam/min is imported. Its
+    // standalone plan takes 8 heaters burning 120 Coal: 2 normal nodes. At
+    // 1/min × 300 it would be charged 300 heaters' coal (75 nodes).
+    const r = await solve(
+      model,
+      {
+        targets: [{ item: 'steam', rate: 300 }],
+        imports: [{ item: 'steam', cap: Infinity }],
+        nodeBudget: { 'node:coal:normal': 0 },
+        costImports: true,
+      },
+      backend,
+    );
+    expect(r.status).toBe('ok');
+    expect(r.objectiveValue).toBeCloseTo(2, 9);
+    expect(r.importCosts).toEqual([
+      {
+        item: 'steam',
+        rate: expect.closeTo(300, 9),
+        cost: { resources: expect.closeTo(2 / 300, 12) },
+        resourceTypes: ['coal'],
+      },
+    ]);
+    expect(rate(r.imports, 'steam')).toBeCloseTo(300, 9);
+    expect(r.diagnostics).toEqual([]);
+  });
+
+  test('when importing competes with local heaters, the plan is costed at its own import rate', async () => {
+    // Local heaters and imports cost the same per whole heater, so 300 Steam/min
+    // costs 2 nodes however it is split; the import is charged for its own rate.
+    const r = await solve(
+      model,
+      {
+        targets: [{ item: 'steam', rate: 300 }],
+        imports: [{ item: 'steam', cap: Infinity }],
+        costImports: true,
+      },
+      backend,
+    );
+    expect(r.status).toBe('ok');
+    expect(r.objectiveValue).toBeCloseTo(2, 9);
+    const c = r.importCosts![0]!;
+    const s = rate(r.imports, 'steam');
+    // An import the plan stops using keeps the rate it was last costed at.
+    if (s >= MIN_RATE) expect(c.rate).toBeCloseTo(s, 9);
+    expect(c.cost.resources! * c.rate).toBeCloseTo(Math.ceil(c.rate / 40 - 1e-9) * 0.25, 9);
+  });
+
+  test('an import the plan does not use is costed at 1/min: a whole heater for 1 Steam', async () => {
+    const r = await solve(
+      model,
+      {
+        targets: [{ item: 'flue-gas', rate: 15 }],
+        imports: [{ item: 'steam', cap: Infinity }],
+        costImports: true,
+      },
+      backend,
+    );
+    expect(r.imports).toEqual([]);
+    expect(r.importCosts).toEqual([
+      { item: 'steam', rate: 1, cost: { resources: 0.25 }, resourceTypes: ['coal'] },
+    ]);
   });
 });

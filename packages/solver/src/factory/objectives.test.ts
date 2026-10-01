@@ -325,13 +325,17 @@ describe('O4 and conversion generators (turbines)', () => {
         [flow('energized-slime', 10)],
         [flow('spent-slime', 10), flow('mw', 100)],
       ),
-      extra(
-        'slime-heater',
-        'production',
-        0,
-        [flow('spent-slime', 10), flow('coal', 15)],
-        [flow('energized-slime', 10)],
-      ),
+      // A heater (A17): the coal burns per whole machine; the slime side varies.
+      {
+        ...extra(
+          'slime-heater',
+          'production',
+          0,
+          [flow('spent-slime', 10), { ...flow('coal', 15), heater: true }],
+          [flow('energized-slime', 10)],
+        ),
+        heater: true,
+      },
     ],
   };
   const spent: SolveRequest = { targets: [flow('spent-slime', 10)] };
@@ -452,8 +456,8 @@ describe('whole machines (MILP)', () => {
 });
 
 describe('import costing (standalone mode)', () => {
-  test('embodied cost equals the standalone optimum', async () => {
-    const standalone = await solve(model, { targets: [{ item: 'iron-ingot', rate: 1 }] }, backend);
+  test('embodied cost equals the standalone optimum at the imported rate (A18)', async () => {
+    const standalone = await solve(model, { targets: [{ item: 'iron-ingot', rate: 90 }] }, backend);
     const r = await solve(
       model,
       {
@@ -466,7 +470,8 @@ describe('import costing (standalone mode)', () => {
     expect(r.importCosts).toEqual([
       {
         item: 'iron-ingot',
-        cost: { resources: standalone.objectiveValue },
+        rate: expect.closeTo(90, 9),
+        cost: { resources: expect.closeTo(standalone.objectiveValue! / 90, 12) },
         resourceTypes: ['iron-ore'],
       },
     ]);
@@ -507,6 +512,79 @@ describe('import costing (standalone mode)', () => {
     // 1 ingot/min: 1/60 miner + 1/30 smelter; 5/60 + 4/30 MW.
     expect(r.importCosts![0]!.cost.machines).toBeCloseTo(1 / 60 + 1 / 30, 12);
     expect(r.importCosts![0]!.cost.power).toBeCloseTo(5 / 60 + 4 / 30, 12);
+  });
+
+  test('costs that move with the rate settle on the best plan, costed at its own rates (A18)', async () => {
+    // i1 has one node; beyond 60/min a standalone plan converts i0 at a worse
+    // ratio, so the cost per unit rises with the rate and re-costing cycles.
+    const r = (
+      id: string,
+      inputs: [string, number][],
+      outputs: [string, number][],
+      node?: string,
+    ): Recipe => ({
+      id,
+      name: id,
+      machine: 'm',
+      kind: node ? 'extraction' : 'production',
+      alternate: false,
+      tier: '0-0',
+      inputs: inputs.map(([item, rate]) => ({ item, rate })),
+      outputs: outputs.map(([item, rate]) => ({ item, rate })),
+      powerMW: 1,
+      clock: 1,
+      source: 'dataset',
+      ...(node ? { node } : {}),
+    });
+    const stepped: Model = {
+      meta: { schemaVersion: 2, dataHash: 'stepped', minerMk: 1 },
+      items: ['i0', 'i1'].map((id) => ({
+        id,
+        name: id,
+        form: 'solid' as const,
+        sinkPoints: 0,
+        tier: '0-0',
+      })),
+      machines: [],
+      recipes: [
+        r('mine-0', [], [['i0', 60]], 'node:i0'),
+        r('mine-1', [], [['i1', 60]], 'node:i1'),
+        r('r3', [['i0', 45]], [['i1', 37]]),
+      ],
+      nodes: [
+        { id: 'node:i0', resource: 'i0', purity: 'normal', count: 10, nne: 1 },
+        { id: 'node:i1', resource: 'i1', purity: 'normal', count: 1, nne: 1 },
+      ],
+      beltCapacities: [],
+    };
+    const res = await solve(
+      stepped,
+      {
+        targets: [
+          { item: 'i1', rate: 77.25 },
+          { item: 'i0', rate: 300 },
+        ],
+        imports: [
+          { item: 'i1', cap: 61.5 },
+          { item: 'i0', cap: 55.25 },
+        ],
+        costImports: true,
+      },
+      backend,
+    );
+    expect(res.status).toBe('ok');
+    expect(res.diagnostics.map((d) => d.message)).toEqual([
+      expect.stringContaining('Import costs did not settle'),
+    ]);
+    // Every import is costed at its own rate, and the objective charges it so.
+    let charged = 0;
+    for (const i of res.imports) {
+      const c = res.importCosts!.find((x) => x.item === i.item)!;
+      expect(c.rate).toBeCloseTo(i.rate, 9);
+      charged += c.cost.resources! * i.rate;
+    }
+    const local = res.nodes.reduce((sum, n) => sum + n.nne, 0);
+    expect(res.objectiveValue).toBeCloseTo(local + charged, 9);
   });
 
   test('an import that cannot be made anywhere is free, with a warning', async () => {

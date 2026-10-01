@@ -61,7 +61,8 @@ References like §4.3 point into `ARCHITECTURE.md`.
 - **Acceptance:**
   - Secondary objective changes the plan while the primary stays within tolerance.
   - O6 uses fewer resource types than O1 on a fixture. O5 reaches its cap.
-  - Embodied cost = the standalone optimum. Out-of-range tolerance is rejected. A MILP timeout returns the best solution and its gap.
+  - Embodied cost = the standalone optimum at the imported rate (A18). Out-of-range tolerance is rejected. A MILP timeout returns the best solution and its gap.
+  - O3 counts heaters as whole machines. Import cost of Steam is not inflated by heater rounding: 300/min is charged 8 heaters' fuel, not 300 (A17, A18).
   - A "2000 MW from Coal" target produces a valid fuel chain.
 
 ### M5 — World core (pure) + CLI

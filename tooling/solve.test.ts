@@ -234,10 +234,10 @@ describe('pnpm solve: output', () => {
       '--cost-imports',
     ]);
     expect(costed.stdout).toContain(
-      'Import costs (per 1/min, standalone plan)\n' +
-        'Item        Resource types  resources\n' +
-        '----------  --------------  ---------\n' +
-        'Iron Ingot  Iron Ore            0.017',
+      'Import costs (per 1/min at the imported rate, standalone plan)\n' +
+        'Item        Resource types  At /min  resources\n' +
+        '----------  --------------  -------  ---------\n' +
+        'Iron Ingot  Iron Ore             90      0.017',
     );
     const scaled = await runCli([
       '--model',

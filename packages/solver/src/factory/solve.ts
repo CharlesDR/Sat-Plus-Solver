@@ -32,7 +32,7 @@ const SANITY_CAP = 1e7;
 /** MILP row tolerance of the retry when a plan fails to polish (see `LpOptions`). */
 const TIGHT_MIP_FEASIBILITY = 1e-10;
 /** How far the post-MILP polish may move the stage objective, relative (see `polish`). */
-const POLISH_SLACK = 1e-9;
+const POLISH_SLACK = 1e-10;
 /** Elastic re-solve: cost of 1/min of extra import, in normal-node-equivalents. */
 const IMPORT_SLACK_COST = 0.01;
 /** Solution checks (CLAUDE.md): balance within 1e-6, variables ≥ −1e-9, nodes ≤ budget. */
@@ -222,21 +222,6 @@ export async function solve(
     }
   }
 
-  const diagnostics: Diagnostic[] = [];
-  const importCosts = new Map<string, ImportCost>();
-  if (request.costImports && importCaps.size) {
-    for (const item of [...importCaps.keys()].sort()) {
-      const c = await embodiedCost(model, request, stack, item, backend, options);
-      if ('cost' in c) importCosts.set(item, c);
-      else diagnostics.push(c);
-    }
-    // Under O6, a resource type only imports bring in still counts once.
-    if (stack.includes('resourceTypes'))
-      for (const c of importCosts.values())
-        for (const r of c.resourceTypes)
-          if (!resources.has(r)) resources.set(r, { recipes: [], cap: 0 });
-  }
-
   const problem: Problem = {
     model,
     stack,
@@ -251,13 +236,164 @@ export async function solve(
     nodes,
     costs,
     resources,
-    importCosts,
+    importCosts: new Map(),
     turbineCaps: new Map(),
   };
-  const result = await solveStack(problem, backend, options, itemName, diagnostics);
-  if (request.costImports && result.status === 'ok')
-    result.importCosts = [...importCosts.values()].sort(byItem);
-  return result;
+  if (!request.costImports || !importCaps.size)
+    return solveStack(problem, backend, options, itemName, []);
+  return solveCosted(problem, request, backend, options, itemName);
+}
+
+/** Most re-costing rounds of `solveCosted` before it settles for the best plan seen. */
+const MAX_COST_ROUNDS = 4;
+
+/**
+ * Costed imports (§3.3, A18): each unassigned import is costed at the rate the
+ * plan actually imports it, because heater fuel (A17) makes the cost of a rate
+ * a step function, not rate × the cost of 1/min. The plan is first solved with
+ * free imports; each import is then costed at that rate (1/min if unused) and
+ * the plan re-solved, until the costs it was solved with match the costs at
+ * its own import rates. An import the plan stops using keeps its last rate.
+ * Step costs can make this cycle (a cheap average at a high rate invites a
+ * small import, whose own cost is higher): then, or after MAX_COST_ROUNDS, the
+ * best plan seen is returned, re-costed at its own import rates, with a warning.
+ */
+async function solveCosted(
+  base: Problem,
+  request: SolveRequest,
+  backend: LpBackend,
+  options: LpOptions,
+  itemName: (id: string) => string,
+): Promise<SolveResult> {
+  const items = [...base.importCaps.keys()].sort();
+  const free = await solveStack(
+    { ...base, turbineCaps: new Map() },
+    backend,
+    options,
+    itemName,
+    [],
+  );
+  if (free.status !== 'ok') return free;
+  const rates = new Map(items.map((i) => [i, 1]));
+  const costAt = async (plan: SolveResult) => {
+    // Rates below MIN_RATE are solver noise, and below what a standalone plan can target.
+    for (const i of plan.imports)
+      if (rates.has(i.item) && i.rate >= MIN_RATE) rates.set(i.item, i.rate);
+    const warnings: Diagnostic[] = [];
+    const costs = new Map<string, ImportCost>();
+    for (const item of items) {
+      const c = await embodiedCost(
+        base.model,
+        request,
+        base.stack,
+        item,
+        rates.get(item)!,
+        backend,
+        options,
+      );
+      if ('cost' in c) costs.set(item, c);
+      else warnings.push(c);
+    }
+    return { costs, warnings };
+  };
+  /** Plans solved so far, each with the costs it was solved with and the costs at its own rates. */
+  const seen: {
+    plan: SolveResult;
+    solvedWith: Map<string, ImportCost>;
+    own: Map<string, ImportCost>;
+  }[] = [];
+  let next = await costAt(free);
+  for (let round = 0; ; round++) {
+    const costs = next.costs;
+    // Under O6, a resource type only imports bring in still counts once.
+    const resources = new Map(base.resources);
+    if (base.stack.includes('resourceTypes'))
+      for (const c of costs.values())
+        for (const r of c.resourceTypes)
+          if (!resources.has(r)) resources.set(r, { recipes: [], cap: 0 });
+    const plan = await solveStack(
+      { ...base, importCosts: costs, resources, turbineCaps: new Map() },
+      backend,
+      options,
+      itemName,
+      next.warnings,
+    );
+    if (plan.status !== 'ok') return plan;
+    next = await costAt(plan);
+    seen.push({ plan, solvedWith: costs, own: next.costs });
+    if (sameCosts(costs, next.costs)) {
+      // Same costs; report them at the rates this plan imports.
+      plan.importCosts = [...next.costs.values()].sort(byItem);
+      return plan;
+    }
+    const cycle = seen.slice(0, -1).some((x) => sameCosts(x.solvedWith, next.costs));
+    if (cycle || round + 1 >= MAX_COST_ROUNDS) break;
+  }
+  // No fixed point: re-cost every plan at its own rates and keep the best.
+  const recosted = seen.map(({ plan, solvedWith, own }) => recost(plan, solvedWith, own));
+  const best = recosted.reduce((a, b) => (lexBetter(b, a) ? b : a));
+  best.diagnostics.push({
+    code: 'import-cost',
+    severity: 'warning',
+    item: items.join(', '),
+    message:
+      'Import costs did not settle when re-costed at the imported rates (whole heaters make costs step-shaped); ' +
+      'this is the cheapest plan found, costed at its own import rates.',
+  });
+  return best;
+}
+
+/** A plan's stage values with its imports charged `own` instead of `solvedWith` costs. */
+function recost(
+  plan: SolveResult,
+  solvedWith: Map<string, ImportCost>,
+  own: Map<string, ImportCost>,
+): SolveResult {
+  const shift = (o: ObjectiveId) =>
+    plan.imports.reduce(
+      (sum, i) =>
+        sum + ((own.get(i.item)?.cost[o] ?? 0) - (solvedWith.get(i.item)?.cost[o] ?? 0)) * i.rate,
+      0,
+    );
+  const stages = plan.stages.map((s) =>
+    s.objective === 'output' || s.objective === 'resourceTypes'
+      ? s
+      : { ...s, value: s.value + shift(s.objective) },
+  );
+  return {
+    ...plan,
+    stages,
+    objectiveValue: stages[0]!.value,
+    importCosts: [...own.values()].sort(byItem),
+    diagnostics: [...plan.diagnostics],
+  };
+}
+
+/** True when `a`'s stage values beat `b`'s lexicographically (min sense; output is maximized). */
+function lexBetter(a: SolveResult, b: SolveResult): boolean {
+  for (const [k, s] of a.stages.entries()) {
+    const sign = s.objective === 'output' ? -1 : 1;
+    const x = sign * s.value;
+    const y = sign * b.stages[k]!.value;
+    if (Math.abs(x - y) > 1e-9 * Math.max(1, Math.abs(x), Math.abs(y))) return x < y;
+  }
+  return false;
+}
+
+/** Same cost per objective (1e-9 relative) and resource types, for every item. */
+function sameCosts(a: Map<string, ImportCost>, b: Map<string, ImportCost>): boolean {
+  if (a.size !== b.size) return false;
+  for (const [item, x] of a) {
+    const y = b.get(item);
+    if (!y || x.resourceTypes.join() !== y.resourceTypes.join()) return false;
+    const keys = new Set([...Object.keys(x.cost), ...Object.keys(y.cost)]) as Set<ObjectiveId>;
+    for (const k of keys) {
+      const u = x.cost[k] ?? 0;
+      const v = y.cost[k] ?? 0;
+      if (Math.abs(u - v) > 1e-9 * Math.max(1, Math.abs(u), Math.abs(v))) return false;
+    }
+  }
+  return true;
 }
 
 /**
@@ -440,10 +576,10 @@ function objectiveTerms(p: Problem, objective: ObjectiveId): LpTerm[] {
   for (const r of p.recipes) {
     const c = cost.get(r.id) ?? 0;
     if (c === 0) continue;
-    terms.push({
-      var: objective === 'machines' && p.whole ? machinesVar(r.id) : recipeVar(r.id),
-      coef: c,
-    });
+    // O3 counts built machines: whole ones in whole-machines mode, and
+    // always for heaters (A17), which burn full fuel per machine.
+    const built = objective === 'machines' && (p.whole || r.heater === true);
+    terms.push({ var: built ? machinesVar(r.id) : recipeVar(r.id), coef: c });
   }
   for (const [item, ic] of [...p.importCosts].sort(([a], [b]) => (a < b ? -1 : 1))) {
     const c = ic.cost[objective] ?? 0;
@@ -469,26 +605,27 @@ function stageValue(p: Problem, objective: ObjectiveId, values: Map<string, numb
 const embodiedCache = new WeakMap<Model, Map<string, ImportCost | Diagnostic>>();
 
 /**
- * Embodied cost of 1/min of an unassigned import (§3.3): the stack's values on
- * a standalone plan that makes 1/min of it from the map pool, with no imports.
- * Cached per model and settings.
+ * Embodied cost per 1/min of an unassigned import at `rate` (§3.3, A18): the
+ * stack's values on a standalone plan that makes `rate`/min of it from the
+ * map pool, with no imports, divided by `rate`. Cached per model and settings.
  */
 async function embodiedCost(
   model: Model,
   request: SolveRequest,
   stack: readonly ObjectiveId[],
   item: string,
+  rate: number,
   backend: LpBackend,
   options: LpOptions,
 ): Promise<ImportCost | Diagnostic> {
   const standalone: SolveRequest = {
-    targets: [{ item, rate: 1 }],
+    targets: [{ item, rate }],
     objectives: stack.filter((o) => o !== 'output'),
     ...(request.tolerance !== undefined ? { tolerance: request.tolerance } : {}),
     ...(request.scarcityWeights ? { scarcityWeights: request.scarcityWeights } : {}),
     ...(request.recipes ? { recipes: request.recipes } : {}),
   };
-  if (!standalone.objectives!.length) return { item, cost: {}, resourceTypes: [] };
+  if (!standalone.objectives!.length) return { item, rate, cost: {}, resourceTypes: [] };
   const key = JSON.stringify(standalone);
   let cache = embodiedCache.get(model);
   if (!cache) embodiedCache.set(model, (cache = new Map()));
@@ -500,10 +637,11 @@ async function embodiedCost(
     r.status === 'ok'
       ? {
           item,
+          rate,
           cost: Object.fromEntries(
             r.stages
               .filter((s) => s.objective !== 'resourceTypes')
-              .map((s) => [s.objective, s.value]),
+              .map((s) => [s.objective, s.value / rate]),
           ),
           resourceTypes: [...new Set(r.nodes.map((n) => nodes.get(n.node) ?? n.node))].sort(),
         }
