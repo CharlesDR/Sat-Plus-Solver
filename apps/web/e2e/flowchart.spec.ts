@@ -2,7 +2,8 @@
  * M7 (docs/PLAN.md): the factory flowchart shows the plan, its edges carry
  * rates, and selection syncs both ways between the flowchart and the table.
  */
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { openFactory } from './helpers';
 
 const node = (page: Page, id: string) =>

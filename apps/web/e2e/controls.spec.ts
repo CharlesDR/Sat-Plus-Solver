@@ -3,7 +3,8 @@
  * single alternate turned on and used, the max-tier filter, an explicit node
  * budget below usage, and settings that inherit the world defaults.
  */
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { openFactory } from './helpers';
 
 const recipeNames = (page: Page) =>

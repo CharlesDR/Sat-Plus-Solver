@@ -415,3 +415,27 @@ describe('factory controls (M6)', () => {
     expect(ids('b')).not.toContain('iron-wire');
   });
 });
+
+describe('progress (M10)', () => {
+  test('reports each factory as it starts, consumers first, without changing the result', async () => {
+    const world = buildWorld(
+      [{ id: 'a' }, { id: 'b' }, { id: 'c', targets: [{ item: 'modular-frame', rate: 2 }] }],
+      [pull('ab', 'a', 'b', 'iron-plate'), pull('bc', 'b', 'c', 'reinforced-iron-plate')],
+    );
+    const seen: unknown[] = [];
+    const cache = createSolveCache();
+    const r = await resolveWorld(world, model, solveFactory, cache, {
+      onProgress: (p) => seen.push(p),
+    });
+    expect(seen).toEqual([
+      { factory: 'c', step: 1, factories: 3, pass: 1 },
+      { factory: 'b', step: 2, factories: 3, pass: 1 },
+      { factory: 'a', step: 3, factories: 3, pass: 1 },
+    ]);
+    expect(r).toEqual(await resolveWorld(world, model, solveFactory, createSolveCache()));
+    // Memoized solves are reported too.
+    seen.length = 0;
+    await resolveWorld(world, model, solveFactory, cache, { onProgress: (p) => seen.push(p) });
+    expect(seen).toHaveLength(3);
+  });
+});

@@ -5,7 +5,8 @@
  */
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { openFactory } from './helpers';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));

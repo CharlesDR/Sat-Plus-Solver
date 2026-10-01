@@ -5,7 +5,8 @@
  * hides the internal link, item trace marks exactly what touches the item,
  * the power panel totals the factories, and the breadcrumb drills in and out.
  */
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 const canvas = (page: Page) => page.getByTestId('world-canvas');
 const node = (page: Page, id: string) => canvas(page).locator(`.react-flow__node[data-id="${id}"]`);

@@ -153,4 +153,13 @@ describe('world solves', () => {
     expect(target[0]!.item).toBe('mw');
     expect(Math.abs(solved.world.power.netMW)).toBeLessThan(1e-6);
   });
+
+  test('progress names each factory as it starts (M10)', async () => {
+    const service = createSolverService(mini, backend);
+    const world = createWorld('vanilla-mini');
+    world.factories[0]!.request.targets.push({ item: 'iron-plate', rate: 60 });
+    const heard: unknown[] = [];
+    await service.solve({ world }, (p) => heard.push(p));
+    expect(heard).toEqual([{ factory: 'Factory', step: 1, factories: 1, pass: 1 }]);
+  });
 });

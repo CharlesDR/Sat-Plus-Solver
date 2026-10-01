@@ -7,6 +7,10 @@ import { worldGraph, type LayoutEngine } from '@sps/graph';
 import type { World } from '@sps/world';
 import { useCallback, useId, useMemo, useState } from 'react';
 import { useItemLookup } from '../controls/itemRows';
+import { DiagnosticsList, useNames } from '../Diagnostics';
+import { worldDiagnostics, type Fix } from '../diagnostics';
+import { ErrorBoundary } from '../ErrorBoundary';
+import { SolvingNote } from '../SolvingNote';
 import type { Catalog, WorldSummary } from '../solver/protocol';
 import type { WorldStore } from '../store';
 import type { WorldPlanState } from '../useWorldPlan';
@@ -40,6 +44,7 @@ export function WorldView(props: {
   const [traceText, setTraceText] = useState('');
   const [draft, setDraft] = useState<LinkDraft>();
   const traceId = useId();
+  const panelId = useId();
   const items = useItemLookup(catalog.items);
   const itemName = useCallback(
     (id: string) => (id === MW_ITEM_ID ? 'Power (MW)' : items.name(id)),
@@ -81,6 +86,18 @@ export function WorldView(props: {
     [summary, collapsed, itemName, traceItem],
   );
 
+  const names = useNames(catalog, world);
+  const fix = (f: Fix) => {
+    if (f.kind === 'open-factory') onOpen(f.factory);
+    else if (f.kind === 'remove-link') store.getState().removeLink(f.link);
+    else if (f.kind === 'show-nodes') setTab('Nodes');
+    else if (f.kind === 'edit-link') {
+      const link = world.links.find((l) => l.id === f.link);
+      if (link) setDraft({ from: link.from, to: link.to, link });
+      setTab('Links');
+    }
+  };
+
   const actions = useMemo<CanvasActions>(
     () => ({
       openFactory: onOpen,
@@ -119,30 +136,30 @@ export function WorldView(props: {
             Clear trace
           </button>
         )}
-        <span className="hint">
-          {plan.kind === 'solving'
-            ? 'Solving the world…'
-            : plan.kind === 'done'
-              ? `World solved in ${Math.round(plan.outcome.ms)} ms.`
-              : ''}
-        </span>
+        {plan.kind === 'solving' ? (
+          <SolvingNote progress={plan.progress} what="the world" />
+        ) : (
+          <span className="hint" role="status">
+            {plan.kind === 'done' ? `World solved in ${Math.round(plan.outcome.ms)} ms.` : ''}
+          </span>
+        )}
       </div>
       {plan.kind === 'error' && (
         <p className="error" role="alert">
           World solve failed: {plan.message}
         </p>
       )}
-      {summary && summary.diagnostics.length > 0 && (
-        <ul className="diagnostics" aria-label="World diagnostics">
-          {summary.diagnostics.map((d, k) => (
-            <li key={k} className={d.severity}>
-              {d.severity}: {d.message}
-            </li>
-          ))}
-        </ul>
+      {summary && (
+        <DiagnosticsList
+          label="World diagnostics"
+          views={worldDiagnostics(summary.diagnostics, names)}
+          onFix={fix}
+        />
       )}
       {structure && traced && (
-        <WorldCanvas engine={layout} graph={structure} traced={traced} actions={actions} />
+        <ErrorBoundary what="the world canvas" resetKey={structure}>
+          <WorldCanvas engine={layout} graph={structure} traced={traced} actions={actions} />
+        </ErrorBoundary>
       )}
       {draft && (
         <LinkEditor
@@ -160,13 +177,38 @@ export function WorldView(props: {
           onCancel={() => setDraft(undefined)}
         />
       )}
-      <div className="tabs" role="tablist" aria-label="World panels">
-        {TABS.map((t) => (
+      <div
+        className="tabs"
+        role="tablist"
+        aria-label="World panels"
+        onKeyDown={(e) => {
+          // The ARIA tab pattern: arrows move and select, Home/End jump to the ends.
+          const k = TABS.indexOf(tab);
+          const next =
+            e.key === 'ArrowRight'
+              ? (k + 1) % TABS.length
+              : e.key === 'ArrowLeft'
+                ? (k - 1 + TABS.length) % TABS.length
+                : e.key === 'Home'
+                  ? 0
+                  : e.key === 'End'
+                    ? TABS.length - 1
+                    : undefined;
+          if (next === undefined) return;
+          e.preventDefault();
+          setTab(TABS[next]!);
+          document.getElementById(`${panelId}-tab-${next}`)?.focus();
+        }}
+      >
+        {TABS.map((t, k) => (
           <button
             key={t}
+            id={`${panelId}-tab-${k}`}
             type="button"
             role="tab"
             aria-selected={tab === t}
+            aria-controls={summary ? `${panelId}-panel` : undefined}
+            tabIndex={tab === t ? 0 : -1}
             onClick={() => setTab(t)}
           >
             {t}
@@ -174,7 +216,13 @@ export function WorldView(props: {
         ))}
       </div>
       {summary && (
-        <section className="summary panel" role="tabpanel" aria-label={tab}>
+        <section
+          id={`${panelId}-panel`}
+          className="summary panel"
+          role="tabpanel"
+          aria-label={tab}
+          tabIndex={0}
+        >
           {tab === 'Ledger' && (
             <LedgerPanel
               summary={summary}

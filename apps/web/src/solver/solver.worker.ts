@@ -38,7 +38,10 @@ globalThis.addEventListener('message', (e: MessageEvent<ToWorker>) => {
     if (!s) return post({ type: 'failed', id: msg.id, message: 'The solver failed to start.' });
     const t0 = performance.now();
     try {
-      const solved = await s.solve({ world: msg.world, focus: msg.focus, action: msg.action });
+      const solved = await s.solve(
+        { world: msg.world, focus: msg.focus, action: msg.action },
+        (progress) => post({ type: 'progress', id: msg.id, progress }),
+      );
       post({ type: 'solved', id: msg.id, ...solved, ms: performance.now() - t0 });
     } catch (err) {
       post({ type: 'failed', id: msg.id, message: (err as Error).message });
