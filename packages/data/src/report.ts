@@ -118,6 +118,10 @@ export function renderReport(result: BuildResult, extra: ReportSection[] = []): 
           ['Production recipes', kinds('production')],
           ['Generator recipes', kinds('generator')],
           ['Extraction recipes (incl. generated)', kinds('extraction')],
+          [
+            'Heater recipes (A17: fuel and exhaust per whole machine)',
+            model.recipes.filter((r) => r.heater).length,
+          ],
           ['Generated Modular Miner routes', model.recipes.filter((r) => r.route).length],
           ['Node classes', model.nodes.length],
           ['Largest fluid rate (m³/min)', details?.maxFluidRate ?? 0],

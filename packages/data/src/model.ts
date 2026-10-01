@@ -4,7 +4,7 @@
  * Every rate in `inputs`/`outputs` is positive and per machine.
  */
 
-export const MODEL_SCHEMA_VERSION = 1;
+export const MODEL_SCHEMA_VERSION = 2;
 
 /** Id of the power pseudo-item output by generator recipes. Its rate unit is MW. */
 export const MW_ITEM_ID = 'mw';
@@ -30,6 +30,12 @@ export interface Flow {
   item: string;
   /** Per machine, per minute (MW for the `mw` item). Always > 0. */
   rate: number;
+  /**
+   * Heater recipes only (A17): set on the heater side (fuel and heater
+   * byproducts), which always runs at 100% per whole machine. Absent on the
+   * boiler pair and on every flow of other recipes.
+   */
+  heater?: true;
 }
 
 export type RecipeKind = 'production' | 'generator' | 'extraction';
@@ -62,6 +68,11 @@ export interface Recipe {
   source: 'dataset' | 'generated';
   /** Present on generated Modular Miner routes. */
   route?: MinerRoute;
+  /**
+   * Heater/boiler recipe (A17): flows marked `heater` scale with whole
+   * machines; the rest (the boiler pair) scale with boiler throughput.
+   */
+  heater?: true;
 }
 
 export interface ResourceNode {

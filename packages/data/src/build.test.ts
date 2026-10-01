@@ -95,6 +95,44 @@ describe('real dataset', () => {
     for (const n of model.nodes) expect(model.recipes.some((r) => r.node === n.id)).toBe(true);
   });
 
+  test('Solid Fuel Heater Mk.1 (Coal): heater side 15 Coal → 15 Flue Gas; boiler 20 Water → 40 Steam (A17)', () => {
+    const r = model.recipes.find((x) => x.name === 'Solid Fuel Heater Mk.1 (Coal)')!;
+    expect(r.heater).toBe(true);
+    expect(r.kind).toBe('production');
+    expect(r.inputs).toEqual([
+      { item: 'water', rate: 20 },
+      { item: 'coal', rate: 15, heater: true },
+    ]);
+    expect(r.outputs).toEqual([
+      { item: 'steam', rate: 40 },
+      { item: 'flue-gas', rate: 15, heater: true },
+    ]);
+  });
+
+  test('Hydrogen heater keeps boiler Water and exhaust Water apart (A17)', () => {
+    const r = model.recipes.find((x) => x.name === 'Solution Heater Mk.1 (Hydrogen)')!;
+    expect(r.inputs).toEqual([
+      { item: 'water', rate: 50 },
+      { item: 'hydrogen', rate: 60, heater: true },
+    ]);
+    expect(r.outputs).toEqual([
+      { item: 'steam', rate: 100 },
+      { item: 'water', rate: 15, heater: true },
+    ]);
+  });
+
+  test('every heater recipe has one boiler pair and a fuel; nothing else is marked (A17)', () => {
+    const heaters = model.recipes.filter((r) => r.heater);
+    expect(heaters).toHaveLength(96);
+    for (const r of heaters) {
+      expect(r.inputs.filter((f) => !f.heater)).toHaveLength(1);
+      expect(r.outputs.filter((f) => !f.heater)).toHaveLength(1);
+      expect(r.inputs.filter((f) => f.heater).length).toBeGreaterThan(0);
+    }
+    for (const r of model.recipes.filter((x) => !x.heater))
+      for (const f of [...r.inputs, ...r.outputs]) expect(f.heater).toBeUndefined();
+  });
+
   test('is deterministic', () => {
     expect(buildModel(inputs).model).toEqual(model);
   });
@@ -173,6 +211,34 @@ describe('invalid inputs fail the build with a clear message', () => {
     };
     data.Recipes.find((r) => r.Name === 'Water')!.Parts[0]!.Amount = '180000';
     expectError({ gameData: JSON.stringify(data) }, 'units.fluid', /litres/);
+  });
+
+  test('heater machine missing from overrides.heaterMachines (A17)', () => {
+    const overrides = JSON.parse(inputs.overrides) as { heaterMachines: Record<string, string> };
+    delete overrides.heaterMachines['Solid Fuel Heater Mk.1 (MP)'];
+    expectError(
+      { overrides: JSON.stringify(overrides) },
+      'heater.unclassified',
+      /Solid Fuel Heater Mk\.1 \(MP\)/,
+    );
+  });
+
+  test('heater recipe whose boiler pair is off ratio (A17)', () => {
+    const data = JSON.parse(inputs.gameData) as {
+      Recipes: { Name: string; Parts: { Part: string; Amount: string }[] }[];
+    };
+    const row = data.Recipes.find((r) => r.Name === 'Solid Fuel Heater Mk.1 (Coal)')!;
+    row.Parts.find((p) => p.Part === 'Steam')!.Amount = '30';
+    expectError({ gameData: JSON.stringify(data) }, 'heater.ratio', /Coal.*expected 2/);
+  });
+
+  test('heater recipe with no boiler pair (A17)', () => {
+    const data = JSON.parse(inputs.gameData) as {
+      Recipes: { Name: string; Parts: { Part: string; Amount: string }[] }[];
+    };
+    const row = data.Recipes.find((r) => r.Name === 'Solid Fuel Heater Mk.1 (Coal)')!;
+    row.Parts = row.Parts.filter((p) => p.Part !== 'Steam');
+    expectError({ gameData: JSON.stringify(data) }, 'heater.boilerPair', /found 0/);
   });
 
   test('invalid JSON and schema violations', () => {
