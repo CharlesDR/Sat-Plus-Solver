@@ -3,8 +3,8 @@ import fc from 'fast-check';
 import { describe, expect, test } from 'vitest';
 import vanillaMini from '../../../../fixtures/vanilla-mini/model.json';
 import { createHighsBackend } from '../lp/highs';
-import { MIN_RATE, solve } from './solve';
-import type { SolveRequest, SolveResult } from './types';
+import { LEX_EPSILON, MIN_RATE, solve } from './solve';
+import type { ObjectiveId, SolveRequest, SolveResult } from './types';
 
 /**
  * Solver properties (docs/ARCHITECTURE.md §9), checked independently of the
@@ -288,4 +288,70 @@ describe('solver properties', () => {
       { numRuns: 100, seed: SEED },
     );
   });
+});
+
+/** M4: random objective stacks on vanilla-mini. */
+const stackRequest = fc.record({
+  targets: fc.array(
+    fc.record({
+      item: fc.constantFrom(...miniItems),
+      rate: fc.integer({ min: 1, max: 800 }).map((n) => n / 4),
+    }),
+    { minLength: 1, maxLength: 3 },
+  ),
+  objectives: fc
+    .shuffledSubarray<ObjectiveId>(
+      ['resources', 'scarcity', 'machines', 'power', 'resourceTypes'],
+      {
+        minLength: 1,
+        maxLength: 3,
+      },
+    )
+    .chain((rest) => fc.boolean().map((max): ObjectiveId[] => (max ? ['output', ...rest] : rest))),
+  tolerance: fc.constantFrom(1e-4, 0.01, 0.2),
+  wholeMachines: fc.boolean(),
+  imports: fc.array(
+    fc.record({ item: fc.constantFrom(...miniItems), cap: fc.integer({ min: 1, max: 200 }) }),
+    { maxLength: 2 },
+  ),
+  costImports: fc.boolean(),
+});
+
+describe('solver properties: objective stacks', () => {
+  test('200 random stacks: checked plans, every stage within tolerance of its optimum', async () => {
+    await fc.assert(
+      fc.asyncProperty(stackRequest, async (req) => {
+        const r = await solve(mini, req, backend);
+        expect(['ok', 'unreachable', 'infeasible', 'unbounded']).toContain(r.status);
+        if (r.status !== 'ok') return;
+        expect(r.diagnostics.filter((d) => d.severity === 'error')).toEqual([]);
+        const relaxed = r.diagnostics.find((d) => d.code === 'tolerance-relaxed');
+        const tol = relaxed?.code === 'tolerance-relaxed' ? relaxed.tolerance : req.tolerance;
+        const scale = r.outputScale ?? 1;
+        checkPlan(
+          mini,
+          { ...req, targets: req.targets.map((t) => ({ ...t, rate: t.rate * scale })) },
+          r,
+        );
+        expect(r.stages.map((s) => s.objective)).toEqual(req.objectives);
+        for (const s of r.stages) {
+          const slack =
+            tol * Math.max(Math.abs(s.optimum), LEX_EPSILON) +
+            TOL * Math.max(1, Math.abs(s.optimum));
+          if (s.objective === 'output') expect(s.value).toBeGreaterThanOrEqual(s.optimum - slack);
+          else expect(s.value).toBeLessThanOrEqual(s.optimum + slack);
+        }
+        if (req.wholeMachines)
+          for (const x of r.recipes) expect(Number.isInteger(x.machinesCeil)).toBe(true);
+        // The primary is no worse than solving it alone, within tolerance.
+        const alone = await solve(mini, { ...req, objectives: [req.objectives[0]!] }, backend);
+        expect(alone.status).toBe('ok');
+        const p = r.stages[0]!;
+        expect(Math.abs(p.optimum - alone.stages[0]!.optimum)).toBeLessThanOrEqual(
+          TOL * Math.max(1, Math.abs(p.optimum)),
+        );
+      }),
+      { numRuns: 200, seed: SEED },
+    );
+  }, 60_000);
 });
