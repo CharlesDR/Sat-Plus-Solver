@@ -201,3 +201,104 @@ summary {
 .nodes .text {
   text-align: left;
 }
+.flowchart {
+  margin: 16px 0;
+}
+.flow-canvas {
+  height: 520px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  --xy-background-color: var(--bg);
+  --xy-node-boxshadow-selected: 0 0 0 2px var(--accent);
+  --xy-controls-button-background-color: var(--bg);
+  --xy-controls-button-color: var(--fg);
+}
+:root {
+  --accent: #2463eb;
+  --flow-recipe: #eef2ff;
+  --flow-resource: #ecfdf3;
+  --flow-import: #f4f4f5;
+  --flow-target: #fff7e6;
+  --flow-byproduct: #fdf2f2;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent: #7aa2ff;
+    --flow-recipe: #23263a;
+    --flow-resource: #1b2e24;
+    --flow-import: #2a2a2e;
+    --flow-target: #33291a;
+    --flow-byproduct: #352022;
+  }
+}
+.flow-node {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 12px;
+  line-height: 16px;
+  overflow: hidden;
+  cursor: pointer;
+}
+.react-flow__node.selected .flow-node {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.flow-node .react-flow__handle {
+  opacity: 0;
+}
+.flow-node.recipe {
+  background: var(--flow-recipe);
+}
+.flow-node.resource {
+  background: var(--flow-resource);
+}
+.flow-node.import {
+  background: var(--flow-import);
+}
+.flow-node.target {
+  background: var(--flow-target);
+}
+.flow-node.byproduct {
+  background: var(--flow-byproduct);
+}
+.flow-title {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.flow-detail {
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.flow-edge {
+  stroke: var(--muted) !important;
+}
+.flow-edge.active {
+  stroke: var(--accent) !important;
+  stroke-width: 2 !important;
+}
+.flow-edge-label {
+  position: absolute;
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  color: var(--muted);
+  background: var(--bg);
+  pointer-events: none;
+}
+.flow-edge-label.active {
+  color: var(--accent);
+}
+.summary tr.selectable {
+  cursor: pointer;
+}
+.summary tr.selected td {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+}

@@ -92,6 +92,27 @@ describe('heaters (A17)', () => {
     expect(usage(r, 'water')!.machines).toBeCloseTo(10 / 120, 9);
   });
 
+  test('recipe flows carry the heater split: fuel and exhaust whole, boiler at load', async () => {
+    const r = await solve(model, { targets: [{ item: 'steam', rate: 20 }] }, backend);
+    const h = usage(r, 'coal-heater')!;
+    expect(h.inputs).toEqual([
+      { item: 'water', rate: expect.closeTo(10, 9) },
+      { item: 'coal', rate: 15 },
+    ]);
+    expect(h.outputs).toEqual([
+      { item: 'steam', rate: expect.closeTo(20, 9) },
+      { item: 'flue-gas', rate: 15 },
+    ]);
+    expect(usage(r, 'mine-coal')!.node).toBe('node:coal:normal');
+    // The flows add up to each item's produced and consumed totals.
+    for (const f of r.items) {
+      const sum = (side: 'inputs' | 'outputs') =>
+        r.recipes.reduce((s, x) => s + rate(x[side], f.item), 0);
+      expect(sum('outputs')).toBeCloseTo(f.produced, 9);
+      expect(sum('inputs')).toBeCloseTo(f.consumed, 9);
+    }
+  });
+
   test('1 Steam/min still burns a whole heater of fuel and emits its whole exhaust', async () => {
     const r = await solve(model, { targets: [{ item: 'steam', rate: 1 }] }, backend);
     expect(usage(r, 'coal-heater')!.machines).toBe(1);

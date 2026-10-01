@@ -2,6 +2,7 @@
  * Main-thread side of the solver worker. Solves run one at a time; while one
  * runs, only the newest pending request is kept, so fast edits never pile up.
  */
+import type { FactoryGraph } from '@sps/graph';
 import type { PlanSummary } from '@sps/solver';
 import type { World } from '@sps/world';
 import type { Catalog, FromWorker, ToWorker } from './protocol';
@@ -20,6 +21,8 @@ export interface SolverReady {
 
 export interface SolveOutcome {
   plan: PlanSummary;
+  /** The plan's flowchart, not yet laid out. */
+  graph: FactoryGraph;
   ms: number;
 }
 
@@ -61,7 +64,7 @@ export function createSolverClient(worker: WorkerLike): SolverClient {
     if (!inFlight || msg.id !== inFlight.id) return;
     const done = inFlight;
     inFlight = undefined;
-    if (msg.type === 'solved') done.resolve({ plan: msg.plan, ms: msg.ms });
+    if (msg.type === 'solved') done.resolve({ plan: msg.plan, graph: msg.graph, ms: msg.ms });
     else done.reject(new Error(msg.message));
     if (queued) {
       const next = queued;

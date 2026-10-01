@@ -109,6 +109,15 @@ export interface RecipeUsage {
    * boiler capacity, 0–1. Boiler flows are `rate × machines × boilerLoad`.
    */
   boilerLoad?: number;
+  /**
+   * What these machines consume and produce per minute, in recipe order: the
+   * same rates the item balance uses (for heaters, fuel and exhaust at whole
+   * machines and the boiler pair at `boilerLoad`). The flowchart draws them.
+   */
+  inputs: ItemRate[];
+  outputs: ItemRate[];
+  /** Node class the recipe draws on (extraction recipes). */
+  node?: string;
 }
 
 export interface ItemFlow {

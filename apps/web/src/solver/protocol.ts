@@ -1,5 +1,6 @@
 /** Messages between the main thread and the solver worker. */
 import type { NodePurity } from '@sps/data';
+import type { FactoryGraph } from '@sps/graph';
 import type { PlanSummary } from '@sps/solver';
 import type { World } from '@sps/world';
 
@@ -51,5 +52,5 @@ export type ToWorker = { type: 'solve'; id: number; world: World; factoryId: str
 export type FromWorker =
   | { type: 'ready'; catalog: Catalog; dataHash: string }
   | { type: 'init-error'; message: string }
-  | { type: 'solved'; id: number; plan: PlanSummary; ms: number }
+  | { type: 'solved'; id: number; plan: PlanSummary; graph: FactoryGraph; ms: number }
   | { type: 'failed'; id: number; message: string };

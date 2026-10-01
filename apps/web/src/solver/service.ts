@@ -3,25 +3,41 @@
  * Node tests with the same model and backend types.
  */
 import { MW_ITEM_ID, type Model } from '@sps/data';
+import { factoryGraph, type FactoryGraph, type GraphLabels } from '@sps/graph';
 import { compareTiers, solve, summarizePlan, type LpBackend, type PlanSummary } from '@sps/solver';
 import { factorySolveRequest, type World } from '@sps/world';
 import type { Catalog, CatalogItem } from './protocol';
 
+/** A solved factory: the table summary and the flowchart (M7), both built in the worker. */
+export interface SolvedFactory {
+  plan: PlanSummary;
+  graph: FactoryGraph;
+}
+
 export interface SolverService {
   dataHash: string;
   catalog: Catalog;
-  solve(world: World, factoryId: string): Promise<PlanSummary>;
+  solve(world: World, factoryId: string): Promise<SolvedFactory>;
 }
 
 export function createSolverService(model: Model, backend: LpBackend): SolverService {
+  const labels = modelLabels(model);
   return {
     dataHash: model.meta.dataHash,
     catalog: modelCatalog(model),
     async solve(world, factoryId) {
       const request = factorySolveRequest(world, model, factoryId);
-      return summarizePlan(model, await solve(model, request, backend));
+      const result = await solve(model, request, backend);
+      return { plan: summarizePlan(model, result), graph: factoryGraph(result, labels) };
     },
   };
+}
+
+/** Item and machine display names for the flowchart. */
+export function modelLabels(model: Model): GraphLabels {
+  const item = new Map(model.items.map((i) => [i.id, i.name]));
+  const machine = new Map(model.machines.map((m) => [m.id, m.name]));
+  return { item: (id) => item.get(id), machine: (id) => machine.get(id) };
 }
 
 const byName =
