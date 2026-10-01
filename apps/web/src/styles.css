@@ -302,3 +302,210 @@ summary {
 .summary tr.selected td {
   background: color-mix(in srgb, var(--accent) 15%, transparent);
 }
+/* World view (M8) */
+main:has(.world) {
+  max-width: 1400px;
+}
+.breadcrumb ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+.breadcrumb li + li::before {
+  content: '›';
+  margin-right: 6px;
+  color: var(--muted);
+}
+.breadcrumb [aria-current='page'] {
+  font-weight: 600;
+}
+button.link-button {
+  background: none;
+  border: none;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+}
+.toolbar {
+  align-items: end;
+}
+.world-canvas .flow-canvas {
+  height: 560px;
+}
+.world-node {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-left-width: 4px;
+  border-radius: 6px;
+  background: var(--flow-recipe);
+  color: var(--fg);
+  font-size: 12px;
+  line-height: 16px;
+  overflow: hidden;
+}
+.world-node.group {
+  background: var(--flow-target);
+  border-style: double;
+  border-width: 3px 3px 3px 5px;
+}
+.world-node.stub {
+  background: var(--flow-import);
+  border-style: dashed;
+  border-left-width: 1px;
+}
+.world-node.stub.in {
+  border-color: var(--warn);
+}
+.world-node.ok {
+  border-left-color: #2e9d5b;
+}
+.world-node.short {
+  border-left-color: var(--warn);
+}
+.world-node.infeasible {
+  border-left-color: var(--error);
+}
+.world-node .link-button {
+  position: absolute;
+  right: 10px;
+  bottom: 6px;
+  font-size: 12px;
+}
+.world-node .react-flow__handle {
+  width: 10px;
+  height: 10px;
+  background: var(--accent);
+}
+.world-node.stub .react-flow__handle,
+.world-node.group .react-flow__handle {
+  opacity: 0;
+}
+.group-frame {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  border: 2px dashed var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+}
+.group-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+.world-edge {
+  stroke: var(--muted) !important;
+}
+.world-edge.stub {
+  stroke-dasharray: 4 4;
+}
+.world-edge.short {
+  stroke: var(--warn) !important;
+}
+.world-edge-label {
+  position: absolute;
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  color: var(--muted);
+  background: var(--bg);
+  pointer-events: none;
+}
+.world-edge-label.short {
+  color: var(--warn);
+}
+.traced.world-node,
+.world-edge-label.traced {
+  box-shadow: 0 0 0 3px var(--accent);
+  color: var(--accent);
+}
+.world-node.traced {
+  color: var(--fg);
+}
+.world-edge.traced {
+  stroke: var(--accent) !important;
+  stroke-width: 3 !important;
+}
+.dimmed {
+  opacity: 0.25;
+}
+.link-editor fieldset {
+  border-color: var(--accent);
+}
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.tabs [role='tab'] {
+  font: inherit;
+  border: 1px solid var(--line);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  background: none;
+  color: inherit;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+.tabs [aria-selected='true'] {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  font-weight: 600;
+}
+.panel input:not([type='checkbox']),
+.panel select {
+  font: inherit;
+}
+.panel .actions {
+  white-space: nowrap;
+}
+.panel td.status.ok {
+  color: #2e9d5b;
+}
+.panel td.status.short {
+  color: var(--warn);
+}
+.panel td.status.infeasible {
+  color: var(--error);
+}
+.panel tr.total td {
+  font-weight: 600;
+}
+.panel tr.over td {
+  color: var(--error);
+}
+label.inline {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.field {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.field input,
+.field select {
+  font: inherit;
+  font-size: 15px;
+  color: var(--fg);
+}
+/* Frames and stubs are not interactive nodes; their buttons still are. */
+.world-node button,
+.group-frame button {
+  pointer-events: all;
+}

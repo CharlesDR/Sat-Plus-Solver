@@ -138,3 +138,50 @@ describe('world store', () => {
     expect(store.getState().dataHashMismatch).toEqual({ world: 'h1', model: 'h2' });
   });
 });
+
+describe('world editing (M8)', () => {
+  test('factories, groups and links; unchanged factories keep their identity', () => {
+    const store = createWorldStore();
+    const s = store.getState();
+    const main = store.getState().world.factories[0];
+    const a = s.addFactory('A');
+    const b = s.addFactory('B');
+    const link = s.addLink({ from: a, to: b, item: 'iron-plate', mode: { kind: 'pull' } });
+    const g = s.addGroup('Iron');
+    s.setFactoryGroup(a, g);
+    s.setFactoryGroup(b, g);
+    s.setGroupCollapsed(g, true);
+    const { world } = store.getState();
+    expect(world.factories[0]).toBe(main);
+    expect(world.factories.map((f) => [f.name, f.groupId])).toEqual([
+      ['Factory', undefined],
+      ['A', g],
+      ['B', g],
+    ]);
+    expect(world.links).toEqual([
+      { id: link, from: a, to: b, item: 'iron-plate', mode: { kind: 'pull' } },
+    ]);
+    expect(world.groups).toEqual([{ id: g, name: 'Iron', collapsed: true }]);
+
+    s.updateLink(link, { from: a, to: b, item: 'iron-plate', mode: { kind: 'fixed', rate: 5 } });
+    expect(store.getState().world.links[0]!.mode).toEqual({ kind: 'fixed', rate: 5 });
+    s.removeFactory(a);
+    expect(store.getState().world.links).toEqual([]);
+  });
+
+  test('a bad edit throws and leaves the world unchanged', () => {
+    const store = createWorldStore();
+    const before = store.getState().world;
+    expect(() =>
+      store.getState().addLink({ from: F, to: F, item: 'iron-plate', mode: { kind: 'pull' } }),
+    ).toThrow(/two different factories/);
+    expect(store.getState().world).toBe(before);
+  });
+
+  test('replaceWorld swaps the document', () => {
+    const store = createWorldStore();
+    const next = createWorld('other');
+    store.getState().replaceWorld(next);
+    expect(store.getState().world).toBe(next);
+  });
+});

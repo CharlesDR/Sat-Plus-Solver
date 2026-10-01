@@ -4,6 +4,7 @@
  * budget below usage, and settings that inherit the world defaults.
  */
 import { expect, test, type Page } from '@playwright/test';
+import { openFactory } from './helpers';
 
 const recipeNames = (page: Page) =>
   page
@@ -11,7 +12,7 @@ const recipeNames = (page: Page) =>
     .allTextContents();
 
 async function plan(page: Page, item: string, rate: string) {
-  await page.goto('/');
+  await openFactory(page);
   await page.getByLabel('Per minute').fill(rate);
   await page.getByLabel('Target item').fill(item);
   await expect(page.getByTestId('plan-status')).toContainText('Status: ok');

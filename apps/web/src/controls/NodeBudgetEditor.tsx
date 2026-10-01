@@ -9,6 +9,8 @@ interface Props {
   /** Node usage of the current plan, by node id. */
   usage: ReadonlyMap<string, number>;
   onChange(budget: Factory['nodeBudget']): void;
+  /** "Allocate remaining" (§4.4): caps = map pool minus every other factory's usage. */
+  onAllocateRemaining?: () => void;
 }
 
 /**
@@ -16,7 +18,8 @@ interface Props {
  * node class (a missing cap is 0). A budget below what the plan needs gives
  * the solver's infeasibility diagnostic, naming the nodes it would need.
  */
-export function NodeBudgetEditor({ world, factory, nodes, usage, onChange }: Props) {
+export function NodeBudgetEditor(props: Props) {
+  const { world, factory, nodes, usage, onChange, onAllocateRemaining } = props;
   const [search, setSearch] = useState('');
   const pool = (n: CatalogNode) => world.nodePool[n.id] ?? n.count;
   const budget = factory.nodeBudget;
@@ -48,6 +51,11 @@ export function NodeBudgetEditor({ world, factory, nodes, usage, onChange }: Pro
           />
           Explicit caps
         </label>
+        {onAllocateRemaining && (
+          <button type="button" onClick={onAllocateRemaining}>
+            Allocate remaining
+          </button>
+        )}
         {budget !== 'pool' && (
           <button
             type="button"

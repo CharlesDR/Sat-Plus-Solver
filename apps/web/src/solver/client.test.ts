@@ -1,8 +1,7 @@
-import type { PlanSummary } from '@sps/solver';
 import { createWorld } from '@sps/world';
 import { describe, expect, test } from 'vitest';
 import { createSolverClient, type WorkerLike } from './client';
-import type { FromWorker, ToWorker } from './protocol';
+import type { FromWorker, ToWorker, WorldSummary } from './protocol';
 
 function fakeWorker() {
   const sent: ToWorker[] = [];
@@ -19,8 +18,7 @@ function fakeWorker() {
   return { worker, sent, reply };
 }
 
-const plan = (objectiveValue: number) => ({ objectiveValue }) as PlanSummary;
-const graph = { nodes: [], edges: [] };
+const summary = (machines: number) => ({ machines }) as WorldSummary;
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
 describe('solver client', () => {
@@ -33,6 +31,9 @@ describe('solver client', () => {
       recipes: [],
       nodes: [],
       tiers: [],
+      fluids: [],
+      belts: [],
+      pipes: [],
     };
     reply({ type: 'ready', catalog, dataHash: 'h' });
     await expect(client.ready).resolves.toEqual({ catalog, dataHash: 'h' });
@@ -51,15 +52,18 @@ describe('solver client', () => {
     const w1 = createWorld('1');
     const w2 = createWorld('2');
     const w3 = createWorld('3');
-    const p1 = client.solve(w1, 'f');
-    const p2 = client.solve(w2, 'f');
-    const p3 = client.solve(w3, 'f');
+    const p1 = client.solve({ world: w1, focus: 'f' });
+    const p2 = client.solve({ world: w2, focus: 'f' });
+    const p3 = client.solve({ world: w3, action: { kind: 'size-power', factoryId: 'f' } });
     expect(sent.map((m) => m.world)).toEqual([w1]);
+    expect(sent[0]).toMatchObject({ type: 'solve', focus: 'f' });
     await expect(p2).resolves.toBeNull();
 
-    reply({ type: 'solved', id: sent[0]!.id, plan: plan(1), graph, ms: 5 });
-    await expect(p1).resolves.toEqual({ plan: plan(1), graph, ms: 5 });
+    reply({ type: 'solved', id: sent[0]!.id, world: summary(1), ms: 5 });
+    await expect(p1).resolves.toEqual({ world: summary(1), ms: 5 });
     expect(sent.map((m) => m.world)).toEqual([w1, w3]);
+    expect(sent[1]).toMatchObject({ action: { kind: 'size-power', factoryId: 'f' } });
+    expect(sent[1]).not.toHaveProperty('focus');
 
     reply({ type: 'failed', id: sent[1]!.id, message: 'nope' });
     await expect(p3).rejects.toThrow('nope');
@@ -69,8 +73,8 @@ describe('solver client', () => {
     const { worker, sent, reply } = fakeWorker();
     const client = createSolverClient(worker);
     let settled: unknown = 'pending';
-    const p = client.solve(createWorld(), 'f').then((v) => (settled = v));
-    reply({ type: 'solved', id: sent[0]!.id + 99, plan: plan(1), graph, ms: 1 });
+    const p = client.solve({ world: createWorld() }).then((v) => (settled = v));
+    reply({ type: 'solved', id: sent[0]!.id + 99, world: summary(1), ms: 1 });
     await flush();
     expect(settled).toBe('pending');
     client.dispose();

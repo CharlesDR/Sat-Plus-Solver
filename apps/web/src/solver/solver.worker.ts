@@ -1,6 +1,6 @@
 /**
  * Solver worker: loads the model and HiGHS off the main thread and answers
- * solve requests one at a time (CLAUDE.md: the main thread never runs the LP).
+ * world solve requests one at a time (CLAUDE.md: the main thread never runs the LP).
  */
 import type { Model } from '@sps/data';
 import { createHighsBackend } from '@sps/solver';
@@ -38,8 +38,8 @@ globalThis.addEventListener('message', (e: MessageEvent<ToWorker>) => {
     if (!s) return post({ type: 'failed', id: msg.id, message: 'The solver failed to start.' });
     const t0 = performance.now();
     try {
-      const { plan, graph } = await s.solve(msg.world, msg.factoryId);
-      post({ type: 'solved', id: msg.id, plan, graph, ms: performance.now() - t0 });
+      const solved = await s.solve({ world: msg.world, focus: msg.focus, action: msg.action });
+      post({ type: 'solved', id: msg.id, ...solved, ms: performance.now() - t0 });
     } catch (err) {
       post({ type: 'failed', id: msg.id, message: (err as Error).message });
     }
