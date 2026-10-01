@@ -1,0 +1,16 @@
+{
+  "name": "@sps/world",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@sps/data": "workspace:*",
+    "@sps/solver": "workspace:*"
+  }
+}
