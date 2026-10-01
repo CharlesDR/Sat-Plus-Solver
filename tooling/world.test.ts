@@ -95,7 +95,7 @@ describe('full SF+ model', () => {
       const f = createFactory(s.id, s.id);
       f.request = {
         targets: s.targets ?? [],
-        ...(s.exclude ? { excludeRecipes: s.exclude } : {}),
+        ...(s.exclude ? { recipes: Object.fromEntries(s.exclude.map((id) => [id, false])) } : {}),
         ...(s.costImports ? { costImports: true } : {}),
       };
       return f;

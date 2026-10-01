@@ -21,7 +21,6 @@ export { findFreeLunch } from './checks/freeLunch';
 export type { FreeLunchResult } from './checks/freeLunch';
 export {
   clampTolerance,
-  DEFAULT_ALTERNATES,
   DEFAULT_TOLERANCE,
   LEX_EPSILON,
   MAX_TOLERANCE,
@@ -32,6 +31,14 @@ export {
   solve,
 } from './factory/solve';
 export { OBJECTIVE_IDS } from './factory/types';
+export {
+  aboveTier,
+  compareTiers,
+  DEFAULT_ALTERNATES,
+  filterRecipes,
+  parseTier,
+  recipeExclusion,
+} from './factory/recipes';
 export { compareAlternates } from './factory/alternates';
 export type { AlternatesReport } from './factory/alternates';
 export type * from './factory/types';

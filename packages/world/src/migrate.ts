@@ -19,7 +19,32 @@ function v1ToV2(doc: Doc): Doc {
   };
 }
 
-const MIGRATIONS: Record<number, (doc: Doc) => Doc> = { 1: v1ToV2 };
+/** Exclusion list → per-recipe toggles (`false` for each excluded id). */
+const toToggles = (exclude: unknown): Record<string, boolean> =>
+  Object.fromEntries(
+    (Array.isArray(exclude) ? (exclude as string[]) : []).map((id) => [id, false]),
+  );
+
+/**
+ * v2 → v3 (M6): `excludeRecipes` lists become per-recipe toggles, and the
+ * max-tier filter arrives, off. A v2 factory's exclusions added to the
+ * world's; as `false` toggles over the world's they still do.
+ */
+function v2ToV3(doc: Doc): Doc {
+  const { excludeRecipes, ...defaults } = (doc.defaults ?? {}) as Doc;
+  const factories = ((doc.factories ?? []) as Doc[]).map((f) => {
+    const { excludeRecipes: ex, ...request } = (f.request ?? {}) as Doc;
+    return { ...f, request: ex === undefined ? request : { ...request, recipes: toToggles(ex) } };
+  });
+  return {
+    ...doc,
+    meta: { ...(doc.meta as Doc), v: 3 },
+    factories,
+    defaults: { ...defaults, recipes: toToggles(excludeRecipes), maxTier: null },
+  };
+}
+
+const MIGRATIONS: Record<number, (doc: Doc) => Doc> = { 1: v1ToV2, 2: v2ToV3 };
 
 /** Returns `doc` upgraded to the current version; throws on a newer or malformed document. */
 export function migrateWorld(doc: unknown): World {

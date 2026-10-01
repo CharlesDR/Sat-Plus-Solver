@@ -9,6 +9,7 @@ import type {
   LpVariable,
 } from '../lp/types';
 import { closestFixes, producible, prune } from './reachability';
+import { filterRecipes, parseTier } from './recipes';
 import { OBJECTIVE_IDS } from './types';
 import type {
   Diagnostic,
@@ -46,8 +47,6 @@ export const MAX_TOLERANCE = 0.9;
 export const DEFAULT_TOLERANCE = MIN_TOLERANCE;
 /** Absolute floor ε of the lexicographic constraint, so an optimum of 0 still gets some room. */
 export const LEX_EPSILON = 1e-6;
-/** Default of `RecipeFilter.alternates`: standard recipes only (alternates are opt-in). */
-export const DEFAULT_ALTERNATES = false;
 /** Default time limit of a MILP stage, in seconds (§3.4). */
 export const MILP_TIME_LIMIT_SECONDS = 5;
 /** Elastic slack below this is solver noise, not a relaxation. */
@@ -155,12 +154,7 @@ export async function solve(
     if (i.cap > 0) importCaps.set(i.item, (importCaps.get(i.item) ?? 0) + i.cap);
 
   // Recipe filter, then reachability (§3.5) and pruning.
-  const exclude = new Set(request.recipes?.exclude ?? []);
-  const alternates = request.recipes?.alternates ?? DEFAULT_ALTERNATES;
-  const enabled: Recipe[] = [];
-  const disabled: Recipe[] = [];
-  for (const r of [...model.recipes].sort(byId))
-    (exclude.has(r.id) || (!alternates && r.alternate) ? disabled : enabled).push(r);
+  const { enabled, disabled } = filterRecipes([...model.recipes].sort(byId), request.recipes);
   const sources = [...importCaps.keys()].sort();
   const available = producible(enabled, sources);
   const unreachable = wanted.filter((i) => !available.has(i)).sort();
@@ -1212,6 +1206,9 @@ function validate(
   for (const [r, w] of Object.entries(request.scarcityWeights ?? {}))
     if (!Number.isFinite(w) || w < 0)
       return bad(`Scarcity weight for ${r} must be a finite number ≥ 0 (got ${w}).`);
+  const maxTier = request.recipes?.maxTier;
+  if (maxTier !== undefined && !parseTier(maxTier))
+    return bad(`Max tier must look like "3-2" (major-minor), got "${maxTier}".`);
   if (request.nodeBudget && request.nodeBudget !== 'pool')
     for (const [n, c] of Object.entries(request.nodeBudget))
       if (Number.isNaN(c) || c < 0) return bad(`Node budget for ${n} must be ≥ 0 (got ${c}).`);

@@ -35,8 +35,15 @@ export const OBJECTIVE_IDS: readonly ObjectiveId[] = [
 export interface RecipeFilter {
   /** Include alternate recipes. Default false (`DEFAULT_ALTERNATES`); `compareAlternates` shows which would help. */
   alternates?: boolean;
-  /** Recipe ids to leave out. */
+  /** Recipe ids to leave out. Wins over `include`. */
   exclude?: readonly string[];
+  /** Alternate recipe ids to allow even when `alternates` is off. */
+  include?: readonly string[];
+  /**
+   * Leave out recipes above this dataset tier (`"<major>-<minor>"`, compared
+   * major first). Tier `0-0` recipes are never left out (A23).
+   */
+  maxTier?: string;
 }
 
 export interface SolveRequest {

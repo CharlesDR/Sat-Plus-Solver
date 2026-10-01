@@ -6,12 +6,13 @@
  *
  * M3 used a single implicit factory; M5 resolves links and groups
  * (`resolveWorld`). v2 (M5) added the whole-machines and cost-imports toggles;
- * `migrateWorld` upgrades older documents.
+ * v3 (M6) replaced the recipe exclusion lists with per-recipe toggles and
+ * added the max-tier filter. `migrateWorld` upgrades older documents.
  */
 import type { Model } from '@sps/data';
-import type { ItemRate, ObjectiveId, SolveRequest } from '@sps/solver';
+import type { ItemRate, ObjectiveId, RecipeFilter, SolveRequest } from '@sps/solver';
 
-export const WORLD_VERSION = 2;
+export const WORLD_VERSION = 3;
 
 /** Lexicographic tolerance bounds (CLAUDE.md): 0.01%–90%, default 0.01%. */
 export const TOLERANCE_MIN = 0.0001;
@@ -38,8 +39,14 @@ export interface WorldDefaults {
   wholeMachines: boolean;
   /** Cost imported inputs (§3.3): linked imports at the upstream plan's marginal cost. */
   costImports: boolean;
-  /** Recipe ids disabled everywhere. */
-  excludeRecipes: string[];
+  /**
+   * Per-recipe toggles by recipe id: `false` disables a recipe, `true` enables
+   * it (an alternate while `alternates` is off). A recipe not listed follows
+   * the default: standard recipes on, alternates per `alternates`.
+   */
+  recipes: Record<string, boolean>;
+  /** Leave out recipes above this dataset tier (`"<major>-<minor>"`); `null` = no limit. */
+  maxTier: string | null;
 }
 
 /** Per-factory overrides of `WorldDefaults`; a missing field inherits. */
@@ -50,7 +57,10 @@ export interface FactoryRequest {
   alternates?: boolean;
   wholeMachines?: boolean;
   costImports?: boolean;
-  excludeRecipes?: string[];
+  /** Per-recipe toggles that win over the world's; a recipe not listed inherits. */
+  recipes?: Record<string, boolean>;
+  /** `null` = no limit, overriding the world's. */
+  maxTier?: string | null;
 }
 
 export interface UnassignedImport {
@@ -106,7 +116,8 @@ export function defaultWorldDefaults(): WorldDefaults {
     alternates: false,
     wholeMachines: false,
     costImports: false,
-    excludeRecipes: [],
+    recipes: {},
+    maxTier: null,
   };
 }
 
@@ -155,17 +166,39 @@ export function factorySolveRequest(
   const d = world.defaults;
   const r = factory.request;
   const objectives = [...(r.objectives ?? d.objectives)];
-  const exclude = [...new Set([...d.excludeRecipes, ...(r.excludeRecipes ?? [])])].sort();
   const imports = factory.unassignedImports.map((i) => ({ item: i.item, cap: i.cap ?? Infinity }));
   return {
     targets: r.targets.map((t) => ({ ...t })),
     objectives: objectives.length ? objectives : ['resources'],
     tolerance: r.tolerance ?? d.tolerance,
-    recipes: { alternates: r.alternates ?? d.alternates, exclude },
+    recipes: recipeFilter(world, factory),
     nodeBudget: nodeBudget(world, model, factory),
     ...(imports.length ? { imports } : {}),
     ...((r.wholeMachines ?? d.wholeMachines) ? { wholeMachines: true } : {}),
     ...((r.costImports ?? d.costImports) ? { costImports: true } : {}),
+  };
+}
+
+/**
+ * The factory's recipe filter: its toggles over the world's, its alternates
+ * and max-tier settings over the defaults. Ids are sorted, so equal settings
+ * give equal requests (and cache keys).
+ */
+export function recipeFilter(world: World, factory: Factory): RecipeFilter {
+  const d = world.defaults;
+  const r = factory.request;
+  const toggles = { ...d.recipes, ...r.recipes };
+  const ids = (on: boolean) =>
+    Object.keys(toggles)
+      .filter((id) => toggles[id] === on)
+      .sort();
+  const include = ids(true);
+  const maxTier = r.maxTier === undefined ? d.maxTier : r.maxTier;
+  return {
+    alternates: r.alternates ?? d.alternates,
+    exclude: ids(false),
+    ...(include.length ? { include } : {}),
+    ...(maxTier !== null ? { maxTier } : {}),
   };
 }
 

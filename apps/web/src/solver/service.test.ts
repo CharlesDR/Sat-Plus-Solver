@@ -50,9 +50,11 @@ describe('solver service', () => {
     const service = createSolverService(mini, backend);
     const world = createWorld();
     world.factories[0]!.request.targets.push({ item: 'iron-plate', rate: 60 });
-    world.defaults.excludeRecipes = mini.recipes
-      .filter((r) => r.outputs.some((o) => o.item === 'iron-plate'))
-      .map((r) => r.id);
+    world.defaults.recipes = Object.fromEntries(
+      mini.recipes
+        .filter((r) => r.outputs.some((o) => o.item === 'iron-plate'))
+        .map((r) => [r.id, false]),
+    );
     const plan = await service.solve(world, DEFAULT_FACTORY_ID);
     expect(plan.status).toBe('unreachable');
     expect(plan.diagnostics[0]?.severity).toBe('error');

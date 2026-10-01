@@ -6,6 +6,7 @@ import {
   TOLERANCE_MIN,
   WORLD_VERSION,
   clampTolerance,
+  createFactory,
   createWorld,
   factorySolveRequest,
   type World,
@@ -37,7 +38,8 @@ describe('World document', () => {
       alternates: false,
       wholeMachines: false,
       costImports: false,
-      excludeRecipes: [],
+      recipes: {},
+      maxTier: null,
     });
   });
 
@@ -74,27 +76,58 @@ describe('factorySolveRequest', () => {
     });
   });
 
-  test('factory overrides win; exclusions merge, deduplicated and sorted', () => {
+  test('factory overrides win; recipe toggles merge over the world, sorted', () => {
     const w = world();
-    w.defaults.excludeRecipes = ['b', 'a'];
+    w.defaults.recipes = { b: false, a: false, alt: true };
     Object.assign(w.factories[0]!.request, {
       objectives: ['scarcity', 'machines'],
       tolerance: 0.05,
       alternates: false,
-      excludeRecipes: ['c', 'a'],
+      recipes: { c: false, b: true, alt: false, alt2: true },
     });
     w.factories[0]!.unassignedImports.push({ item: 'iron-ingot' }, { item: 'screw', cap: 10 });
     expect(factorySolveRequest(w, model, DEFAULT_FACTORY_ID)).toEqual({
       targets: [{ item: 'iron-plate', rate: 60 }],
       objectives: ['scarcity', 'machines'],
       tolerance: 0.05,
-      recipes: { alternates: false, exclude: ['a', 'b', 'c'] },
+      recipes: { alternates: false, exclude: ['a', 'alt', 'c'], include: ['alt2', 'b'] },
       nodeBudget: 'pool',
       imports: [
         { item: 'iron-ingot', cap: Infinity },
         { item: 'screw', cap: 10 },
       ],
     });
+  });
+
+  test('max tier inherits, and a factory can set its own or lift it with null', () => {
+    const w = world();
+    const tier = () => factorySolveRequest(w, model, DEFAULT_FACTORY_ID).recipes?.maxTier;
+    expect(tier()).toBeUndefined();
+    w.defaults.maxTier = '3-2';
+    expect(tier()).toBe('3-2');
+    w.factories[0]!.request.maxTier = '5-0';
+    expect(tier()).toBe('5-0');
+    w.factories[0]!.request.maxTier = null;
+    expect(tier()).toBeUndefined();
+  });
+
+  test("a per-factory override doesn't change other factories", () => {
+    const w = world();
+    w.factories.push(createFactory('b', 'B'));
+    w.factories[1]!.request.targets.push({ item: 'iron-plate', rate: 60 });
+    const before = factorySolveRequest(w, model, 'b');
+    Object.assign(w.factories[0]!.request, {
+      alternates: true,
+      recipes: { 'cast-screw': true, 'iron-plate': false },
+      maxTier: '2-0',
+      objectives: ['machines'],
+      tolerance: 0.1,
+      wholeMachines: true,
+    });
+    w.factories[0]!.nodeBudget = { 'node:iron-ore:normal': 1 };
+    w.factories[0]!.unassignedImports.push({ item: 'iron-ingot', cap: 5 });
+    expect(factorySolveRequest(w, model, 'b')).toEqual(before);
+    expect(factorySolveRequest(w, model, DEFAULT_FACTORY_ID)).not.toEqual(before);
   });
 
   test('whole machines and import costing inherit, and a factory can override them', () => {
