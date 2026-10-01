@@ -1089,8 +1089,10 @@ function finish(
     if (n <= 0 && !(r.heater && whole > 0)) continue;
     // A heater burns fuel and emits exhaust for every machine it builds.
     const rate = (f: Flow) => f.rate * (f.heater ? whole : n);
-    for (const f of r.outputs) add(produced, f.item, rate(f));
-    for (const f of r.inputs) add(consumed, f.item, rate(f));
+    const inputs = r.inputs.map((f) => ({ item: f.item, rate: rate(f) }));
+    const outputs = r.outputs.map((f) => ({ item: f.item, rate: rate(f) }));
+    for (const f of outputs) add(produced, f.item, f.rate);
+    for (const f of inputs) add(consumed, f.item, f.rate);
     if (r.node) add(nodeUse, r.node, p.whole ? whole : n);
     const power = r.powerMW * (r.heater ? whole : n);
     if (power >= 0) consumptionMW += power;
@@ -1103,6 +1105,9 @@ function finish(
       machinesCeil: whole,
       powerMW: power,
       ...(r.heater ? { boilerLoad: whole > 0 ? Math.min(1, n / whole) : 0 } : {}),
+      inputs,
+      outputs,
+      ...(r.node ? { node: r.node } : {}),
     });
   }
 
