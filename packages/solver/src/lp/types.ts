@@ -49,10 +49,15 @@ export interface LpSolution {
   values?: Map<string, number>;
   /** Row duals by constraint name (LP only). */
   duals?: Map<string, number>;
+  /** Relative MIP gap of the returned solution (MILP only): 0 when proved optimal. */
+  gap?: number;
 }
 
 export interface LpOptions {
+  /** Wall-clock limit for one solve, in seconds. */
   timeLimitSeconds?: number;
+  /** MILP only: a candidate solution by variable name (missing = 0). The backend checks it and ignores it if infeasible. */
+  start?: ReadonlyMap<string, number>;
 }
 
 export interface LpBackend {

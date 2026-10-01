@@ -102,6 +102,39 @@ describe('HiGHS backend', () => {
     });
     expect(sol.status).toBe('optimal');
     expect(sol.values!.get('n')).toBe(3);
+    expect(sol.gap).toBe(0);
+  });
+
+  test('reports MILP infeasibility and maps names back', async () => {
+    const infeasible = await backend.solve({
+      sense: 'min',
+      objective: [{ var: 'n', coef: 1 }],
+      variables: [{ name: 'n', integer: true, hi: 1 }],
+      constraints: [{ name: 'low', terms: [{ var: 'n', coef: 1 }], lo: 1.5 }],
+    });
+    expect(infeasible.status).toBe('infeasible');
+    const sol = await backend.solve({
+      sense: 'min',
+      objective: [
+        { var: 'whole', coef: 1 },
+        { var: 'frac', coef: 1 },
+      ],
+      variables: [{ name: 'whole', integer: true }, { name: 'frac' }],
+      constraints: [
+        {
+          name: 'link',
+          terms: [
+            { var: 'frac', coef: 1 },
+            { var: 'whole', coef: -1 },
+          ],
+          hi: 0,
+        },
+        { name: 'need', terms: [{ var: 'frac', coef: 1 }], lo: 1.25 },
+      ],
+    });
+    expect(sol.status).toBe('optimal');
+    expect(sol.values!.get('whole')).toBeCloseTo(2, 9);
+    expect(sol.values!.get('frac')).toBeCloseTo(1.25, 9);
   });
 
   test('reports infeasible and unbounded models', async () => {
