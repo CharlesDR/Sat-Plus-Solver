@@ -35,6 +35,8 @@ describe('World document', () => {
       objectives: ['resources'],
       tolerance: TOLERANCE_DEFAULT,
       alternates: false,
+      wholeMachines: false,
+      costImports: false,
       excludeRecipes: [],
     });
   });
@@ -65,7 +67,8 @@ describe('factorySolveRequest', () => {
   test('inherits the world defaults', () => {
     expect(factorySolveRequest(world(), model, DEFAULT_FACTORY_ID)).toEqual({
       targets: [{ item: 'iron-plate', rate: 60 }],
-      objective: 'resources',
+      objectives: ['resources'],
+      tolerance: TOLERANCE_DEFAULT,
       recipes: { alternates: false, exclude: [] },
       nodeBudget: 'pool',
     });
@@ -75,14 +78,16 @@ describe('factorySolveRequest', () => {
     const w = world();
     w.defaults.excludeRecipes = ['b', 'a'];
     Object.assign(w.factories[0]!.request, {
-      objectives: ['scarcity'],
+      objectives: ['scarcity', 'machines'],
+      tolerance: 0.05,
       alternates: false,
       excludeRecipes: ['c', 'a'],
     });
     w.factories[0]!.unassignedImports.push({ item: 'iron-ingot' }, { item: 'screw', cap: 10 });
     expect(factorySolveRequest(w, model, DEFAULT_FACTORY_ID)).toEqual({
       targets: [{ item: 'iron-plate', rate: 60 }],
-      objective: 'scarcity',
+      objectives: ['scarcity', 'machines'],
+      tolerance: 0.05,
       recipes: { alternates: false, exclude: ['a', 'b', 'c'] },
       nodeBudget: 'pool',
       imports: [
@@ -90,6 +95,19 @@ describe('factorySolveRequest', () => {
         { item: 'screw', cap: 10 },
       ],
     });
+  });
+
+  test('whole machines and import costing inherit, and a factory can override them', () => {
+    const w = world();
+    expect(factorySolveRequest(w, model, DEFAULT_FACTORY_ID)).not.toHaveProperty('costImports');
+    w.defaults.costImports = true;
+    w.factories[0]!.request.wholeMachines = true;
+    expect(factorySolveRequest(w, model, DEFAULT_FACTORY_ID)).toMatchObject({
+      costImports: true,
+      wholeMachines: true,
+    });
+    w.factories[0]!.request.costImports = false;
+    expect(factorySolveRequest(w, model, DEFAULT_FACTORY_ID)).not.toHaveProperty('costImports');
   });
 
   test('pool edits and explicit budgets become node caps', () => {
