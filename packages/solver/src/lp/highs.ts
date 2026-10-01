@@ -31,6 +31,9 @@ export function createHighsBackend(loaderOptions?: HighsLoaderOptions): LpBacken
       try {
         result = h.solve(text, {
           output_flag: false,
+          // The solver's checks require every variable ≥ −1e-9 (CLAUDE.md), so
+          // HiGHS must not leave bound violations up to its 1e-7 default.
+          primal_feasibility_tolerance: 1e-10,
           ...(options.timeLimitSeconds !== undefined
             ? { time_limit: options.timeLimitSeconds }
             : {}),
