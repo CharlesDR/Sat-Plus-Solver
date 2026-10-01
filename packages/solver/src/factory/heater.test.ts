@@ -165,6 +165,67 @@ describe('heaters (A17)', () => {
     ]);
   });
 
+  test('a 1e-6/min demand still needs whole heaters: no plan "meets" it with nothing built', async () => {
+    // Found by the random heater property test. At HiGHS's default 1e-6 MIP
+    // tolerance this demand looked met with no heater; really the second
+    // heater needs a whole 4/min of imported fuel, and only 0.25 is allowed.
+    const tiny: Model = {
+      ...model,
+      items: ['i0', 'i1', 'i2', 'i3', 'i4'].map((id) => ({
+        id,
+        name: id,
+        form: 'solid' as const,
+        sinkPoints: 0,
+        tier: '0-0',
+      })),
+      recipes: [
+        base('mine-0', {
+          kind: 'extraction',
+          outputs: [{ item: 'i0', rate: 60 }],
+          powerMW: 1,
+          node: 'node:i0',
+        }),
+        base('r0', { inputs: [{ item: 'i0', rate: 5 }], outputs: [{ item: 'i1', rate: 7 }] }),
+        base('r4', {
+          heater: true,
+          inputs: [
+            { item: 'i0', rate: 14 },
+            { item: 'i3', rate: 4, heater: true },
+          ],
+          outputs: [{ item: 'i2', rate: 31 }],
+        }),
+        base('r8', {
+          heater: true,
+          inputs: [
+            { item: 'i2', rate: 39 },
+            { item: 'i1', rate: 30, heater: true },
+          ],
+          outputs: [{ item: 'i4', rate: 51 }],
+        }),
+      ],
+      nodes: [{ id: 'node:i0', resource: 'i0', purity: 'normal', count: 1, nne: 1 }],
+    };
+    const r = await solve(
+      tiny,
+      { targets: [{ item: 'i4', rate: 1e-6 }], imports: [{ item: 'i3', cap: 0.25 }] },
+      backend,
+    );
+    expect(r.status).toBe('infeasible');
+    const d = r.diagnostics[0]!;
+    if (d.code !== 'infeasible') throw new Error(d.code);
+    expect(d.relaxations).toEqual([
+      { kind: 'import', item: 'i3', amount: expect.closeTo(3.75, 9) },
+    ]);
+    const fixed = await solve(
+      tiny,
+      { targets: [{ item: 'i4', rate: 1e-6 }], imports: [{ item: 'i3', cap: 4 }] },
+      backend,
+    );
+    expect(fixed.status).toBe('ok');
+    expect(usage(fixed, 'r4')!.machines).toBe(1);
+    expect(usage(fixed, 'r8')!.machines).toBe(1);
+  });
+
   test('is deterministic', async () => {
     const req = { targets: [{ item: 'steam', rate: 70 }] };
     expect(await solve(model, req, backend)).toEqual(await solve(model, req, backend));

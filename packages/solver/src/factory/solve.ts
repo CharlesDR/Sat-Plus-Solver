@@ -587,7 +587,14 @@ async function elastic(
   options: LpOptions,
   itemName: (id: string) => string,
 ): Promise<SolveResult> {
-  const sol = await backend.solve(buildLp(p, 'elastic', p.stack[0]!), options);
+  const lp = buildLp(p, 'elastic', p.stack[0]!);
+  // With heaters (A17) the elastic problem is a MILP: at HiGHS's default 1e-6
+  // row tolerance it can "meet" a MIN_RATE demand with no heater built and
+  // report no relaxation, so solve it tight first.
+  let sol = lp.variables.some((v) => v.integer)
+    ? await backend.solve(lp, { ...options, mipFeasibilityTolerance: TIGHT_MIP_FEASIBILITY })
+    : await backend.solve(lp, options);
+  if (sol.status !== 'optimal') sol = await backend.solve(lp, options);
   if (sol.status !== 'optimal' || !sol.values) return numerical(p.stack, stats, sol.rawStatus);
   const relaxations: Relaxation[] = [];
   for (const node of [...p.nodeCaps.keys()].sort()) {
