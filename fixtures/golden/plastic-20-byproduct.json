@@ -1,0 +1,25 @@
+{
+  "name": "plastic-20-byproduct",
+  "description": "Plastic 20/min: 1 Refinery, 30 Crude Oil/min, 10 Heavy Oil Residue/min left as surplus.",
+  "model": "vanilla-mini",
+  "request": {
+    "targets": [
+      {
+        "item": "plastic",
+        "rate": 20
+      }
+    ]
+  },
+  "expected": {
+    "status": "ok",
+    "recipes": {
+      "plastic": 1,
+      "extract-crude-oil": 0.25
+    },
+    "surplus": {
+      "heavy-oil-residue": 10
+    },
+    "objectiveValue": 0.25,
+    "imports": {}
+  }
+}

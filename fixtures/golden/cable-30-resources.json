@@ -1,0 +1,26 @@
+{
+  "name": "cable-30-resources",
+  "description": "Cable 30/min, minimize raw resources (alternates on): Wire from copper (30 ore) beats Iron Wire (33.3 ore).",
+  "model": "vanilla-mini",
+  "request": {
+    "targets": [
+      {
+        "item": "cable",
+        "rate": 30
+      }
+    ],
+    "objective": "resources"
+  },
+  "expected": {
+    "status": "ok",
+    "recipes": {
+      "cable": 1,
+      "wire": 2,
+      "copper-ingot": 1,
+      "mine-copper-ore": 0.5
+    },
+    "objectiveValue": 0.5,
+    "imports": {},
+    "surplus": {}
+  }
+}

@@ -1,0 +1,814 @@
+{
+  "meta": {
+    "schemaVersion": 1,
+    "dataHash": "vanilla-mini",
+    "minerMk": 1
+  },
+  "items": [
+    {
+      "id": "iron-ore",
+      "name": "Iron Ore",
+      "form": "solid",
+      "sinkPoints": 0,
+      "tier": "0-0"
+    },
+    {
+      "id": "copper-ore",
+      "name": "Copper Ore",
+      "form": "solid",
+      "sinkPoints": 0,
+      "tier": "0-0"
+    },
+    {
+      "id": "limestone",
+      "name": "Limestone",
+      "form": "solid",
+      "sinkPoints": 0,
+      "tier": "0-0"
+    },
+    {
+      "id": "coal",
+      "name": "Coal",
+      "form": "solid",
+      "sinkPoints": 0,
+      "tier": "0-0"
+    },
+    {
+      "id": "crude-oil",
+      "name": "Crude Oil",
+      "form": "fluid",
+      "sinkPoints": 0,
+      "tier": "0-0"
+    },
+    {
+      "id": "water",
+      "name": "Water",
+      "form": "fluid",
+      "sinkPoints": 0,
+      "tier": "0-0"
+    },
+    {
+      "id": "heavy-oil-residue",
+      "name": "Heavy Oil Residue",
+      "form": "fluid",
+      "sinkPoints": 0,
+      "tier": "0-0"
+    },
+    {
+      "id": "iron-ingot",
+      "name": "Iron Ingot",
+      "form": "solid",
+      "sinkPoints": 0,
+      "tier": "0-0"
+    },
+    {
+      "id": "copper-ingot",
+      "name": "Copper Ingot",
+      "form": "solid",
+      "sinkPoints": 0,
+      "tier": "0-0"
+    },
+    {
+      "id": "iron-plate",
+      "name": "Iron Plate",
+      "form": "solid",
+      "sinkPoints": 0,
+      "tier": "0-0"
+    },
+    {
+      "id": "iron-rod",
+      "name": "Iron Rod",
+      "form": "solid",
+      "sinkPoints": 0,
+      "tier": "0-0"
+    },
+    {
+      "id": "screw",
+      "name": "Screw",
+      "form": "solid",
+      "sinkPoints": 0,
+      "tier": "0-0"
+    },
+    {
+      "id": "reinforced-iron-plate",
+      "name": "Reinforced Iron Plate",
+      "form": "solid",
+      "sinkPoints": 0,
+      "tier": "0-0"
+    },
+    {
+      "id": "modular-frame",
+      "name": "Modular Frame",
+      "form": "solid",
+      "sinkPoints": 0,
+      "tier": "0-0"
+    },
+    {
+      "id": "wire",
+      "name": "Wire",
+      "form": "solid",
+      "sinkPoints": 0,
+      "tier": "0-0"
+    },
+    {
+      "id": "cable",
+      "name": "Cable",
+      "form": "solid",
+      "sinkPoints": 0,
+      "tier": "0-0"
+    },
+    {
+      "id": "concrete",
+      "name": "Concrete",
+      "form": "solid",
+      "sinkPoints": 0,
+      "tier": "0-0"
+    },
+    {
+      "id": "steel-ingot",
+      "name": "Steel Ingot",
+      "form": "solid",
+      "sinkPoints": 0,
+      "tier": "0-0"
+    },
+    {
+      "id": "steel-beam",
+      "name": "Steel Beam",
+      "form": "solid",
+      "sinkPoints": 0,
+      "tier": "0-0"
+    },
+    {
+      "id": "plastic",
+      "name": "Plastic",
+      "form": "solid",
+      "sinkPoints": 0,
+      "tier": "0-0"
+    },
+    {
+      "id": "rubber",
+      "name": "Rubber",
+      "form": "solid",
+      "sinkPoints": 0,
+      "tier": "0-0"
+    },
+    {
+      "id": "mw",
+      "name": "Power",
+      "form": "power",
+      "sinkPoints": 0,
+      "tier": "0-0"
+    }
+  ],
+  "machines": [
+    {
+      "id": "miner-mk1",
+      "name": "Miner Mk.1",
+      "powerMW": 5
+    },
+    {
+      "id": "oil-extractor",
+      "name": "Oil Extractor",
+      "powerMW": 40
+    },
+    {
+      "id": "water-extractor",
+      "name": "Water Extractor",
+      "powerMW": 20
+    },
+    {
+      "id": "smelter",
+      "name": "Smelter",
+      "powerMW": 4
+    },
+    {
+      "id": "constructor",
+      "name": "Constructor",
+      "powerMW": 4
+    },
+    {
+      "id": "assembler",
+      "name": "Assembler",
+      "powerMW": 15
+    },
+    {
+      "id": "foundry",
+      "name": "Foundry",
+      "powerMW": 16
+    },
+    {
+      "id": "refinery",
+      "name": "Refinery",
+      "powerMW": 30
+    },
+    {
+      "id": "coal-generator",
+      "name": "Coal-Powered Generator",
+      "powerMW": -75
+    }
+  ],
+  "recipes": [
+    {
+      "id": "mine-iron-ore",
+      "name": "Iron Ore (normal)",
+      "machine": "miner-mk1",
+      "kind": "extraction",
+      "alternate": false,
+      "tier": "0-0",
+      "inputs": [],
+      "outputs": [
+        {
+          "item": "iron-ore",
+          "rate": 60
+        }
+      ],
+      "powerMW": 5,
+      "clock": 1,
+      "source": "dataset",
+      "node": "node:iron-ore:normal"
+    },
+    {
+      "id": "mine-copper-ore",
+      "name": "Copper Ore (normal)",
+      "machine": "miner-mk1",
+      "kind": "extraction",
+      "alternate": false,
+      "tier": "0-0",
+      "inputs": [],
+      "outputs": [
+        {
+          "item": "copper-ore",
+          "rate": 60
+        }
+      ],
+      "powerMW": 5,
+      "clock": 1,
+      "source": "dataset",
+      "node": "node:copper-ore:normal"
+    },
+    {
+      "id": "mine-limestone",
+      "name": "Limestone (normal)",
+      "machine": "miner-mk1",
+      "kind": "extraction",
+      "alternate": false,
+      "tier": "0-0",
+      "inputs": [],
+      "outputs": [
+        {
+          "item": "limestone",
+          "rate": 60
+        }
+      ],
+      "powerMW": 5,
+      "clock": 1,
+      "source": "dataset",
+      "node": "node:limestone:normal"
+    },
+    {
+      "id": "mine-coal",
+      "name": "Coal (normal)",
+      "machine": "miner-mk1",
+      "kind": "extraction",
+      "alternate": false,
+      "tier": "0-0",
+      "inputs": [],
+      "outputs": [
+        {
+          "item": "coal",
+          "rate": 60
+        }
+      ],
+      "powerMW": 5,
+      "clock": 1,
+      "source": "dataset",
+      "node": "node:coal:normal"
+    },
+    {
+      "id": "extract-crude-oil",
+      "name": "Crude Oil (normal)",
+      "machine": "oil-extractor",
+      "kind": "extraction",
+      "alternate": false,
+      "tier": "0-0",
+      "inputs": [],
+      "outputs": [
+        {
+          "item": "crude-oil",
+          "rate": 120
+        }
+      ],
+      "powerMW": 40,
+      "clock": 1,
+      "source": "dataset",
+      "node": "node:crude-oil:normal"
+    },
+    {
+      "id": "extract-water",
+      "name": "Water",
+      "machine": "water-extractor",
+      "kind": "extraction",
+      "alternate": false,
+      "tier": "0-0",
+      "inputs": [],
+      "outputs": [
+        {
+          "item": "water",
+          "rate": 120
+        }
+      ],
+      "powerMW": 20,
+      "clock": 1,
+      "source": "dataset"
+    },
+    {
+      "id": "iron-ingot",
+      "name": "Iron Ingot",
+      "machine": "smelter",
+      "kind": "production",
+      "alternate": false,
+      "tier": "0-0",
+      "inputs": [
+        {
+          "item": "iron-ore",
+          "rate": 30
+        }
+      ],
+      "outputs": [
+        {
+          "item": "iron-ingot",
+          "rate": 30
+        }
+      ],
+      "powerMW": 4,
+      "clock": 1,
+      "source": "dataset"
+    },
+    {
+      "id": "copper-ingot",
+      "name": "Copper Ingot",
+      "machine": "smelter",
+      "kind": "production",
+      "alternate": false,
+      "tier": "0-0",
+      "inputs": [
+        {
+          "item": "copper-ore",
+          "rate": 30
+        }
+      ],
+      "outputs": [
+        {
+          "item": "copper-ingot",
+          "rate": 30
+        }
+      ],
+      "powerMW": 4,
+      "clock": 1,
+      "source": "dataset"
+    },
+    {
+      "id": "iron-plate",
+      "name": "Iron Plate",
+      "machine": "constructor",
+      "kind": "production",
+      "alternate": false,
+      "tier": "0-0",
+      "inputs": [
+        {
+          "item": "iron-ingot",
+          "rate": 30
+        }
+      ],
+      "outputs": [
+        {
+          "item": "iron-plate",
+          "rate": 20
+        }
+      ],
+      "powerMW": 4,
+      "clock": 1,
+      "source": "dataset"
+    },
+    {
+      "id": "iron-rod",
+      "name": "Iron Rod",
+      "machine": "constructor",
+      "kind": "production",
+      "alternate": false,
+      "tier": "0-0",
+      "inputs": [
+        {
+          "item": "iron-ingot",
+          "rate": 15
+        }
+      ],
+      "outputs": [
+        {
+          "item": "iron-rod",
+          "rate": 15
+        }
+      ],
+      "powerMW": 4,
+      "clock": 1,
+      "source": "dataset"
+    },
+    {
+      "id": "screw",
+      "name": "Screw",
+      "machine": "constructor",
+      "kind": "production",
+      "alternate": false,
+      "tier": "0-0",
+      "inputs": [
+        {
+          "item": "iron-rod",
+          "rate": 10
+        }
+      ],
+      "outputs": [
+        {
+          "item": "screw",
+          "rate": 40
+        }
+      ],
+      "powerMW": 4,
+      "clock": 1,
+      "source": "dataset"
+    },
+    {
+      "id": "cast-screw",
+      "name": "Alternate: Cast Screw",
+      "machine": "constructor",
+      "kind": "production",
+      "alternate": true,
+      "tier": "0-0",
+      "inputs": [
+        {
+          "item": "iron-ingot",
+          "rate": 12.5
+        }
+      ],
+      "outputs": [
+        {
+          "item": "screw",
+          "rate": 50
+        }
+      ],
+      "powerMW": 4,
+      "clock": 1,
+      "source": "dataset"
+    },
+    {
+      "id": "reinforced-iron-plate",
+      "name": "Reinforced Iron Plate",
+      "machine": "assembler",
+      "kind": "production",
+      "alternate": false,
+      "tier": "0-0",
+      "inputs": [
+        {
+          "item": "iron-plate",
+          "rate": 30
+        },
+        {
+          "item": "screw",
+          "rate": 60
+        }
+      ],
+      "outputs": [
+        {
+          "item": "reinforced-iron-plate",
+          "rate": 5
+        }
+      ],
+      "powerMW": 15,
+      "clock": 1,
+      "source": "dataset"
+    },
+    {
+      "id": "modular-frame",
+      "name": "Modular Frame",
+      "machine": "assembler",
+      "kind": "production",
+      "alternate": false,
+      "tier": "0-0",
+      "inputs": [
+        {
+          "item": "reinforced-iron-plate",
+          "rate": 3
+        },
+        {
+          "item": "iron-rod",
+          "rate": 12
+        }
+      ],
+      "outputs": [
+        {
+          "item": "modular-frame",
+          "rate": 2
+        }
+      ],
+      "powerMW": 15,
+      "clock": 1,
+      "source": "dataset"
+    },
+    {
+      "id": "wire",
+      "name": "Wire",
+      "machine": "constructor",
+      "kind": "production",
+      "alternate": false,
+      "tier": "0-0",
+      "inputs": [
+        {
+          "item": "copper-ingot",
+          "rate": 15
+        }
+      ],
+      "outputs": [
+        {
+          "item": "wire",
+          "rate": 30
+        }
+      ],
+      "powerMW": 4,
+      "clock": 1,
+      "source": "dataset"
+    },
+    {
+      "id": "iron-wire",
+      "name": "Alternate: Iron Wire",
+      "machine": "constructor",
+      "kind": "production",
+      "alternate": true,
+      "tier": "0-0",
+      "inputs": [
+        {
+          "item": "iron-ingot",
+          "rate": 12.5
+        }
+      ],
+      "outputs": [
+        {
+          "item": "wire",
+          "rate": 22.5
+        }
+      ],
+      "powerMW": 4,
+      "clock": 1,
+      "source": "dataset"
+    },
+    {
+      "id": "cable",
+      "name": "Cable",
+      "machine": "constructor",
+      "kind": "production",
+      "alternate": false,
+      "tier": "0-0",
+      "inputs": [
+        {
+          "item": "wire",
+          "rate": 60
+        }
+      ],
+      "outputs": [
+        {
+          "item": "cable",
+          "rate": 30
+        }
+      ],
+      "powerMW": 4,
+      "clock": 1,
+      "source": "dataset"
+    },
+    {
+      "id": "concrete",
+      "name": "Concrete",
+      "machine": "constructor",
+      "kind": "production",
+      "alternate": false,
+      "tier": "0-0",
+      "inputs": [
+        {
+          "item": "limestone",
+          "rate": 45
+        }
+      ],
+      "outputs": [
+        {
+          "item": "concrete",
+          "rate": 15
+        }
+      ],
+      "powerMW": 4,
+      "clock": 1,
+      "source": "dataset"
+    },
+    {
+      "id": "steel-ingot",
+      "name": "Steel Ingot",
+      "machine": "foundry",
+      "kind": "production",
+      "alternate": false,
+      "tier": "0-0",
+      "inputs": [
+        {
+          "item": "iron-ore",
+          "rate": 45
+        },
+        {
+          "item": "coal",
+          "rate": 45
+        }
+      ],
+      "outputs": [
+        {
+          "item": "steel-ingot",
+          "rate": 45
+        }
+      ],
+      "powerMW": 16,
+      "clock": 1,
+      "source": "dataset"
+    },
+    {
+      "id": "solid-steel-ingot",
+      "name": "Alternate: Solid Steel Ingot",
+      "machine": "foundry",
+      "kind": "production",
+      "alternate": true,
+      "tier": "0-0",
+      "inputs": [
+        {
+          "item": "iron-ingot",
+          "rate": 40
+        },
+        {
+          "item": "coal",
+          "rate": 40
+        }
+      ],
+      "outputs": [
+        {
+          "item": "steel-ingot",
+          "rate": 60
+        }
+      ],
+      "powerMW": 16,
+      "clock": 1,
+      "source": "dataset"
+    },
+    {
+      "id": "steel-beam",
+      "name": "Steel Beam",
+      "machine": "constructor",
+      "kind": "production",
+      "alternate": false,
+      "tier": "0-0",
+      "inputs": [
+        {
+          "item": "steel-ingot",
+          "rate": 60
+        }
+      ],
+      "outputs": [
+        {
+          "item": "steel-beam",
+          "rate": 15
+        }
+      ],
+      "powerMW": 4,
+      "clock": 1,
+      "source": "dataset"
+    },
+    {
+      "id": "plastic",
+      "name": "Plastic",
+      "machine": "refinery",
+      "kind": "production",
+      "alternate": false,
+      "tier": "0-0",
+      "inputs": [
+        {
+          "item": "crude-oil",
+          "rate": 30
+        }
+      ],
+      "outputs": [
+        {
+          "item": "plastic",
+          "rate": 20
+        },
+        {
+          "item": "heavy-oil-residue",
+          "rate": 10
+        }
+      ],
+      "powerMW": 30,
+      "clock": 1,
+      "source": "dataset"
+    },
+    {
+      "id": "rubber",
+      "name": "Rubber",
+      "machine": "refinery",
+      "kind": "production",
+      "alternate": false,
+      "tier": "0-0",
+      "inputs": [
+        {
+          "item": "crude-oil",
+          "rate": 30
+        }
+      ],
+      "outputs": [
+        {
+          "item": "rubber",
+          "rate": 20
+        },
+        {
+          "item": "heavy-oil-residue",
+          "rate": 20
+        }
+      ],
+      "powerMW": 30,
+      "clock": 1,
+      "source": "dataset"
+    },
+    {
+      "id": "coal-generator",
+      "name": "Coal Power",
+      "machine": "coal-generator",
+      "kind": "generator",
+      "alternate": false,
+      "tier": "0-0",
+      "inputs": [
+        {
+          "item": "coal",
+          "rate": 15
+        },
+        {
+          "item": "water",
+          "rate": 45
+        }
+      ],
+      "outputs": [
+        {
+          "item": "mw",
+          "rate": 75
+        }
+      ],
+      "powerMW": -75,
+      "clock": 1,
+      "source": "dataset"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "node:iron-ore:normal",
+      "resource": "iron-ore",
+      "purity": "normal",
+      "count": 40,
+      "nne": 1
+    },
+    {
+      "id": "node:copper-ore:normal",
+      "resource": "copper-ore",
+      "purity": "normal",
+      "count": 10,
+      "nne": 1
+    },
+    {
+      "id": "node:limestone:normal",
+      "resource": "limestone",
+      "purity": "normal",
+      "count": 20,
+      "nne": 1
+    },
+    {
+      "id": "node:coal:normal",
+      "resource": "coal",
+      "purity": "normal",
+      "count": 10,
+      "nne": 1
+    },
+    {
+      "id": "node:crude-oil:normal",
+      "resource": "crude-oil",
+      "purity": "normal",
+      "count": 5,
+      "nne": 1
+    }
+  ],
+  "beltCapacities": [
+    {
+      "tier": 1,
+      "perMin": 60
+    },
+    {
+      "tier": 2,
+      "perMin": 120
+    }
+  ]
+}

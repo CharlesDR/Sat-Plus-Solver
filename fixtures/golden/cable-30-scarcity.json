@@ -1,0 +1,26 @@
+{
+  "name": "cable-30-scarcity",
+  "description": "Cable 30/min, scarcity-weighted (alternates on): copper (10 nodes) is scarcer than iron (40), so Iron Wire wins.",
+  "model": "vanilla-mini",
+  "request": {
+    "targets": [
+      {
+        "item": "cable",
+        "rate": 30
+      }
+    ],
+    "objective": "scarcity"
+  },
+  "expected": {
+    "status": "ok",
+    "recipes": {
+      "cable": 1,
+      "iron-wire": 2.6666666666666665,
+      "iron-ingot": 1.1111111111111112,
+      "mine-iron-ore": 0.5555555555555556
+    },
+    "objectiveValue": 0.01388888888888889,
+    "imports": {},
+    "surplus": {}
+  }
+}

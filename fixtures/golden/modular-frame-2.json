@@ -1,0 +1,31 @@
+{
+  "name": "modular-frame-2",
+  "description": "Modular Frame 2/min, no alternates: 1 Modular Frame, 0.6 RIP, 0.9 Iron Plate, 0.9 Screw, 1.4 Iron Rod, 1.6 Smelters, 48 Iron Ore/min.",
+  "model": "vanilla-mini",
+  "request": {
+    "targets": [
+      {
+        "item": "modular-frame",
+        "rate": 2
+      }
+    ],
+    "recipes": {
+      "alternates": false
+    }
+  },
+  "expected": {
+    "status": "ok",
+    "recipes": {
+      "modular-frame": 1,
+      "reinforced-iron-plate": 0.6,
+      "iron-plate": 0.9,
+      "screw": 0.9,
+      "iron-rod": 1.4,
+      "iron-ingot": 1.6,
+      "mine-iron-ore": 0.8
+    },
+    "objectiveValue": 0.8,
+    "imports": {},
+    "surplus": {}
+  }
+}

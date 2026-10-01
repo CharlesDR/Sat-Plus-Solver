@@ -17,7 +17,11 @@ pnpm lint        # ESLint (incl. package dependency rule) + Prettier
 pnpm typecheck   # tsc for every workspace
 pnpm test        # Vitest
 pnpm build       # production build of the web app
+pnpm build:data  # data/generated/model.json + report.md
+pnpm solve --target "Iron Plate:60" [--import "Iron Ingot:30"] [--objective scarcity]
 ```
+
+`pnpm solve` prints one factory's plan (recipes, machines, imports, byproducts, nodes, power). Run it without arguments for every option.
 
 | Workspace         | Role                                                  |
 | ----------------- | ----------------------------------------------------- |
