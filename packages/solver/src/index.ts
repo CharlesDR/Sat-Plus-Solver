@@ -34,3 +34,5 @@ export { OBJECTIVE_IDS } from './factory/types';
 export { compareAlternates } from './factory/alternates';
 export type { AlternatesReport } from './factory/alternates';
 export type * from './factory/types';
+export { summarizePlan, formatRate } from './factory/summary';
+export type { PlanSummary, SummaryFlow, SummaryNode, SummaryRecipe } from './factory/summary';

@@ -1,0 +1,91 @@
+:root {
+  color-scheme: light dark;
+  --fg: #1d1d1f;
+  --bg: #fafafa;
+  --muted: #6b6b70;
+  --line: #d8d8dc;
+  --error: #b42318;
+  --warn: #8a5a00;
+  font-family: system-ui, sans-serif;
+  font-size: 15px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fg: #e8e8ea;
+    --bg: #18181a;
+    --muted: #a0a0a6;
+    --line: #3a3a3e;
+    --error: #ff8a80;
+    --warn: #f0c060;
+  }
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px;
+}
+.target-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+}
+.target-picker label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.target-picker input {
+  font: inherit;
+  padding: 6px 8px;
+  min-width: 14em;
+}
+.target-picker input[aria-invalid='true'] {
+  outline: 2px solid var(--error);
+}
+.hint,
+.timing,
+.solving {
+  color: var(--muted);
+}
+.error {
+  color: var(--error);
+}
+.warning {
+  color: var(--warn);
+}
+.stale {
+  opacity: 0.5;
+}
+.summary table {
+  border-collapse: collapse;
+  margin: 16px 0;
+  width: 100%;
+}
+.summary caption {
+  text-align: left;
+  font-weight: 600;
+  padding-bottom: 4px;
+}
+.summary th,
+.summary td {
+  padding: 3px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.summary .text {
+  text-align: left;
+}
+.summary .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.summary {
+  overflow-x: auto;
+}
