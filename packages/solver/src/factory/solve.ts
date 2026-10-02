@@ -455,7 +455,9 @@ async function solveStack(
     const run = async (tol: number) => {
       const lp = buildLp(p, 'normal', objective, lexLocks(p, optima, tol));
       if (k === 0) stats = { ...stats, columns: lp.variables.length, rows: lp.constraints.length };
-      if (!lp.variables.some((v) => v.integer)) return backend.solve(lp, options);
+      const terms = objectiveTerms(p, objective);
+      if (!lp.variables.some((v) => v.integer))
+        return tidy(lp, await backend.solve(lp, options), terms, 0, backend, options);
       const milpOptions: LpOptions = {
         ...options,
         timeLimitSeconds: options.timeLimitSeconds ?? MILP_TIME_LIMIT_SECONDS,
@@ -472,7 +474,6 @@ async function solveStack(
             [...relaxed.values!].map(([k, v]) => [k, integer.has(k) ? Math.ceil(v - 1e-9) : v]),
           )
         : undefined;
-      const terms = objectiveTerms(p, objective);
       const mip = await backend.solve(lp, start ? { ...milpOptions, start } : milpOptions);
       const polished = await polish(lp, mip, integer, terms, backend, milpOptions);
       if (polished) return polished;
@@ -613,23 +614,45 @@ async function polish(
   const fixed = await backend.solve({ ...lp, variables }, options);
   if (fixed.status === 'infeasible') return undefined;
   if (fixed.status !== 'optimal' || !fixed.values) return mip;
-  const value = stage.reduce((sum, t) => sum + t.coef * (fixed.values!.get(t.var) ?? 0), 0);
-  const tidy = await backend.solve(
+  return {
+    ...mip,
+    values: (await tidy({ ...lp, variables }, fixed, stage, POLISH_SLACK, backend, options))
+      .values!,
+  };
+}
+
+/**
+ * Holds a solved stage objective at its value and minimizes Σx, so each
+ * recipe runs only as hard as the plan needs. The 1e-9 regularizer alone is
+ * below the solver's tolerances, so an LP plan could otherwise process a free
+ * capped import into surplus product, and a pull link would draw that excess
+ * from its producer (R7). Keeps the solution's status; returns it as is when
+ * it has no optimal plan or the tidy LP fails.
+ */
+async function tidy(
+  lp: LpModel,
+  sol: LpSolution,
+  stage: LpTerm[],
+  slack: number,
+  backend: LpBackend,
+  options: LpOptions,
+): Promise<LpSolution> {
+  if (sol.status !== 'optimal' || !sol.values) return sol;
+  const value = stage.reduce((sum, t) => sum + t.coef * (sol.values!.get(t.var) ?? 0), 0);
+  const tidied = await backend.solve(
     {
       ...lp,
-      objective: variables
+      objective: lp.variables
         .filter((v) => v.name.startsWith('recipe:'))
         .map((v) => ({ var: v.name, coef: 1 })),
-      variables,
       constraints: [
         ...lp.constraints,
-        { name: 'polish', terms: stage, hi: value + POLISH_SLACK * Math.max(1, Math.abs(value)) },
+        { name: 'polish', terms: stage, hi: value + slack * Math.max(1, Math.abs(value)) },
       ],
     },
     options,
   );
-  const best = tidy.status === 'optimal' && tidy.values ? tidy : fixed;
-  return { ...mip, values: best.values! };
+  return tidied.status === 'optimal' && tidied.values ? { ...sol, values: tidied.values } : sol;
 }
 
 const usable = (s: LpSolution) =>

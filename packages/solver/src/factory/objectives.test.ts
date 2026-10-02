@@ -104,10 +104,15 @@ describe('lexicographic stack', () => {
 
   test('a later stage that fails is retried at 10× tolerance, with a warning', async () => {
     let calls = 0;
+    let failed = false;
     const flaky: LpBackend = {
       async solve(lp, options) {
         calls++;
-        if (calls === 2) return { status: 'infeasible', rawStatus: 'forced infeasible' };
+        // The first stage-2 solve (the first with a lexicographic lock) fails.
+        if (!failed && lp.constraints.some((c) => c.name.startsWith('lex:'))) {
+          failed = true;
+          return { status: 'infeasible', rawStatus: 'forced infeasible' };
+        }
         return backend.solve(lp, options);
       },
     };
@@ -116,7 +121,8 @@ describe('lexicographic stack', () => {
     expect(r.diagnostics).toEqual([
       expect.objectContaining({ code: 'tolerance-relaxed', tolerance: DEFAULT_TOLERANCE * 10 }),
     ]);
-    expect(calls).toBe(3);
+    // Stage 1 LP and its tidy LP, the failed stage 2, then stage 2 again and its tidy LP.
+    expect(calls).toBe(5);
 
     const broken: LpBackend = {
       async solve(lp, options) {
@@ -450,8 +456,8 @@ describe('whole machines (MILP)', () => {
     await solve(model, { ...cable30, objectives: ['resources', 'resourceTypes'] }, spy, {
       timeLimitSeconds: 2,
     });
-    // Stage 1 LP; stage 2 relaxation, MILP and the two fixed-count LPs.
-    expect(seen).toEqual([2, 2, 2, 2, 2]);
+    // Stage 1 LP and its tidy LP; stage 2 relaxation, MILP and the two fixed-count LPs.
+    expect(seen).toEqual([2, 2, 2, 2, 2, 2]);
   });
 });
 

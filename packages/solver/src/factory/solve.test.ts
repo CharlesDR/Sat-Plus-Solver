@@ -79,6 +79,26 @@ describe('solve: plans', () => {
     expect(r.surplus).toEqual([]);
   });
 
+  test.each(['resources', 'scarcity', 'machines', 'power'] as const)(
+    'a free capped import is drawn only as far as the plan needs, not processed into surplus (R7, %s)',
+    async (objective) => {
+      // 25 rods could make 100 screws; the target is 40, which takes 10 rods.
+      const r = await solve(
+        model,
+        {
+          objective,
+          targets: [{ item: 'screw', rate: 40 }],
+          imports: [{ item: 'iron-rod', cap: 25 }],
+        },
+        backend,
+      );
+      expect(r.status).toBe('ok');
+      expect(r.imports).toEqual([{ item: 'iron-rod', rate: expect.closeTo(10, 9) }]);
+      expect(r.surplus).toEqual([]);
+      expect(r.recipes.map((x) => [x.id, x.machines])).toEqual([['screw', expect.closeTo(1, 9)]]);
+    },
+  );
+
   test('excluded recipes are not used, and pruning drops unrelated ones', async () => {
     const r = await solve(
       model,
