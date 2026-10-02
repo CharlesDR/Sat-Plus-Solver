@@ -27,14 +27,17 @@ export {
   layoutFactoryGraph,
   LINE_HEIGHT,
   nodeLines,
+  nodeText,
   overlaps,
   rateText,
+  wrapText,
 } from './layout';
 export type {
   Box,
   FactoryLayout,
   LayoutEngine,
   LayoutOptions,
+  NodeText,
   PlacedEdge,
   PlacedNode,
 } from './layout';

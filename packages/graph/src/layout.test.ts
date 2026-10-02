@@ -1,7 +1,7 @@
 import ELK from 'elkjs/lib/elk.bundled.js';
 import { describe, expect, test } from 'vitest';
 import type { FactoryGraph } from './factory';
-import { layoutFactoryGraph, overlaps } from './layout';
+import { layoutFactoryGraph, nodeText, overlaps, wrapText } from './layout';
 
 const graph: FactoryGraph = {
   nodes: [
@@ -79,14 +79,43 @@ describe('layoutFactoryGraph', () => {
     expect(b).toEqual(a);
   });
 
+  test('long node text and edge labels wrap, and taller boxes fit them', async () => {
+    const g = JSON.parse(JSON.stringify(graph)) as FactoryGraph;
+    g.nodes[1]!.label = 'Siterite Ore (impure) → Iron Ingot with Water';
+    g.nodes[1]!.machine = 'Flexible Blast Furnace';
+    g.edges[1]!.itemName = 'Reinforced Iron Plate';
+    const l = await layoutFactoryGraph(g, new ELK());
+    const rec = l.nodes[1]!;
+    expect(rec.text).toEqual({
+      title: ['Siterite Ore', '(impure) →', 'Iron Ingot', 'with Water'],
+      details: ['2 × Flexible', 'Blast Furnace'],
+    });
+    expect(rec.height).toBeGreaterThan(l.nodes[0]!.height * 2);
+    const label = l.edges[1]!.label;
+    expect(label.text).toBe('60\nReinforced\nIron Plate');
+    expect(label.height).toBeGreaterThan(l.edges[0]!.label.height * 2);
+    expect(l.edges[0]!.label.text).toBe('60 Ore');
+    expect(overlaps(l)).toEqual([]);
+  });
+
   test('custom edge labels size the label boxes', async () => {
     const l = await layoutFactoryGraph(graph, new ELK(), { edgeLabel: (e) => e.item });
     expect(l.edges.map((e) => e.label.text)).toEqual(['ore', 'ingot']);
   });
 
+  test('wrapText breaks between words; a long word keeps its own line', () => {
+    expect(wrapText('Byproduct: Crushed Copper', 14)).toEqual(['Byproduct:', 'Crushed Copper']);
+    expect(wrapText('a Supercalifragilistic b', 6)).toEqual(['a', 'Supercalifragilistic', 'b']);
+    expect(wrapText('', 6)).toEqual(['']);
+    expect(nodeText(['Ingot', '2 × Smelter'])).toEqual({
+      title: ['Ingot'],
+      details: ['2 × Smelter'],
+    });
+  });
+
   test('overlaps reports intersecting nodes and labels', () => {
     const box = { x: 0, y: 0, width: 10, height: 10 };
-    const node = { ...graph.nodes[0]!, ...box };
+    const node = { ...graph.nodes[0]!, ...box, text: { title: ['Ore'], details: [] } };
     const found = overlaps({
       width: 20,
       height: 20,

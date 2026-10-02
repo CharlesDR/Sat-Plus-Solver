@@ -206,6 +206,20 @@ summary {
 .flowchart {
   margin: 16px 0;
 }
+/* The factory flowchart breaks out of the page column to 95% of the window. */
+.factory-flowchart {
+  width: 95vw;
+  margin-left: calc(50% - 47.5vw);
+}
+.factory-flowchart .flow-canvas {
+  height: auto;
+  min-height: 360px;
+  max-height: 80vh;
+}
+.factory-flowchart .flow-title,
+.factory-flowchart .flow-detail {
+  white-space: pre;
+}
 .flow-canvas {
   height: 520px;
   border: 1px solid var(--line);
@@ -237,12 +251,12 @@ summary {
   box-sizing: border-box;
   width: 100%;
   height: 100%;
-  padding: 8px 12px;
+  padding: 4px 6px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 4px;
   color: var(--fg);
-  font-size: 12px;
-  line-height: 16px;
+  font-size: 14px;
+  line-height: 17px;
   overflow: hidden;
   cursor: pointer;
 }
@@ -288,9 +302,10 @@ summary {
 }
 .flow-edge-label {
   position: absolute;
-  font-size: 12px;
-  line-height: 16px;
-  white-space: nowrap;
+  font-size: 14px;
+  line-height: 17px;
+  white-space: pre;
+  text-align: center;
   color: var(--muted);
   background: var(--bg);
   pointer-events: none;
