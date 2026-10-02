@@ -21,11 +21,18 @@ export interface Box {
   height: number;
 }
 
-export type PlacedNode = FlowNode & Box;
+/** A node's text as drawn: its title and detail lines, already wrapped. */
+export interface NodeText {
+  title: string[];
+  details: string[];
+}
+
+export type PlacedNode = FlowNode & Box & { text: NodeText };
 
 export interface PlacedEdge extends FlowEdge {
   /** The routed polyline, start to end (orthogonal segments). */
   points: ElkPoint[];
+  /** `text` may hold line breaks (`\n`), one per wrapped line. */
   label: Box & { text: string };
 }
 
@@ -43,13 +50,28 @@ export interface LayoutOptions {
   nodeLines?: (n: FlowNode) => string[];
 }
 
-/** Estimated text metrics of the flowchart's 12px UI font. */
+/** Estimated text metrics of the world graph's 12px UI font. */
 export const CHAR_WIDTH = 7;
 export const LINE_HEIGHT = 16;
-const PADDING_X = 12;
-const PADDING_Y = 8;
-const MIN_NODE_WIDTH = 120;
-const MAX_NODE_CHARS = 44;
+
+/**
+ * Estimated text metrics of the factory flowchart's 14px font, wide enough
+ * for DejaVu Sans (among the widest system UI fonts); titles are semibold.
+ * The flowchart is zoomed to fit, so what makes its text readable is how
+ * much of the drawing is text: nodes and labels wrap into narrow columns
+ * and the spacing around them is tight.
+ */
+const FLOW_CHAR_WIDTH = 8.5;
+const FLOW_TITLE_CHAR_WIDTH = 9.5;
+const FLOW_LINE_HEIGHT = 17;
+const PADDING_X = 6;
+const PADDING_Y = 4;
+/** The node's 1px border, inside its box. */
+const BORDER = 1;
+const MIN_NODE_WIDTH = 80;
+/** Wrap widths, in characters, of node text and edge labels. */
+const NODE_CHARS = 14;
+const LABEL_CHARS = 10;
 
 const ELK_OPTIONS = {
   'elk.algorithm': 'layered',
@@ -57,17 +79,17 @@ const ELK_OPTIONS = {
   'elk.randomSeed': '1',
   'elk.edgeRouting': 'ORTHOGONAL',
   'elk.edgeLabels.placement': 'CENTER',
-  'elk.spacing.nodeNode': '24',
-  'elk.spacing.edgeNode': '16',
-  'elk.spacing.edgeEdge': '8',
-  'elk.spacing.edgeLabel': '4',
-  'elk.layered.spacing.nodeNodeBetweenLayers': '48',
-  'elk.layered.spacing.edgeNodeBetweenLayers': '16',
+  'elk.spacing.nodeNode': '12',
+  'elk.spacing.edgeNode': '8',
+  'elk.spacing.edgeEdge': '4',
+  'elk.spacing.edgeLabel': '2',
+  'elk.layered.spacing.nodeNodeBetweenLayers': '12',
+  'elk.layered.spacing.edgeNodeBetweenLayers': '6',
   // Network-simplex placement takes minutes on a 150-node plan; Brandes–Köpf
   // and a lighter crossing sweep keep it well under the 2 s budget (PLAN M7).
   'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
   'elk.layered.thoroughness': '3',
-  'elk.padding': '[top=16,left=16,bottom=16,right=16]',
+  'elk.padding': '[top=8,left=8,bottom=8,right=8]',
 };
 
 const LAYER: Partial<Record<FlowNodeKind, string>> = {
@@ -102,8 +124,39 @@ export function nodeLines(n: FlowNode): string[] {
 
 const defaultEdgeLabel = (e: FlowEdge) => `${rateText(e.rate)} ${e.itemName}`;
 
-const textWidth = (lines: readonly string[]) =>
-  Math.min(MAX_NODE_CHARS, Math.max(0, ...lines.map((l) => l.length))) * CHAR_WIDTH;
+/**
+ * Greedy word wrap to lines of at most `max` characters; a longer word keeps
+ * a line of its own.
+ */
+export function wrapText(text: string, max: number): string[] {
+  const out: string[] = [];
+  let line = '';
+  for (const word of text.split(' ').filter(Boolean)) {
+    if (line && line.length + 1 + word.length > max) {
+      out.push(line);
+      line = word;
+    } else line = line ? `${line} ${word}` : word;
+  }
+  return [...out, line];
+}
+
+/** A node's lines wrapped: the first line is the title, the rest details. */
+export function nodeText(lines: readonly string[]): NodeText {
+  const [title = '', ...rest] = lines;
+  return {
+    title: wrapText(title, NODE_CHARS),
+    details: rest.flatMap((l) => wrapText(l, NODE_CHARS)),
+  };
+}
+
+/** An edge label on one line when it fits, else the rate above the wrapped item name. */
+function labelLines(text: string): string[] {
+  if (text.length <= LABEL_CHARS) return [text];
+  const [rate = '', ...name] = text.split(' ');
+  return [rate, ...wrapText(name.join(' '), LABEL_CHARS)];
+}
+
+const longest = (lines: readonly string[]) => Math.max(0, ...lines.map((l) => l.length));
 
 /** Lays the flowchart out left to right: imports first, targets and byproducts last. */
 export async function layoutFactoryGraph(
@@ -113,28 +166,40 @@ export async function layoutFactoryGraph(
 ): Promise<FactoryLayout> {
   const lines = options.nodeLines ?? nodeLines;
   const edgeLabel = options.edgeLabel ?? defaultEdgeLabel;
-  const texts = new Map(graph.edges.map((e) => [e.id, edgeLabel(e)]));
+  const nodeTexts = new Map(graph.nodes.map((n) => [n.id, nodeText(lines(n))]));
+  const labels = new Map(graph.edges.map((e) => [e.id, labelLines(edgeLabel(e))]));
   const input: ElkNode = {
     id: 'root',
     layoutOptions: ELK_OPTIONS,
     children: graph.nodes.map((n) => {
-      const l = lines(n);
+      const { title, details } = nodeTexts.get(n.id)!;
       const layer = LAYER[n.kind];
+      const textWidth = Math.max(
+        longest(title) * FLOW_TITLE_CHAR_WIDTH,
+        longest(details) * FLOW_CHAR_WIDTH,
+      );
       return {
         id: n.id,
-        width: Math.max(MIN_NODE_WIDTH, textWidth(l) + 2 * PADDING_X),
-        height: l.length * LINE_HEIGHT + 2 * PADDING_Y,
+        width: Math.max(MIN_NODE_WIDTH, textWidth + 2 * (PADDING_X + BORDER)),
+        height: (title.length + details.length) * FLOW_LINE_HEIGHT + 2 * (PADDING_Y + BORDER),
         ...(layer ? { layoutOptions: { 'elk.layered.layering.layerConstraint': layer } } : {}),
       };
     }),
-    edges: graph.edges.map((e): ElkExtendedEdge => ({
-      id: e.id,
-      sources: [e.source],
-      targets: [e.target],
-      labels: [
-        { text: texts.get(e.id)!, width: textWidth([texts.get(e.id)!]), height: LINE_HEIGHT },
-      ],
-    })),
+    edges: graph.edges.map((e): ElkExtendedEdge => {
+      const l = labels.get(e.id)!;
+      return {
+        id: e.id,
+        sources: [e.source],
+        targets: [e.target],
+        labels: [
+          {
+            text: l.join('\n'),
+            width: longest(l) * FLOW_CHAR_WIDTH,
+            height: l.length * FLOW_LINE_HEIGHT,
+          },
+        ],
+      };
+    }),
   };
   const out = await engine.layout(input);
 
@@ -149,7 +214,7 @@ export async function layoutFactoryGraph(
   return {
     width: out.width ?? 0,
     height: out.height ?? 0,
-    nodes: graph.nodes.map((n) => ({ ...n, ...box(placed.get(n.id)) })),
+    nodes: graph.nodes.map((n) => ({ ...n, ...box(placed.get(n.id)), text: nodeTexts.get(n.id)! })),
     edges: graph.edges.map((e) => {
       const r = routed.get(e.id);
       const label: ElkLabel | undefined = r?.labels?.[0];
@@ -160,7 +225,7 @@ export async function layoutFactoryGraph(
           ...(s.bendPoints ?? []),
           s.endPoint,
         ]),
-        label: { ...box(label), text: texts.get(e.id)! },
+        label: { ...box(label), text: labels.get(e.id)!.join('\n') },
       };
     }),
   };

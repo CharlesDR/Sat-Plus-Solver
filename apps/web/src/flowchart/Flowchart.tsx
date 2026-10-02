@@ -31,7 +31,7 @@ import { memo, useEffect, useMemo } from 'react';
 import type { Selection } from '../selection';
 import { useLayout } from './useLayout';
 
-type FlowNodeData = { node: PlacedNode; lines: string[] };
+type FlowNodeData = { node: PlacedNode };
 type FlowchartNode = Node<FlowNodeData, 'flow'>;
 type FlowEdgeData = { edge: PlacedEdge; active: boolean };
 type FlowchartEdge = Edge<FlowEdgeData, 'routed'>;
@@ -45,18 +45,13 @@ const KIND_LABEL = {
 } as const;
 
 const FlowNodeView = memo(function FlowNodeView({ data }: NodeProps<FlowchartNode>) {
-  const [title, ...rest] = data.lines;
+  const { title, details } = data.node.text;
   return (
     <div className={`flow-node ${data.node.kind}`}>
       <Handle type="target" position={Position.Left} isConnectable={false} />
-      <div className="flow-title" title={title}>
-        {title}
-      </div>
-      {rest.map((l) => (
-        <div key={l} className="flow-detail">
-          {l}
-        </div>
-      ))}
+      {/* Lines come wrapped from the layout, which sized the node to fit them. */}
+      <div className="flow-title">{title.join('\n')}</div>
+      {details.length > 0 && <div className="flow-detail">{details.join('\n')}</div>}
       <Handle type="source" position={Position.Right} isConnectable={false} />
     </div>
   );
@@ -92,6 +87,8 @@ const RoutedEdge = memo(function RoutedEdge({ id, data, markerEnd }: EdgeProps<F
 });
 
 const nodeTypes = { flow: FlowNodeView };
+/** Fill the canvas, but don't blow a small plan up past 1.5×. */
+const FIT = { padding: 0.02, maxZoom: 1.5 };
 const edgeTypes = { routed: RoutedEdge };
 
 export function Flowchart(props: {
@@ -103,7 +100,7 @@ export function Flowchart(props: {
   const state = useLayout(props.engine, props.graph);
   if (!props.graph.nodes.length) return null;
   return (
-    <section className="flowchart" aria-label="Flowchart">
+    <section className="flowchart factory-flowchart" aria-label="Flowchart">
       {state.kind === 'pending' && <p className="hint">Laying out the flowchart…</p>}
       {state.kind === 'error' && (
         <p className="error" role="alert">
@@ -135,7 +132,7 @@ function Canvas(props: {
         width: n.width,
         height: n.height,
         style: { width: n.width, height: n.height },
-        data: { node: n, lines: nodeLines(n) },
+        data: { node: n },
         selected: n.id === selected,
         draggable: false,
         connectable: false,
@@ -160,7 +157,12 @@ function Canvas(props: {
     [layout, selected],
   );
   return (
-    <div className="flow-canvas" data-testid="flowchart">
+    // As tall as the drawing needs at full width, within the CSS min/max height.
+    <div
+      className="flow-canvas"
+      data-testid="flowchart"
+      style={{ aspectRatio: `${layout.width} / ${layout.height}` }}
+    >
       <ReactFlow<FlowchartNode, FlowchartEdge>
         nodes={nodes}
         edges={edges}
@@ -172,6 +174,7 @@ function Canvas(props: {
         onPaneClick={() => onSelect(undefined)}
         minZoom={0.05}
         fitView
+        fitViewOptions={FIT}
         proOptions={{ hideAttribution: true }}
       >
         <Background />
@@ -192,7 +195,7 @@ function Follow({
 }) {
   const flow = useReactFlow();
   useEffect(() => {
-    void flow.fitView();
+    void flow.fitView(FIT);
   }, [flow, layout]);
   useEffect(() => {
     if (selection?.from !== 'table') return;
