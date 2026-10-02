@@ -305,6 +305,38 @@ describe('links', () => {
     expect(row(r.ledger, 'iron-plate')).toMatchObject({ target: 15, surplus: 20 });
   });
 
+  test('a pull link carries only what its consumer needs; free imports upstream are not processed into junk (R7)', async () => {
+    // B has 25 rods/min on hand (a capped unassigned import, or a fixed link
+    // from A) and C pulls 40 screws/min from B: B makes 40 screws from 10 rods,
+    // not 100 screws with 60 left over.
+    for (const viaLink of [false, true]) {
+      const world = buildWorld(
+        [
+          { id: 'a' },
+          viaLink ? { id: 'b' } : { id: 'b', unassignedImports: [{ item: 'iron-rod', cap: 25 }] },
+          { id: 'c', targets: [{ item: 'screw', rate: 40 }] },
+        ],
+        [
+          pull('bc', 'b', 'c', 'screw'),
+          ...(viaLink ? [fixed('ab', 'a', 'b', 'iron-rod', 25)] : []),
+        ],
+      );
+      const r = await resolveWorld(world, model, solveFactory);
+      expect(r.diagnostics).toEqual([]);
+      expect(link(r, 'bc')).toMatchObject({ requested: 40, delivered: 40, used: 40 });
+      const b = factory(r, 'b');
+      expect(row(b.ledger, 'screw')).toMatchObject({ produced: 40, exported: 40, surplus: 0 });
+      expect(b.result.imports).toEqual([{ item: 'iron-rod', rate: expect.closeTo(10, 9) }]);
+      if (viaLink) {
+        // A fixed link ships its rate: the 15 rods B leaves unused are B's supply (A21).
+        expect(link(r, 'ab')).toMatchObject({ requested: 25, delivered: 25 });
+        expect(link(r, 'ab').used).toBeCloseTo(10, 9);
+        expect(row(b.ledger, 'iron-rod')!.surplus).toBeCloseTo(15, 9);
+      } else expect(row(b.ledger, 'iron-rod')).toMatchObject({ consumed: 10, unmet: 10 });
+      expect(row(r.ledger, 'screw')).toMatchObject({ produced: 40, target: 40, surplus: 0 });
+    }
+  });
+
   test('fixed links are drawn before pull links, pull links share the rest', async () => {
     const world = buildWorld(
       [
