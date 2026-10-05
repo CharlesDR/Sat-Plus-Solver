@@ -37,23 +37,23 @@ test('an unreachable target: world diagnostic → factory → one-click recipe f
   await expect(page.getByRole('checkbox', { name: 'Compact Biomass', exact: true })).toBeChecked();
 });
 
-test('a node budget below the plan: one click per node raises its cap', async ({ page }) => {
+test('resources turned off: one click per resource turns it back on', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Open Factory', exact: true }).click();
   await page.getByLabel('Target item').fill('Iron Plate');
   await page.getByLabel('Per minute').fill('20');
   await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
-  await page.locator('summary', { hasText: 'Node budget' }).click();
-  await page.getByLabel('Explicit caps').check();
-  for (const cap of await page.getByLabel(/^Cap for /).all()) await cap.fill('0');
+  await page.locator('summary', { hasText: 'Resources' }).click();
+  const limits = page.getByRole('table', { name: 'Resource limits' });
+  for (const use of await limits.getByRole('checkbox').all()) await use.uncheck();
   await expect(page.getByTestId('plan-status')).toContainText('Status: infeasible');
   const plan = page.getByRole('region', { name: 'Plan diagnostics' });
   await expect(plan).toContainText('Error: Not enough resources');
-  const fixes = plan.getByRole('button', { name: /^Raise the .* cap by [\d.e-]+$/ });
+  const fixes = plan.getByRole('button', { name: /^Turn on / });
   const status = page.getByTestId('plan-status');
   await expect(fixes.first()).toBeVisible();
-  // Each fix raises one cap by what the elastic solve asks for; the next solve may ask for
-  // another node, so click until the plan is feasible (a handful of clicks at most).
+  // Each fix turns one resource on; the next solve may need another, so click
+  // until the plan is feasible (a handful of clicks at most).
   for (let k = 0; k < 10 && (await status.textContent())?.includes('infeasible'); k++) {
     await fixes.first().click();
     await expect(page.locator('[aria-busy=true]')).toHaveCount(0);

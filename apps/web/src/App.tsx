@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { useStore } from 'zustand';
 import { Field } from './controls/Field';
 import { DiagnosticsList, useNames } from './Diagnostics';
-import { factoryDiagnostics, withImport, withNodeCap, type Fix } from './diagnostics';
+import { factoryDiagnostics, withImport, withResourceLimit, type Fix } from './diagnostics';
 import { ErrorBoundary } from './ErrorBoundary';
 import { ImportsEditor } from './controls/ImportsEditor';
-import { NodeBudgetEditor } from './controls/NodeBudgetEditor';
+import { ResourceLimitsEditor } from './controls/ResourceLimitsEditor';
+import { limitsLabel, rawResourcesOf } from './controls/resourceLimits';
 import { RecipeToggles } from './controls/RecipeToggles';
 import { SettingsPanel } from './controls/SettingsPanel';
 import { TargetsEditor } from './controls/TargetsEditor';
@@ -238,7 +239,7 @@ function FactoryView(props: {
   const outcome =
     plan.kind === 'done' ? plan.outcome : plan.kind === 'solving' ? plan.previous : undefined;
   const usage = useMemo(
-    () => new Map(outcome?.plan.nodes.map((n) => [n.node, n.used]) ?? []),
+    () => new Map(outcome?.plan.extraction.map((e) => [e.item, e.rate]) ?? []),
     [outcome],
   );
   const names = useNames(catalog, world);
@@ -251,13 +252,13 @@ function FactoryView(props: {
         factoryId,
         withImport(factory.unassignedImports, f.item, f.rate),
       );
-    else if (f.kind === 'raise-node' && factory.nodeBudget !== 'pool')
-      actions.setNodeBudget(factoryId, withNodeCap(factory.nodeBudget, f.node, f.amount));
+    else if (f.kind === 'raise-resource')
+      actions.setResources(factoryId, withResourceLimit(factory.resources, f.item, f.amount));
   };
   const diagnostics = outcome && (
     <DiagnosticsList
       label="Plan diagnostics"
-      views={factoryDiagnostics(outcome.plan.diagnostics, names, factory.nodeBudget)}
+      views={factoryDiagnostics(outcome.plan.diagnostics, names, factory.resources)}
       onFix={fix}
     />
   );
@@ -336,20 +337,23 @@ function FactoryView(props: {
           />
         </details>
         <details>
-          <summary>
-            Node budget ({factory.nodeBudget === 'pool' ? 'whole map pool' : 'explicit caps'})
-          </summary>
-          <NodeBudgetEditor
+          <summary>Resources ({limitsLabel(factory.resources)})</summary>
+          <ResourceLimitsEditor
             world={world}
             factory={factory}
-            nodes={catalog.nodes}
+            resources={catalog.resources}
             usage={usage}
-            onChange={(b) => actions.setNodeBudget(factoryId, b)}
+            onChange={(r) => actions.setResources(factoryId, r)}
             {...(summary
               ? {
                   onAllocateRemaining: () =>
                     actions.replaceWorld(
-                      allocateRemaining(world, { nodes: catalog.nodes }, summary, factoryId),
+                      allocateRemaining(
+                        world,
+                        rawResourcesOf(catalog.resources, world.nodePool),
+                        summary,
+                        factoryId,
+                      ),
                     ),
                 }
               : {})}

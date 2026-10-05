@@ -39,6 +39,8 @@ export {
   parseTier,
   recipeExclusion,
 } from './factory/recipes';
+export { bestNodeRates, extractionOf, rawResources } from './factory/resources';
+export type { RawResource } from './factory/resources';
 export { compareAlternates } from './factory/alternates';
 export type { AlternatesReport } from './factory/alternates';
 export type * from './factory/types';

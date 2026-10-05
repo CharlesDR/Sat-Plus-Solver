@@ -46,6 +46,8 @@ export interface PlanSummary {
   /** Surplus and byproducts. */
   byproducts: SummaryFlow[];
   nodes: SummaryNode[];
+  /** Raw resources extracted (A33). */
+  extraction: SummaryFlow[];
   power: PowerSummary;
 }
 
@@ -82,6 +84,7 @@ export function summarizePlan(model: Model, result: SolveResult): PlanSummary {
         nne: n.nne,
       };
     }),
+    extraction: result.extraction.map((e) => flow(e.item, e.rate)),
     power: { ...result.power },
   };
 }

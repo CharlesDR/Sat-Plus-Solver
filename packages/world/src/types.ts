@@ -3,7 +3,7 @@
  * solver: items/min, fluids m³/min, power MW (positive = consumption).
  */
 import type { NodePurity } from '@sps/data';
-import type { PowerSummary, SolveRequest, SolveResult, SolveStatus } from '@sps/solver';
+import type { ItemRate, PowerSummary, SolveRequest, SolveResult, SolveStatus } from '@sps/solver';
 import type { Link } from './document';
 
 /** Solves one factory; injected so the world layer never sees the LP backend (§7). */
@@ -58,6 +58,8 @@ export interface ScopeTotals {
 
 export interface FactoryResult extends ScopeTotals {
   id: string;
+  /** Raw resources its plan extracts, sorted by item (A33). */
+  extraction: ItemRate[];
   name: string;
   groupId?: string;
   status: FactoryStatus;

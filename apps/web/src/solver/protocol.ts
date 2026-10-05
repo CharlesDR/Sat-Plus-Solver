@@ -33,6 +33,20 @@ export interface CatalogNode {
   count: number;
 }
 
+/** A raw resource the resource-limits editor lists (A33). */
+export interface CatalogResource {
+  id: string;
+  name: string;
+  fluid: boolean;
+  /** Node-limited; `false` for Water and the like, which only turn on and off. */
+  limited: boolean;
+  /**
+   * Node-limited only: its node classes, with the map count and what one node
+   * extracts on its best route. The map maximum is Σ pool × rate.
+   */
+  nodes?: { id: string; count: number; rate: number }[];
+}
+
 /** What the factory controls pick from, sent once when the worker is ready. */
 export interface Catalog {
   /** Items a target can name. */
@@ -43,6 +57,8 @@ export interface Catalog {
   recipes: CatalogRecipe[];
   /** Sorted by label, then id. */
   nodes: CatalogNode[];
+  /** Raw resources, sorted by name, then id. */
+  resources: CatalogResource[];
   /** Distinct recipe tiers above `0-0`, in tier order. */
   tiers: string[];
   /** Fluid item ids (a link carrying one defaults to pipes), sorted. */

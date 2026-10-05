@@ -62,6 +62,11 @@ const isBoolMap = (v: unknown) => isObj(v) && Object.values(v).every(isBool);
 const isTier = (v: unknown) => v === null || isStr(v);
 const isStack = (v: unknown) =>
   Array.isArray(v) && v.every((o) => (OBJECTIVE_IDS as readonly unknown[]).includes(o));
+const isResourceMap = (v: unknown) =>
+  isObj(v) &&
+  Object.values(v).every(
+    (l) => isObj(l) && isBool(l.enabled) && isOpt(l.max, (m) => isNum(m) && m >= 0),
+  );
 const isRate = (v: unknown) => isObj(v) && isStr(v.item) && isNum(v.rate);
 
 /**
@@ -93,7 +98,7 @@ function shapeProblems(w: World): string[] {
       isRequest(f.request) &&
       Array.isArray(f.unassignedImports) &&
       f.unassignedImports.every((i) => isObj(i) && isStr(i.item) && isOpt(i.cap, isNum)) &&
-      (f.nodeBudget === 'pool' || isNumMap(f.nodeBudget)) &&
+      isResourceMap(f.resources) &&
       isNum(f.priority) &&
       isStr(f.notes),
   );

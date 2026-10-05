@@ -29,7 +29,7 @@ const bare = (): Factory => ({
   name: '',
   request: { targets: [] },
   unassignedImports: [],
-  nodeBudget: 'pool',
+  resources: {},
   priority: 0,
   notes: '',
 });

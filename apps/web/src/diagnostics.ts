@@ -13,8 +13,8 @@ export type Fix =
   | { kind: 'enable-recipe'; recipe: string; label: string }
   /** Raise the factory's unassigned import cap of an item (infeasible plan). */
   | { kind: 'add-import'; item: string; rate: number; label: string }
-  /** Raise an explicit node cap (infeasible plan). */
-  | { kind: 'raise-node'; node: string; amount: number; label: string }
+  /** Turn a resource on or raise its limit (infeasible plan, A33). */
+  | { kind: 'raise-resource'; item: string; amount: number; label: string }
   | { kind: 'open-factory'; factory: string; label: string }
   | { kind: 'edit-link'; link: string; label: string }
   | { kind: 'remove-link'; link: string; label: string }
@@ -56,11 +56,11 @@ const FACTORY_TITLES: Record<Diagnostic['code'], string> = {
   'invalid-request': 'The request is invalid',
 };
 
-/** One factory's solve diagnostics. `budget` is the factory's node budget, for node fixes. */
+/** One factory's solve diagnostics. `resources` are the factory's resource limits, for their fixes. */
 export function factoryDiagnostics(
   ds: readonly Diagnostic[],
   names: Names,
-  budget: Factory['nodeBudget'],
+  resources: Factory['resources'],
 ): DiagnosticView[] {
   return ds.map((d) => {
     const fixes: Fix[] = [];
@@ -81,13 +81,17 @@ export function factoryDiagnostics(
               rate: amount,
               label: `Import ${amount}/min more ${names.item(r.item)}`,
             });
-          else if (budget !== 'pool')
+          else if (r.kind === 'resource')
             fixes.push({
-              kind: 'raise-node',
-              node: r.node,
+              kind: 'raise-resource',
+              item: r.item,
               amount,
-              label: `Raise the ${names.node(r.node)} cap by ${amount}`,
+              label:
+                resources[r.item]?.enabled === false
+                  ? `Turn on ${names.item(r.item)}`
+                  : `Raise the ${names.item(r.item)} limit by ${amount}/min`,
             });
+          // A node relaxation is the map's node pool: no factory setting raises it.
         }
         break;
       case 'time-limit':
@@ -177,11 +181,22 @@ export function withImport(
   );
 }
 
-/** "Raise the cap by N" on an explicit node budget. */
-export function withNodeCap(
-  budget: Record<string, number>,
-  node: string,
+/**
+ * "Turn on X" or "Raise the X limit by N/min": turns the resource on, with a
+ * kept limit raised to at least `amount` (what the plan needs of it), or
+ * raises an on resource's limit by `amount`.
+ */
+export function withResourceLimit(
+  resources: Factory['resources'],
+  item: string,
   amount: number,
-): Record<string, number> {
-  return { ...budget, [node]: Number(((budget[node] ?? 0) + amount).toPrecision(12)) };
+): Factory['resources'] {
+  const limit = resources[item];
+  const round = (x: number) => Number(x.toPrecision(12));
+  if (limit?.enabled === false) {
+    const max = limit.max === undefined ? {} : { max: round(Math.max(limit.max, amount)) };
+    return { ...resources, [item]: { enabled: true, ...max } };
+  }
+  if (limit?.max === undefined) return resources;
+  return { ...resources, [item]: { enabled: true, max: round(limit.max + amount) } };
 }

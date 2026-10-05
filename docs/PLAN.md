@@ -12,7 +12,7 @@ References like §4.3 point into `ARCHITECTURE.md`.
 | M3  | **Vertical slice (web)**    | Page: one target → summary table. The store is already a one-factory `World`.                                | M2         |
 | M4  | Full objectives + power     | 6 objectives, lexicographic stack, tolerance, MILP, import costing, `MW` pseudo-item                         | M2         |
 | M5  | **World core** (pure) + CLI | `world` package: links, resolution, node pool, ledgers, groups; `pnpm world`                                 | M4         |
-| M6  | Factory controls            | Factory view: targets, toggles, tier filter, budgets, imports, objective stack                               | M3, M4     |
+| M6  | Factory controls            | Factory view: targets, toggles, tier filter, resource limits, imports, objective stack                       | M3, M4     |
 | M7  | Factory flowchart           | Interactive factory graph synced with the table                                                              | M6         |
 | M8  | **World UI**                | Outer canvas, groups, link editor, ledgers, power, nodes, item trace, drill-down                             | M5, M7     |
 | M9  | Saves and sharing           | Local save slots, JSON export/import, URL share, versioning                                                  | M8         |
@@ -77,8 +77,8 @@ References like §4.3 point into `ARCHITECTURE.md`.
 
 ### M6 — Factory controls (factory view)
 
-- Multiple targets. Recipe toggles (world defaults plus per-factory overrides; standard on, alternates off; bulk, search, max-Tier filter). Node budget editor. Unassigned imports. Objective stack editor.
-- **Acceptance:** Turning on an alternate makes it eligible and it is used when it's better. The tier filter excludes recipes above the tier. A budget below usage gives the infeasibility diagnostic. A per-factory override doesn't change other factories.
+- Multiple targets. Recipe toggles (world defaults plus per-factory overrides; standard on, alternates off; bulk, search, max-Tier filter). Resource limits editor (one row per raw resource: on/off and a max rate, A33). Unassigned imports. Objective stack editor (default: scarcity-weighted resources).
+- **Acceptance:** Turning on an alternate makes it eligible and it is used when it's better. The tier filter excludes recipes above the tier. A resource limit below usage gives the infeasibility diagnostic. A per-factory override doesn't change other factories.
 
 ### M7 — Factory flowchart
 

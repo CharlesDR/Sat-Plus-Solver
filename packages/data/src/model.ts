@@ -4,7 +4,7 @@
  * Every rate in `inputs`/`outputs` is positive and per machine.
  */
 
-export const MODEL_SCHEMA_VERSION = 2;
+export const MODEL_SCHEMA_VERSION = 3;
 
 /** Id of the power pseudo-item output by generator recipes. Its rate unit is MW. */
 export const MW_ITEM_ID = 'mw';
@@ -68,6 +68,12 @@ export interface Recipe {
   source: 'dataset' | 'generated';
   /** Present on generated Modular Miner routes. */
   route?: MinerRoute;
+  /**
+   * Extraction recipes: the raw resource drawn per machine, per minute (A33).
+   * For a Modular Miner route it is the base extraction before processing,
+   * fluid and boosters included; for other extractors, their output.
+   */
+  extracts?: { item: string; rate: number };
   /**
    * Heater/boiler recipe (A17): flows marked `heater` scale with whole
    * machines; the rest (the boiler pair) scale with boiler throughput.

@@ -6,12 +6,12 @@ import {
   roundUp,
   worldDiagnostics,
   withImport,
-  withNodeCap,
+  withResourceLimit,
   type Names,
 } from './diagnostics';
 
 const names: Names = {
-  item: (id) => ({ 'iron-plate': 'Iron Plate', screw: 'Screw' })[id] ?? id,
+  item: (id) => ({ 'iron-plate': 'Iron Plate', 'iron-ore': 'Iron Ore', screw: 'Screw' })[id] ?? id,
   recipe: (id) => ({ 'cast-screw': 'Alternate: Cast Screw' })[id] ?? id,
   node: (id) => ({ 'node:iron-ore:pure': 'Iron Ore (pure)' })[id] ?? id,
   factory: (id) => ({ 'factory-1': 'Smelter' })[id] ?? id,
@@ -41,7 +41,7 @@ describe('diagnostics view (M10)', () => {
         },
       ],
       names,
-      'pool',
+      {},
     );
     expect(v).toEqual({
       severity: 'error',
@@ -54,25 +54,29 @@ describe('diagnostics view (M10)', () => {
     });
   });
 
-  test('an infeasible plan offers imports, and node caps only under an explicit budget', () => {
+  test('an infeasible plan offers imports and resource fixes, not node-pool ones', () => {
     const d = {
       code: 'infeasible' as const,
       severity: 'error' as const,
       message: 'Infeasible: needs …',
       relaxations: [
         { kind: 'node' as const, node: 'node:iron-ore:pure', amount: 0.5001 },
+        { kind: 'resource' as const, item: 'iron-ore', amount: 30.01 },
         { kind: 'import' as const, item: 'iron-plate', amount: 40 },
       ],
     };
-    expect(factoryDiagnostics([d], names, 'pool')[0]!.fixes).toEqual([
+    const on = { 'iron-ore': { enabled: true, max: 60 } };
+    expect(factoryDiagnostics([d], names, on)[0]!.fixes).toEqual([
+      {
+        kind: 'raise-resource',
+        item: 'iron-ore',
+        amount: 30.1,
+        label: 'Raise the Iron Ore limit by 30.1/min',
+      },
       { kind: 'add-import', item: 'iron-plate', rate: 40, label: 'Import 40/min more Iron Plate' },
     ]);
-    expect(factoryDiagnostics([d], names, { 'node:iron-ore:pure': 0 })[0]!.fixes[0]).toEqual({
-      kind: 'raise-node',
-      node: 'node:iron-ore:pure',
-      amount: 0.501,
-      label: 'Raise the Iron Ore (pure) cap by 0.501',
-    });
+    const off = { 'iron-ore': { enabled: false } };
+    expect(factoryDiagnostics([d], names, off)[0]!.fixes[0]!.label).toBe('Turn on Iron Ore');
   });
 
   test('warnings name the gap and the relaxed tolerance', () => {
@@ -83,7 +87,7 @@ describe('diagnostics view (M10)', () => {
         { code: 'numerical', severity: 'error', message: 'The LP solver failed: x.' },
       ],
       names,
-      'pool',
+      {},
     );
     expect(vs.map((v) => v.title)).toEqual([
       'The solver ran out of time (gap 1.23%)',
@@ -165,7 +169,18 @@ describe('diagnostics view (M10)', () => {
     expect(withImport([{ item: 'screw', cap: 0.1 }], 'screw', 0.2)).toEqual([
       { item: 'screw', cap: 0.3 },
     ]);
-    expect(withNodeCap({ a: 1, b: 2 }, 'a', 0.5)).toEqual({ a: 1.5, b: 2 });
-    expect(withNodeCap({ b: 2 }, 'a', 3)).toEqual({ a: 3, b: 2 });
+    const water = { water: { enabled: false } };
+    expect(withResourceLimit({ a: { enabled: true, max: 1 }, ...water }, 'a', 0.5)).toEqual({
+      a: { enabled: true, max: 1.5 },
+      ...water,
+    });
+    expect(withResourceLimit(water, 'water', 90)).toEqual({ water: { enabled: true } });
+    // Turning on keeps a limit, raised to at least what the plan needs.
+    expect(withResourceLimit({ a: { enabled: false, max: 10 } }, 'a', 30)).toEqual({
+      a: { enabled: true, max: 30 },
+    });
+    expect(withResourceLimit({ a: { enabled: false, max: 50 } }, 'a', 30)).toEqual({
+      a: { enabled: true, max: 50 },
+    });
   });
 });

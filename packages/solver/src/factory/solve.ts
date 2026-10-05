@@ -10,6 +10,7 @@ import type {
 } from '../lp/types';
 import { closestFixes, producible, prune } from './reachability';
 import { filterRecipes, parseTier } from './recipes';
+import { extractionOf } from './resources';
 import { OBJECTIVE_IDS } from './types';
 import type {
   Diagnostic,
@@ -20,6 +21,7 @@ import type {
   ObjectiveId,
   Relaxation,
   RecipeUsage,
+  ResourceExtraction,
   SolveRequest,
   SolveResult,
   SolveStats,
@@ -36,7 +38,9 @@ const TIGHT_MIP_FEASIBILITY = 1e-10;
 const POLISH_SLACK = 1e-10;
 /** Elastic re-solve: cost of 1/min of extra import, in normal-node-equivalents. */
 const IMPORT_SLACK_COST = 0.01;
-/** Solution checks (CLAUDE.md): balance within 1e-6, variables ≥ −1e-9, nodes ≤ budget. */
+/** Elastic re-solve: cost of 1/min more of a limited resource (A33), in normal-node-equivalents. */
+const RESOURCE_SLACK_COST = 0.001;
+/** Solution checks (CLAUDE.md): balance within 1e-6, variables ≥ −1e-9, nodes ≤ budget, resources ≤ limit. */
 const BALANCE_TOL = 1e-6;
 const NONNEG_TOL = 1e-9;
 /** Smallest positive target or demand rate, per minute: anything below is under the LP's precision. */
@@ -57,9 +61,11 @@ const importVar = (item: string) => `import:${item}`;
 const surplusVar = (item: string) => `surplus:${item}`;
 const nodeSlackVar = (node: string) => `slack:node:${node}`;
 const importSlackVar = (item: string) => `slack:import:${item}`;
+const resourceSlackVar = (item: string) => `slack:resource:${item}`;
 const balanceRow = (item: string) => `balance:${item}`;
 const nodeRow = (node: string) => `cap:${node}`;
 const importRow = (item: string) => `importcap:${item}`;
+const resourceRow = (item: string) => `limit:${item}`;
 const machinesVar = (id: string) => `machines:${id}`;
 const typeVar = (resource: string) => `type:${resource}`;
 const OUTPUT_VAR = 'output';
@@ -90,6 +96,10 @@ interface Problem {
   /** Caps of the node classes the kept recipes use. */
   nodeCaps: Map<string, number>;
   nodes: Map<string, ResourceNode>;
+  /** Raw resource extracted per machine of each kept extraction recipe (A33). */
+  extracts: Map<string, { item: string; rate: number }>;
+  /** `request.resourceLimits`, on the resources the kept recipes extract. */
+  resourceLimits: Map<string, number>;
   /** Per objective: cost per machine of each kept recipe (before the regularizer). */
   costs: Map<ObjectiveId, Map<string, number>>;
   /** O6: node resource → kept recipes drawing on it, and the resource's node cap. */
@@ -198,6 +208,15 @@ export async function solve(
       budget === 'pool' ? (nodes.get(r.node)?.count ?? 0) : (budget[r.node] ?? 0),
     );
   }
+  const extracts = new Map<string, { item: string; rate: number }>();
+  const resourceLimits = new Map<string, number>();
+  for (const r of recipes) {
+    const e = extractionOf(r, (id) => nodes.get(id)?.resource);
+    if (!e) continue;
+    extracts.set(r.id, e);
+    const limit = request.resourceLimits?.[e.item];
+    if (limit !== undefined && Number.isFinite(limit)) resourceLimits.set(e.item, limit);
+  }
   const costs = new Map(
     stack.map((o) => [
       o,
@@ -232,6 +251,8 @@ export async function solve(
     importCaps,
     nodeCaps,
     nodes,
+    extracts,
+    resourceLimits,
     costs,
     resources,
     importCosts: new Map(),
@@ -850,6 +871,10 @@ async function elastic(
     const amount = sol.values.get(nodeSlackVar(node)) ?? 0;
     if (amount > SLACK_TOL) relaxations.push({ kind: 'node', node, amount });
   }
+  for (const item of [...p.resourceLimits.keys()].sort()) {
+    const amount = sol.values.get(resourceSlackVar(item)) ?? 0;
+    if (amount > SLACK_TOL) relaxations.push({ kind: 'resource', item, amount });
+  }
   for (const item of [...p.importCaps.keys()].sort()) {
     if (!Number.isFinite(p.importCaps.get(item))) continue;
     const amount = sol.values.get(importSlackVar(item)) ?? 0;
@@ -857,6 +882,10 @@ async function elastic(
   }
   const describe = (r: Relaxation): string => {
     if (r.kind === 'import') return `${fmt(r.amount)}/min more imported ${itemName(r.item)}`;
+    if (r.kind === 'resource')
+      return p.resourceLimits.get(r.item) === 0
+        ? `${fmt(r.amount)}/min of ${itemName(r.item)}, which is turned off`
+        : `${fmt(r.amount)}/min more ${itemName(r.item)} than its limit`;
     const n = p.nodes.get(r.node);
     if (!n) return `${fmt(r.amount)} more of node ${r.node}`;
     return n.purity === 'site'
@@ -871,7 +900,7 @@ async function elastic(
         severity: 'error',
         message: relaxations.length
           ? `Infeasible: needs ${relaxations.map(describe).join(' and ')}.`
-          : 'Infeasible, but no node or import relaxation fixes it.',
+          : 'Infeasible, but no node, resource or import relaxation fixes it.',
         relaxations,
       },
     ],
@@ -882,7 +911,7 @@ type LpMode = 'normal' | 'elastic' | 'capped';
 
 /**
  * `normal`: the stage LP/MILP with its objective and lexicographic locks.
- * `elastic`: slack on node and import caps, minimizing the relaxation
+ * `elastic`: slack on node, resource and import caps, minimizing the relaxation
  * (whole-machine counts and O6 indicators are left out; heater counts stay
  * integer, A17, so the relaxation is what the real plan needs). `capped`: every variable capped at the sanity
  * cap, to name an unbounded direction.
@@ -897,6 +926,7 @@ function buildLp(
   const objective: LpTerm[] = [];
   const balance = new Map<string, LpTerm[]>(p.items.map((i) => [i, []]));
   const nodeTerms = new Map<string, LpTerm[]>();
+  const limitTerms = new Map<string, LpTerm[]>();
   const constraints: LpConstraint[] = [];
   const cap = mode === 'capped' ? SANITY_CAP : Infinity;
   const whole = p.whole && mode !== 'elastic';
@@ -918,6 +948,10 @@ function buildLp(
     // In whole-machines mode a node is used by a whole machine, even underclocked (R3).
     const user = whole ? machinesVar(r.id) : v;
     if (r.node) nodeTerms.set(r.node, [...(nodeTerms.get(r.node) ?? []), { var: user, coef: 1 }]);
+    // A resource limit counts what runs (A33): an underclocked miner extracts less.
+    const e = p.extracts.get(r.id);
+    if (e && p.resourceLimits.has(e.item))
+      limitTerms.set(e.item, [...(limitTerms.get(e.item) ?? []), { var: v, coef: e.rate }]);
     if (counted) {
       variables.push({ name: machinesVar(r.id), lo: 0, hi: cap, integer: true });
       if (mode !== 'elastic') objective.push({ var: machinesVar(r.id), coef: REGULARIZER });
@@ -971,6 +1005,16 @@ function buildLp(
       terms = [...terms, { var: s, coef: -1 }];
     }
     constraints.push({ name: nodeRow(node), terms, hi: c });
+  }
+  for (const [item, used] of [...limitTerms].sort(([a], [b]) => (a < b ? -1 : 1))) {
+    let terms = used;
+    if (mode === 'elastic') {
+      const s = resourceSlackVar(item);
+      variables.push({ name: s, lo: 0 });
+      objective.push({ var: s, coef: RESOURCE_SLACK_COST });
+      terms = [...terms, { var: s, coef: -1 }];
+    }
+    constraints.push({ name: resourceRow(item), terms, hi: p.resourceLimits.get(item)! });
   }
   if (types) {
     // O6 indicators (§3.2): Σ_{j uses r} x_j ≤ cap_r · y_r, and an import
@@ -1095,6 +1139,7 @@ function finish(
   const add = (m: Map<string, number>, k: string, v: number) => m.set(k, (m.get(k) ?? 0) + v);
   const recipes: RecipeUsage[] = [];
   const nodeUse = new Map<string, number>();
+  const extracted = new Map<string, number>();
   let consumptionMW = 0;
   let generationMW = 0;
   const failures: string[] = [];
@@ -1117,6 +1162,8 @@ function finish(
     for (const f of outputs) add(produced, f.item, f.rate);
     for (const f of inputs) add(consumed, f.item, f.rate);
     if (r.node) add(nodeUse, r.node, p.whole ? whole : n);
+    const e = p.extracts.get(r.id);
+    if (e) add(extracted, e.item, e.rate * n);
     const power = r.powerMW * (r.heater ? whole : n);
     if (power >= 0) consumptionMW += power;
     else generationMW -= power;
@@ -1163,6 +1210,13 @@ function finish(
       failures.push(`node ${node} usage ${used} exceeds budget ${budget}`);
     nodes.push({ node, used, budget, nne: used * (p.nodes.get(node)?.nne ?? 0) });
   }
+  const extraction: ResourceExtraction[] = [];
+  for (const [item, rate] of [...extracted].sort(([a], [b]) => (a < b ? -1 : 1))) {
+    const limit = p.resourceLimits.get(item);
+    if (limit !== undefined && rate > limit + BALANCE_TOL * Math.max(1, limit))
+      failures.push(`resource ${item} extraction ${rate} exceeds limit ${limit}`);
+    extraction.push({ item, rate, ...(limit !== undefined ? { limit } : {}) });
+  }
   if (failures.length) return checkFailed(p.stack, stats, failures.join('; '));
 
   return {
@@ -1176,6 +1230,7 @@ function finish(
     imports: toRates(imported),
     surplus: toRates(surplus),
     nodes,
+    extraction,
     power: { consumptionMW, generationMW, netMW: consumptionMW - generationMW },
     diagnostics,
     stats,
@@ -1240,6 +1295,10 @@ function validate(
   if (request.nodeBudget && request.nodeBudget !== 'pool')
     for (const [n, c] of Object.entries(request.nodeBudget))
       if (Number.isNaN(c) || c < 0) return bad(`Node budget for ${n} must be ≥ 0 (got ${c}).`);
+  for (const [r, c] of Object.entries(request.resourceLimits ?? {})) {
+    if (!known.has(r)) return bad(`Unknown resource "${r}".`);
+    if (Number.isNaN(c) || c < 0) return bad(`Limit for ${r} must be ≥ 0 (got ${c}).`);
+  }
   return undefined;
 }
 
@@ -1263,6 +1322,7 @@ function emptyResult(
     imports: [],
     surplus: [],
     nodes: [],
+    extraction: [],
     power: { consumptionMW: 0, generationMW: 0, netMW: 0 },
     diagnostics: [],
     stats,

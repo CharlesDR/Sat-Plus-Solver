@@ -16,7 +16,7 @@ export interface FactorySpec {
   id: string;
   targets?: ItemRate[];
   group?: string;
-  nodeBudget?: Factory['nodeBudget'];
+  resources?: Factory['resources'];
   request?: Partial<Factory['request']>;
   unassignedImports?: Factory['unassignedImports'];
 }
@@ -39,7 +39,7 @@ export function buildWorld(
     const f = createFactory(s.id, s.id.toUpperCase());
     f.request = { ...f.request, ...s.request, targets: [...(s.targets ?? [])] };
     if (s.group !== undefined) f.groupId = s.group;
-    if (s.nodeBudget !== undefined) f.nodeBudget = s.nodeBudget;
+    if (s.resources !== undefined) f.resources = s.resources;
     if (s.unassignedImports) f.unassignedImports = s.unassignedImports;
     return f;
   });

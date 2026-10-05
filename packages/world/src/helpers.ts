@@ -1,35 +1,41 @@
 /**
  * World editing helpers (docs/ARCHITECTURE.md §4.4–4.5): "allocate remaining"
- * node budgets and "size power plant". Pure: each returns a new `World`.
+ * resource limits and "size power plant". Pure: each returns a new `World`.
  */
 import { MW_ITEM_ID, type Model } from '@sps/data';
-import type { World } from './document';
+import type { RawResource } from '@sps/solver';
+import type { ResourceLimit, World } from './document';
 import { createSolveCache, type SolveCache } from './hash';
 import { resolveWorld, type ResolveOptions } from './resolve';
 import type { FactoryResult, SolveFactory, WorldResult } from './types';
 
 /**
- * Sets `factoryId`'s node budget to the map pool minus every other factory's
- * current usage in `result` (never below 0), for every node class (§4.4).
+ * Sets `factoryId`'s limit on every node-limited resource to what the map
+ * pool can extract (`resources`, from `rawResources(model, world.nodePool)`)
+ * minus what every other factory extracts in `result`, never below 0 (§4.4,
+ * A33). Resources the factory has turned off stay off.
  */
 export function allocateRemaining(
   world: World,
-  model: { nodes: readonly Pick<Model['nodes'][number], 'id' | 'count'>[] },
-  result: { factories: readonly Pick<FactoryResult, 'id' | 'nodes'>[] },
+  resources: readonly RawResource[],
+  result: { factories: readonly Pick<FactoryResult, 'id' | 'extraction'>[] },
   factoryId: string,
 ): World {
-  if (!world.factories.some((f) => f.id === factoryId))
-    throw new Error(`Unknown factory "${factoryId}".`);
+  const factory = world.factories.find((f) => f.id === factoryId);
+  if (!factory) throw new Error(`Unknown factory "${factoryId}".`);
   const others = new Map<string, number>();
   for (const f of result.factories)
     if (f.id !== factoryId)
-      for (const n of f.nodes) others.set(n.node, (others.get(n.node) ?? 0) + n.used);
-  const budget: Record<string, number> = {};
-  for (const n of [...model.nodes].sort((a, b) => (a.id < b.id ? -1 : 1)))
-    budget[n.id] = Math.max(0, (world.nodePool[n.id] ?? n.count) - (others.get(n.id) ?? 0));
+      for (const e of f.extraction) others.set(e.item, (others.get(e.item) ?? 0) + e.rate);
+  const limits: Record<string, ResourceLimit> = { ...factory.resources };
+  for (const r of resources) {
+    if (!r.limited) continue;
+    const max = Math.max(0, (r.mapMax ?? 0) - (others.get(r.item) ?? 0));
+    limits[r.item] = { enabled: limits[r.item]?.enabled ?? true, max };
+  }
   return {
     ...world,
-    factories: world.factories.map((f) => (f.id === factoryId ? { ...f, nodeBudget: budget } : f)),
+    factories: world.factories.map((f) => (f.id === factoryId ? { ...f, resources: limits } : f)),
   };
 }
 
