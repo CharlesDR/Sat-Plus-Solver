@@ -1,114 +1,51 @@
 {
-  "meta": {
-    "v": 5,
-    "dataHash": "0123456789abcdef"
-  },
+  "meta": { "v": 5, "dataHash": "0123456789abcdef" },
   "factories": [
     {
       "id": "factory-1",
       "name": "Smelter",
       "groupId": "group-2",
-      "request": {
-        "targets": []
-      },
+      "request": { "targets": [] },
       "unassignedImports": [],
       "resources": {
-        "coal": {
-          "enabled": false
-        },
-        "iron-ore": {
-          "enabled": true,
-          "max": 180
-        },
-        "limestone": {
-          "enabled": false,
-          "max": 45.5
-        }
+        "coal": { "enabled": false },
+        "iron-ore": { "enabled": true, "max": 180 },
+        "limestone": { "enabled": false, "max": 45.5 }
       },
       "priority": 0,
-      "notes": "Ore from the north field",
-      "tweaks": []
+      "notes": "Ore from the north field"
     },
     {
       "id": "factory-2",
       "name": "Plate Works",
       "groupId": "group-1",
       "request": {
-        "targets": [
-          {
-            "item": "reinforced-iron-plate",
-            "rate": 5
-          }
-        ],
+        "targets": [{ "item": "reinforced-iron-plate", "rate": 5 }],
         "objectives": ["resources", "machines"],
         "tolerance": 0.05,
         "alternates": true,
         "wholeMachines": true,
-        "recipes": {
-          "alternate-bolted-iron-plate": true,
-          "iron-wire": false
-        },
+        "recipes": { "alternate-bolted-iron-plate": true, "iron-wire": false },
         "maxTier": "2-0"
       },
-      "unassignedImports": [
-        {
-          "item": "screw",
-          "cap": 12.5
-        },
-        {
-          "item": "iron-rod"
-        }
-      ],
+      "unassignedImports": [{ "item": "screw", "cap": 12.5 }, { "item": "iron-rod" }],
       "resources": {},
       "priority": 0,
-      "notes": "\u00dcn\u00efcode \u2713 and \"quotes\"",
-      "tweaks": [
-        {
-          "kind": "ban",
-          "recipe": "reinforced-iron-plate"
-        },
-        {
-          "kind": "swap",
-          "from": "iron-plate",
-          "to": "alternate-coated-iron-plate"
-        },
-        {
-          "kind": "import",
-          "item": "iron-rod"
-        }
-      ]
+      "notes": "Ünïcode ✓ and \"quotes\""
     },
     {
       "id": "factory-3",
       "name": "Power Plant",
-      "request": {
-        "targets": [
-          {
-            "item": "mw",
-            "rate": 75
-          }
-        ],
-        "maxTier": null
-      },
+      "request": { "targets": [{ "item": "mw", "rate": 75 }], "maxTier": null },
       "unassignedImports": [],
       "resources": {},
       "priority": 0,
-      "notes": "",
-      "tweaks": []
+      "notes": ""
     }
   ],
   "groups": [
-    {
-      "id": "group-1",
-      "name": "Base",
-      "collapsed": false
-    },
-    {
-      "id": "group-2",
-      "name": "Smelting",
-      "parentId": "group-1",
-      "collapsed": true
-    }
+    { "id": "group-1", "name": "Base", "collapsed": false },
+    { "id": "group-2", "name": "Smelting", "parentId": "group-1", "collapsed": true }
   ],
   "links": [
     {
@@ -116,26 +53,16 @@
       "from": "factory-1",
       "to": "factory-2",
       "item": "iron-ingot",
-      "mode": {
-        "kind": "pull"
-      },
-      "transport": {
-        "kind": "belt",
-        "tier": 2
-      }
+      "mode": { "kind": "pull" },
+      "transport": { "kind": "belt", "tier": 2 }
     },
     {
       "id": "link-2",
       "from": "factory-1",
       "to": "factory-2",
       "item": "iron-plate",
-      "mode": {
-        "kind": "fixed",
-        "rate": 30
-      },
-      "transport": {
-        "kind": "train"
-      }
+      "mode": { "kind": "fixed", "rate": 30 },
+      "transport": { "kind": "train" }
     }
   ],
   "defaults": {
@@ -144,12 +71,8 @@
     "alternates": false,
     "wholeMachines": false,
     "costImports": true,
-    "recipes": {
-      "cast-screw": false
-    },
+    "recipes": { "cast-screw": false },
     "maxTier": "4-0"
   },
-  "nodePool": {
-    "node:iron-ore:normal": 12
-  }
+  "nodePool": { "node:iron-ore:normal": 12 }
 }

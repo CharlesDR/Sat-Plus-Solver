@@ -8,13 +8,14 @@
  * (`resolveWorld`). v2 (M5) added the whole-machines and cost-imports toggles;
  * v3 (M6) replaced the recipe exclusion lists with per-recipe toggles and
  * added the max-tier filter; v4 replaced the factory's node budget with
- * per-resource limits (A33); v5 added plan tweaks (A35). `migrateWorld`
+ * per-resource limits (A33); v5 moved worlds on the old default objective
+ * stack (O1) to the new one (O2); v6 added plan tweaks (A35). `migrateWorld`
  * upgrades older documents.
  */
 import type { Model } from '@sps/data';
 import type { ItemRate, ObjectiveId, RecipeFilter, SolveRequest } from '@sps/solver';
 
-export const WORLD_VERSION = 5;
+export const WORLD_VERSION = 6;
 
 /** Lexicographic tolerance bounds (CLAUDE.md): 0.01%–90%, default 0.01%. */
 export const TOLERANCE_MIN = 0.0001;

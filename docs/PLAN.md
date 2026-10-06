@@ -117,8 +117,8 @@ References like §4.3 point into `ARCHITECTURE.md`.
 ### M12 — Plan tweaks
 
 - Selecting a recipe group (in the flowchart or the plan table) offers three tweaks: **Don't use this recipe**, **Swap recipe…** (the other recipes that make its main product, each with its previewed effect on the factory's machines, machine draw and raw resources) and **Import <product> instead**. Each tweak re-solves the world.
-- Tweaks are kept per factory, in order, in the `World` document (v5, A35), so they save and share. The list is the undo history: **Undo** (also Ctrl+Z) drops the last tweak, **Revert all** drops them all and returns to the pure solver plan, and each tweak can be removed on its own. There is no cap on the history.
-- **Acceptance:** A ban, a swap and an import each change the plan as described and survive save → load. Undo walks back 100+ tweaks one at a time, and Revert all gives a plan identical to the untweaked solve. A v4 save migrates with no tweaks. A swap to a recipe above the max tier is offered as blocked.
+- Tweaks are kept per factory, in order, in the `World` document (v6, A35), so they save and share. The list is the undo history: **Undo** (also Ctrl+Z) drops the last tweak, **Revert all** drops them all and returns to the pure solver plan, and each tweak can be removed on its own. There is no cap on the history.
+- **Acceptance:** A ban, a swap and an import each change the plan as described and survive save → load. Undo walks back 100+ tweaks one at a time, and Revert all gives a plan identical to the untweaked solve. A v5 save migrates with no tweaks. A swap to a recipe above the max tier is offered as blocked.
 
 ### M13 — Manual mode (proposed)
 

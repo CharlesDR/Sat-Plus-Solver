@@ -3,6 +3,8 @@ import v1 from '../../../fixtures/worlds/v1-world.json';
 import v2 from '../../../fixtures/worlds/v2-world.json';
 import v3 from '../../../fixtures/worlds/v3-world.json';
 import v4 from '../../../fixtures/worlds/v4-world.json';
+import v5 from '../../../fixtures/worlds/v5-world.json';
+import v6 from '../../../fixtures/worlds/v6-world.json';
 import { WORLD_VERSION, createWorld, factorySolveRequest } from './document';
 import { WorldMigrationError, migrateWorld } from './migrate';
 
@@ -12,7 +14,8 @@ describe('migrateWorld', () => {
     const w = migrateWorld(v1);
     expect(w.meta).toEqual({ v: WORLD_VERSION, dataHash: 'abc123' });
     expect(w.defaults).toEqual({
-      objectives: ['resources'],
+      // The old default stack moves to the new default (v5).
+      objectives: ['scarcity'],
       tolerance: 0.0001,
       alternates: false,
       wholeMachines: false,
@@ -34,7 +37,8 @@ describe('migrateWorld', () => {
     const w = migrateWorld(v2);
     expect(w.meta.v).toBe(WORLD_VERSION);
     expect(w.defaults).toEqual({
-      objectives: ['resources'],
+      // The old default stack moves to the new default (v5).
+      objectives: ['scarcity'],
       tolerance: 0.0001,
       alternates: false,
       wholeMachines: true,
@@ -75,18 +79,8 @@ describe('migrateWorld', () => {
     expect(w.factories.map(({ resources: _, ...f }) => f)).toEqual(
       v3.factories.map(({ nodeBudget: _, ...f }) => ({ ...f, tweaks: [] })),
     );
-    expect(w.defaults).toEqual(v3.defaults);
+    expect(w.defaults).toEqual({ ...v3.defaults, objectives: ['scarcity'] });
     expect(JSON.stringify(v3)).toBe(before);
-  });
-
-  test('a v4 save gains an empty tweak list per factory and nothing else (A35)', () => {
-    const before = JSON.stringify(v4);
-    const w = migrateWorld(v4);
-    expect(w.meta).toEqual({ v: WORLD_VERSION, dataHash: v4.meta.dataHash });
-    expect(w.factories).toEqual(v4.factories.map((f) => ({ ...f, tweaks: [] })));
-    for (const key of ['groups', 'links', 'defaults', 'nodePool'] as const)
-      expect(w[key]).toEqual(v4[key]);
-    expect(JSON.stringify(v4)).toBe(before);
   });
 
   test('a v3 budget turns off each resource whose node caps are all 0', () => {
@@ -100,6 +94,49 @@ describe('migrateWorld', () => {
     const w = migrateWorld(doc);
     expect(w.factories[0]!.resources).toEqual({ coal: { enabled: false } });
     expect(factorySolveRequest(w, { nodes: [] }, 'factory-1').resourceLimits).toEqual({ coal: 0 });
+  });
+
+  test('a v4 world on the old default stack moves to scarcity; other stacks stay', () => {
+    const v4 = (objectives: string[]) => {
+      const w = createWorld('x') as unknown as {
+        meta: { v: number };
+        defaults: { objectives: string[] };
+        factories: { request: { objectives?: string[] } }[];
+      };
+      w.meta.v = 4;
+      w.defaults.objectives = objectives;
+      w.factories[0]!.request.objectives = ['resources'];
+      return w;
+    };
+    const moved = migrateWorld(v4(['resources']));
+    expect(moved.meta.v).toBe(WORLD_VERSION);
+    expect(moved.defaults.objectives).toEqual(['scarcity']);
+    // A factory's own choice is kept.
+    expect(moved.factories[0]!.request.objectives).toEqual(['resources']);
+    expect(migrateWorld(v4(['resources', 'machines'])).defaults.objectives).toEqual([
+      'resources',
+      'machines',
+    ]);
+    expect(migrateWorld(v4(['power'])).defaults.objectives).toEqual(['power']);
+  });
+
+  test('the v4 fixture (already on scarcity) migrates as the v5 fixture does', () => {
+    expect(migrateWorld(v4)).toEqual(migrateWorld(v5));
+  });
+
+  test('a v5 save gains an empty tweak list per factory and nothing else (A35)', () => {
+    const before = JSON.stringify(v5);
+    const w = migrateWorld(v5);
+    expect(w.meta).toEqual({ v: WORLD_VERSION, dataHash: v5.meta.dataHash });
+    expect(w.factories).toEqual(v5.factories.map((f) => ({ ...f, tweaks: [] })));
+    for (const key of ['groups', 'links', 'defaults', 'nodePool'] as const)
+      expect(w[key]).toEqual(v5[key]);
+    expect(JSON.stringify(v5)).toBe(before);
+    // The v6 fixture is the v5 one plus tweaks on one factory.
+    expect({ ...w, factories: w.factories.map((f) => ({ ...f, tweaks: [] })) }).toEqual({
+      ...v6,
+      factories: v6.factories.map((f) => ({ ...f, tweaks: [] })),
+    });
   });
 
   test('a current world passes through unchanged', () => {

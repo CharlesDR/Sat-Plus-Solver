@@ -5,7 +5,7 @@
  */
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
-import { openFactory } from './helpers';
+import { addFactory, openFactory } from './helpers';
 
 const recipeNames = (page: Page) =>
   page
@@ -120,4 +120,19 @@ test('settings inherit the world defaults until the factory overrides them', asy
   await expect(tolerance).toHaveValue('90');
   await settled(page);
   await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
+});
+
+test('a new factory starts on scarcity-weighted resources, first in the list', async ({ page }) => {
+  await page.goto('/');
+  await addFactory(page, 'Fresh');
+  await page.getByRole('button', { name: 'Open Fresh', exact: true }).click();
+  const stack = page.getByRole('list', { name: 'Objective stack' }).locator('li');
+  await expect(stack).toHaveCount(1);
+  await expect(stack.first()).toContainText('Scarcity-weighted resources (O2)');
+  // Scarcity is in the stack, so the add list starts with the next one; remove it to see it first.
+  await page.getByLabel('Add objective').selectOption('resources');
+  await page.getByRole('button', { name: 'Remove Scarcity-weighted resources (O2)' }).click();
+  await expect(page.getByLabel('Add objective').locator('option').nth(1)).toHaveText(
+    'Scarcity-weighted resources (O2)',
+  );
 });

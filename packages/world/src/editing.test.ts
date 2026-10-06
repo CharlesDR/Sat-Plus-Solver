@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { createWorld, DEFAULT_FACTORY_ID } from './document';
+import { createWorld, DEFAULT_FACTORY_ID, factorySolveRequest } from './document';
 import {
   addFactory,
   addGroup,
@@ -61,6 +61,11 @@ describe('factories', () => {
       tweaks: [],
     });
     expect(addFactory(w, '').world.factories[1]!.name).toBe('Factory 2');
+  });
+
+  test('a new factory is solved scarcity-weighted (O2) by default', () => {
+    const { world, id } = addFactory(createWorld('test'), 'New');
+    expect(factorySolveRequest(world, { nodes: [] }, id).objectives).toEqual(['scarcity']);
   });
 
   test('removing a factory removes its links', () => {
