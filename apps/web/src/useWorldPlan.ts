@@ -22,13 +22,14 @@ interface Settled {
 /**
  * Solves the world in the worker whenever the document (or the focused
  * factory) changes. `run` sends a world action, such as "size power plant",
- * and resolves with the edited world it returns.
+ * or a tweak's swap previews, and resolves with the outcome (`null` when a
+ * newer request replaced it).
  */
 export function useWorldPlan(
   client: SolverClient,
   world: World,
   focus: string | undefined,
-): { state: WorldPlanState; run(action: WorldAction): Promise<World | undefined> } {
+): { state: WorldPlanState; run(action: WorldAction): Promise<SolveOutcome | null> } {
   const [settled, setSettled] = useState<Settled | undefined>();
   // Bumped when an action's request may have replaced this hook's own.
   const [attempt, setAttempt] = useState(0);
@@ -61,8 +62,7 @@ export function useWorldPlan(
   const run = useCallback(
     async (action: WorldAction) => {
       try {
-        const outcome = await client.solve({ world, focus, action });
-        return outcome?.edited;
+        return await client.solve({ world, focus, action });
       } finally {
         setAttempt((n) => n + 1);
       }

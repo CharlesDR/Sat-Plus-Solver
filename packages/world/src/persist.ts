@@ -100,7 +100,9 @@ function shapeProblems(w: World): string[] {
       f.unassignedImports.every((i) => isObj(i) && isStr(i.item) && isOpt(i.cap, isNum)) &&
       isResourceMap(f.resources) &&
       isNum(f.priority) &&
-      isStr(f.notes),
+      isStr(f.notes) &&
+      Array.isArray(f.tweaks) &&
+      f.tweaks.every(isTweak),
   );
   list(
     'groups',
@@ -131,6 +133,14 @@ function shapeProblems(w: World): string[] {
     out.push('"defaults" is malformed');
   if (!isNumMap(doc.nodePool)) out.push('"nodePool" is malformed');
   return out;
+}
+
+function isTweak(t: unknown): boolean {
+  if (!isObj(t)) return false;
+  if (t.kind === 'ban') return isStr(t.recipe);
+  if (t.kind === 'swap') return isStr(t.from) && isStr(t.to);
+  if (t.kind === 'import') return isStr(t.item);
+  return false;
 }
 
 function isRequest(r: unknown): boolean {

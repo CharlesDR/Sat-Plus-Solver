@@ -18,6 +18,8 @@ References like §4.3 point into `ARCHITECTURE.md`.
 | M9  | Saves and sharing           | Local save slots, JSON export/import, URL share, versioning                                                  | M8         |
 | M10 | Hardening and release       | Perf, diagnostics UX, E2E, Pages deploy                                                                      | M9         |
 | M11 | Backlog (after v1)          | Joint world optimization, SF+ golden cases, multiple power grids, transport calculators, per-group overclock | M10        |
+| M12 | Plan tweaks                 | Ban, swap or import a recipe group from the flowchart; tweak list with Undo and Revert all (A35)             | M10        |
+| M13 | Manual mode (proposed)      | Per-factory switch that freezes the plan for hand editing; awaiting decisions, not started                   | M12        |
 
 ---
 
@@ -111,6 +113,16 @@ References like §4.3 point into `ARCHITECTURE.md`.
 - **Joint world optimization** (§4.6): opt-in, enforces map node limits exactly.
 - Your SF+ golden cases. Booster power value (R1). In-game checks of A3, A4 and A6.
 - Multiple power grids (A8). Transport calculators: trains, trucks, drones, Dimensional Depot. Overclock and Somersloop settings per machine group.
+
+### M12 — Plan tweaks
+
+- Selecting a recipe group (in the flowchart or the plan table) offers three tweaks: **Don't use this recipe**, **Swap recipe…** (the other recipes that make its main product, each with its previewed effect on the factory's machines, machine draw and raw resources) and **Import <product> instead**. Each tweak re-solves the world.
+- Tweaks are kept per factory, in order, in the `World` document (v5, A35), so they save and share. The list is the undo history: **Undo** (also Ctrl+Z) drops the last tweak, **Revert all** drops them all and returns to the pure solver plan, and each tweak can be removed on its own. There is no cap on the history.
+- **Acceptance:** A ban, a swap and an import each change the plan as described and survive save → load. Undo walks back 100+ tweaks one at a time, and Revert all gives a plan identical to the untweaked solve. A v4 save migrates with no tweaks. A swap to a recipe above the max tier is offered as blocked.
+
+### M13 — Manual mode (proposed)
+
+- A highly visible per-factory **Solver | Manual** switch freezes the plan for hand editing without re-solving. The plan, its approaches and the decisions it needs are in the project's manual-mode plan; this milestone is not started until those decisions are made.
 
 ---
 

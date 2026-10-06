@@ -35,6 +35,7 @@ describe('solver service', () => {
       name: 'Alternate: Cast Screw',
       alternate: true,
       products: ['Screw'],
+      outputs: ['screw'],
     });
     expect(c.nodes.map((n) => n.id).sort()).toEqual(mini.nodes.map((n) => n.id).sort());
     expect(c.nodes.find((n) => n.id === 'node:iron-ore:normal')?.label).toBe('Iron Ore (normal)');
@@ -152,6 +153,31 @@ describe('world solves', () => {
     expect(target).toHaveLength(1);
     expect(target[0]!.item).toBe('mw');
     expect(Math.abs(solved.world.power.netMW)).toBeLessThan(1e-6);
+  });
+
+  test('swap previews solve the factory once per candidate, leaving the world as it is (A35)', async () => {
+    const service = createSolverService(mini, backend);
+    const world = createWorld('vanilla-mini');
+    world.factories[0]!.request.targets.push({ item: 'screw', rate: 40 });
+    const solved = await service.solve({
+      world,
+      focus: DEFAULT_FACTORY_ID,
+      action: {
+        kind: 'preview-swaps',
+        factoryId: DEFAULT_FACTORY_ID,
+        from: 'screw',
+        candidates: ['cast-screw'],
+      },
+    });
+    // The world itself is solved untweaked.
+    expect(solved.focus!.plan.recipes.map((r) => r.id)).toContain('screw');
+    expect(solved.previews).toHaveLength(1);
+    const [p] = solved.previews!;
+    expect(p).toMatchObject({ recipe: 'cast-screw', status: 'ok' });
+    // Cast Screw skips the rod step: fewer machines than the current plan.
+    const now = solved.world.factories[0]!;
+    expect(p!.machines).toBeLessThan(now.machines);
+    expect(p!.extraction.map((e) => e.item)).toEqual(['iron-ore']);
   });
 
   test('progress names each factory as it starts (M10)', async () => {

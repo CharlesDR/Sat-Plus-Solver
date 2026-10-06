@@ -6,7 +6,14 @@
  * New ids are stable slugs, `<prefix>-<n>` with the smallest free `n`, so the
  * same edits always give the same ids (CLAUDE.md: never array indices).
  */
-import { createFactory, type Factory, type Group, type Link, type World } from './document';
+import {
+  createFactory,
+  type Factory,
+  type Group,
+  type Link,
+  type Tweak,
+  type World,
+} from './document';
 
 export class WorldEditError extends Error {}
 
@@ -182,4 +189,41 @@ export function updateLink(world: World, id: string, spec: LinkSpec): World {
 export function removeLink(world: World, id: string): World {
   need(world.links, id, 'link');
   return { ...world, links: world.links.filter((l) => l.id !== id) };
+}
+
+// Plan tweaks (A35). The tweak list is the undo history, so undo drops the
+// last tweak and "revert all" empties the list; nothing else is kept.
+
+const sameTweak = (a: Tweak, b: Tweak) => JSON.stringify(a) === JSON.stringify(b);
+
+/** Adds a tweak to a factory. Repeating its last tweak changes nothing. */
+export function addTweak(world: World, factoryId: string, tweak: Tweak): World {
+  const f = need(world.factories, factoryId, 'factory');
+  if (tweak.kind === 'swap' && tweak.from === tweak.to)
+    throw new WorldEditError('A recipe cannot be swapped for itself.');
+  const last = f.tweaks[f.tweaks.length - 1];
+  if (last && sameTweak(last, tweak)) return world;
+  return editFactory(world, factoryId, { ...f, tweaks: [...f.tweaks, { ...tweak }] });
+}
+
+/** Undoes the factory's most recent tweak; no tweaks changes nothing. */
+export function undoTweak(world: World, factoryId: string): World {
+  const f = need(world.factories, factoryId, 'factory');
+  if (!f.tweaks.length) return world;
+  return editFactory(world, factoryId, { ...f, tweaks: f.tweaks.slice(0, -1) });
+}
+
+/** Removes one tweak, by its position in the list. */
+export function removeTweak(world: World, factoryId: string, index: number): World {
+  const f = need(world.factories, factoryId, 'factory');
+  if (!Number.isInteger(index) || index < 0 || index >= f.tweaks.length)
+    throw new WorldEditError(`No tweak at ${index}.`);
+  return editFactory(world, factoryId, { ...f, tweaks: f.tweaks.filter((_, k) => k !== index) });
+}
+
+/** Reverts every tweak: the factory goes back to the pure solver plan. */
+export function revertTweaks(world: World, factoryId: string): World {
+  const f = need(world.factories, factoryId, 'factory');
+  if (!f.tweaks.length) return world;
+  return editFactory(world, factoryId, { ...f, tweaks: [] });
 }

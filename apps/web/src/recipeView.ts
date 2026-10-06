@@ -21,6 +21,8 @@ export interface RecipeRow {
   toggle?: boolean;
   /** In a factory scope, the world's toggle it inherits, if any. */
   inherited?: boolean;
+  /** A plan tweak (A35) turned it on or off, over the toggles. */
+  tweaked?: boolean;
 }
 
 /** The world defaults on their own, as a factory with no overrides. */
@@ -32,6 +34,7 @@ const bare = (): Factory => ({
   resources: {},
   priority: 0,
   notes: '',
+  tweaks: [],
 });
 
 export function recipeRows(
@@ -45,6 +48,7 @@ export function recipeRows(
     scope.kind === 'factory' ? world.factories.find((f) => f.id === scope.id) : undefined;
   if (scope.kind === 'factory' && !factory) throw new Error(`Unknown factory "${scope.id}".`);
   const filter = recipeFilter(world, factory ?? bare());
+  const untweaked = recipeFilter(world, factory ?? bare(), { tweaks: false });
   const own = factory ? (factory.request.recipes ?? {}) : world.defaults.recipes;
   const words = search.toLowerCase().split(/\s+/).filter(Boolean);
   const rows: RecipeRow[] = [];
@@ -60,6 +64,8 @@ export function recipeRows(
     const reason = recipeExclusion(recipe, filter);
     const row: RecipeRow = { recipe, on: reason === undefined };
     if (reason) row.reason = reason;
+    if ((reason === undefined) !== (recipeExclusion(recipe, untweaked) === undefined))
+      row.tweaked = true;
     const toggle = own[recipe.id];
     if (toggle !== undefined) row.toggle = toggle;
     const inherited = factory ? world.defaults.recipes[recipe.id] : undefined;

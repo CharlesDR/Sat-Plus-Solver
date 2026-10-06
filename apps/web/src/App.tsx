@@ -1,4 +1,4 @@
-import type { LayoutEngine } from '@sps/graph';
+import { recipeNodeId, type LayoutEngine } from '@sps/graph';
 import { allocateRemaining, extractFactory, serializeWorld } from '@sps/world';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useStore } from 'zustand';
@@ -19,10 +19,12 @@ import type { Boot } from './persistence/session';
 import { downloadText, fileName, ShareControls } from './persistence/ShareControls';
 import type { Selection } from './selection';
 import type { SolveOutcome, SolverClient } from './solver/client';
-import type { Catalog, FocusPlan, SolveProgress } from './solver/protocol';
+import type { Catalog, FocusPlan, SolveProgress, WorldAction } from './solver/protocol';
 import type { Scope, WorldStore } from './store';
 import { SolvingNote } from './SolvingNote';
 import { SummaryTable } from './SummaryTable';
+import { TweakPanel } from './tweaks/TweakPanel';
+import type { Baseline } from './tweaks/tweaks';
 import { useWorldPlan, type WorldPlanState } from './useWorldPlan';
 import { breadcrumb } from './world/viewModel';
 import { WorldView } from './world/WorldView';
@@ -114,7 +116,7 @@ function Shell(props: {
   const sizePower = (factoryId: string) => {
     setActionError(undefined);
     run({ kind: 'size-power', factoryId }).then(
-      (edited) => edited && store.getState().replaceWorld(edited),
+      (outcome) => outcome?.edited && store.getState().replaceWorld(outcome.edited),
       (e: unknown) => setActionError(`Size power plant failed: ${(e as Error).message}`),
     );
   };
@@ -165,6 +167,7 @@ function Shell(props: {
             catalog={catalog}
             factoryId={focus}
             plan={state}
+            run={run}
             onSwitch={openFactory}
           />
         ) : (
@@ -202,6 +205,7 @@ function FactoryView(props: {
   catalog: Catalog;
   factoryId: string;
   plan: WorldPlanState;
+  run(action: WorldAction): Promise<SolveOutcome | null>;
   onSwitch(id: string): void;
 }) {
   const { store, layout, catalog, factoryId, onSwitch } = props;
@@ -243,7 +247,32 @@ function FactoryView(props: {
     [outcome],
   );
   const names = useNames(catalog, world);
+  const mine = summary?.factories.find((f) => f.id === factoryId);
+  const baseline = useMemo<Baseline | undefined>(
+    () =>
+      mine && {
+        status: mine.status,
+        machines: mine.machines,
+        consumptionMW: mine.power.consumptionMW,
+        extraction: mine.extraction,
+      },
+    [mine],
+  );
+  // Ctrl+Z (Cmd+Z) undoes the last plan tweak, except while typing in a field.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'z' || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey)
+        return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+      e.preventDefault();
+      store.getState().undoTweak(factoryId);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [store, factoryId]);
   if (!factory) return <p className="error">Unknown factory “{factoryId}”.</p>;
+  const selectedNode = selection && outcome?.graph.nodes.find((n) => n.id === selection.id);
   const scoped: Scope = { kind: 'factory', id: factoryId };
   const fix = (f: Fix) => {
     if (f.kind === 'enable-recipe') actions.setRecipes(scoped, [f.recipe], true);
@@ -360,6 +389,25 @@ function FactoryView(props: {
           />
         </details>
       </section>
+      {outcome && (
+        <TweakPanel
+          world={world}
+          factory={factory}
+          recipes={catalog.recipes}
+          names={names}
+          node={selectedNode}
+          baseline={baseline}
+          run={props.run}
+          onTweak={(t) => {
+            actions.addTweak(factoryId, t);
+            // Follow a swap to the recipe swapped in; a ban or an import removes the node.
+            setSelection(t.kind === 'swap' ? { id: recipeNodeId(t.to), from: 'table' } : undefined);
+          }}
+          onUndo={() => actions.undoTweak(factoryId)}
+          onRemove={(k) => actions.removeTweak(factoryId, k)}
+          onRevert={() => actions.revertTweaks(factoryId)}
+        />
+      )}
       <PlanView
         plan={plan}
         diagnostics={diagnostics}

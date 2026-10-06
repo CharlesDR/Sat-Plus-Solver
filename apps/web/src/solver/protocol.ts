@@ -21,6 +21,8 @@ export interface CatalogRecipe {
   tier: string;
   /** Output item names, for search. */
   products: string[];
+  /** Output item ids (no MW), for the swap list (A35). */
+  outputs: string[];
 }
 
 /** A node class the node-budget editor lists. */
@@ -87,8 +89,26 @@ export interface FocusPlan {
   graph: FactoryGraph;
 }
 
-/** World edits that need the solver: "size power plant" (§4.5). */
-export type WorldAction = { kind: 'size-power'; factoryId: string };
+/**
+ * World edits that need the solver: "size power plant" (§4.5), and the swap
+ * previews of a plan tweak (A35): the factory as it would solve with
+ * `from` swapped for each candidate.
+ */
+export type WorldAction =
+  | { kind: 'size-power'; factoryId: string }
+  | { kind: 'preview-swaps'; factoryId: string; from: string; candidates: string[] };
+
+/** One swap candidate's effect on its factory (A35). */
+export interface SwapPreview {
+  recipe: string;
+  status: FactoryResult['status'];
+  /** Whole machines to build. */
+  machines: number;
+  /** Machine draw, MW. */
+  consumptionMW: number;
+  /** Raw resources extracted, per minute, sorted by item. */
+  extraction: { item: string; rate: number }[];
+}
 
 /** What one world solve asks for. */
 export interface WorldSolveRequest {
@@ -104,6 +124,8 @@ export interface WorldSolved {
   world: WorldSummary;
   focus?: FocusPlan;
   edited?: World;
+  /** `preview-swaps`: one per candidate, in its order. */
+  previews?: SwapPreview[];
 }
 
 export type ToWorker = { type: 'solve'; id: number } & WorldSolveRequest;
