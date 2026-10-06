@@ -1,8 +1,7 @@
 import { recipeNodeId, type LayoutEngine } from '@sps/graph';
-import { allocateRemaining, extractFactory, serializeWorld } from '@sps/world';
+import { allocateRemaining, extractFactory, serializeWorld, type World } from '@sps/world';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useStore } from 'zustand';
-import { Field } from './controls/Field';
 import { DiagnosticsList, useNames } from './Diagnostics';
 import { factoryDiagnostics, withImport, withResourceLimit, type Fix } from './diagnostics';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -29,10 +28,16 @@ import { TweakPanel } from './tweaks/TweakPanel';
 import type { Baseline } from './tweaks/tweaks';
 import { useWorldPlan, type WorldPlanState } from './useWorldPlan';
 import { breadcrumb } from './world/viewModel';
+import { CommandPalette } from './CommandPalette';
+import { PlanStats } from './PlanStats';
+import { LogoMark, SearchIcon, SidebarIcon } from './ui/icons';
+import { useSidebarOpen } from './ui/prefs';
+import { ThemeSwitch } from './ui/ThemeSwitch';
+import { ToastProvider, useToast } from './ui/toasts';
 import { WorldView } from './world/WorldView';
 
 /** Where the user is: the world canvas (home), or one factory drilled into. */
-type View = { kind: 'world' } | { kind: 'factory'; id: string };
+export type View = { kind: 'world' } | { kind: 'factory'; id: string };
 
 export function App(props: {
   client: SolverClient;
@@ -41,10 +46,30 @@ export function App(props: {
   saves: Saves;
   boot: Boot;
 }) {
+  return (
+    <ToastProvider>
+      <AppFrame {...props} />
+    </ToastProvider>
+  );
+}
+
+function AppFrame(props: {
+  client: SolverClient;
+  store: WorldStore;
+  layout: LayoutEngine;
+  saves: Saves;
+  boot: Boot;
+}) {
   const { client, store, layout, saves, boot } = props;
   const mismatch = useStore(store, (s) => s.dataHashMismatch);
+  const world = useStore(store, (s) => s.world);
   const [catalog, setCatalog] = useState<Catalog | undefined>();
   const [initError, setInitError] = useState<string | undefined>();
+  const [view, setView] = useState<View>({ kind: 'world' });
+  const [palette, setPalette] = useState(false);
+  // A view of a factory that no longer exists (deleted, or a load replaced the world) is the world.
+  const focus =
+    view.kind === 'factory' && world.factories.some((f) => f.id === view.id) ? view.id : undefined;
 
   useEffect(() => {
     client.ready.then(
@@ -56,30 +81,140 @@ export function App(props: {
     );
   }, [client, store]);
 
+  // Ctrl+K (Cmd+K) opens quick search from anywhere.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() === 'k' && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+        e.preventDefault();
+        setPalette(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   return (
-    <main>
-      <h1>Sat-Plus-Solver</h1>
-      {mismatch && (
-        <p className="warning" role="alert">
-          This plan was made with different game data ({mismatch.world}); the loaded data is{' '}
-          {mismatch.model}. Results may differ.
-        </p>
-      )}
-      <SavePanel store={store} saves={saves} boot={boot} />
-      {initError ? (
-        <p className="error" role="alert">
-          The solver failed to start: {initError}
-        </p>
-      ) : !catalog ? (
-        <p aria-busy="true" role="status">
-          Loading the solver…
-        </p>
-      ) : (
-        <ErrorBoundary what="the app" recovery={<ExportWorld store={store} />}>
-          <Shell client={client} store={store} layout={layout} catalog={catalog} />
-        </ErrorBoundary>
-      )}
-    </main>
+    <div className="app">
+      <header className="topbar">
+        <div className="brand">
+          <LogoMark />
+          <h1>Sat-Plus-Solver</h1>
+        </div>
+        <Breadcrumb
+          world={world}
+          focus={focus}
+          onWorld={() => setView({ kind: 'world' })}
+          onFactory={(id) => setView({ kind: 'factory', id })}
+        />
+        <div className="topbar-actions">
+          <button
+            type="button"
+            className="search-button"
+            onClick={() => setPalette(true)}
+            disabled={!catalog}
+            title="Quick search (Ctrl+K)"
+          >
+            <SearchIcon />
+            <span>Search</span>
+            <kbd>Ctrl K</kbd>
+          </button>
+          <SavePanel store={store} saves={saves} boot={boot} />
+          <ThemeSwitch />
+        </div>
+      </header>
+      <main className={focus !== undefined ? 'main factory-main' : 'main world-main'}>
+        {mismatch && (
+          <p className="warning banner" role="alert">
+            This plan was made with different game data ({mismatch.world}); the loaded data is{' '}
+            {mismatch.model}. Results may differ.
+          </p>
+        )}
+        {initError ? (
+          <p className="error" role="alert">
+            The solver failed to start: {initError}
+          </p>
+        ) : !catalog ? (
+          <p aria-busy="true" role="status" className="loading">
+            Loading the solver…
+          </p>
+        ) : (
+          <ErrorBoundary what="the app" recovery={<ExportWorld store={store} />}>
+            <Shell
+              client={client}
+              store={store}
+              layout={layout}
+              catalog={catalog}
+              focus={focus}
+              onView={setView}
+            />
+            {palette && (
+              <CommandPalette
+                store={store}
+                catalog={catalog}
+                focus={focus}
+                onView={setView}
+                onClose={() => setPalette(false)}
+              />
+            )}
+          </ErrorBoundary>
+        )}
+      </main>
+    </div>
+  );
+}
+
+/**
+ * Where the user is: World, the factory's groups, then the factory, which is
+ * also a switcher to the other factories.
+ */
+function Breadcrumb(props: {
+  world: World;
+  focus: string | undefined;
+  onWorld(): void;
+  onFactory(id: string): void;
+}) {
+  const { world, focus, onWorld, onFactory } = props;
+  const crumbs = focus !== undefined ? breadcrumb(world, focus) : undefined;
+  return (
+    <nav aria-label="Breadcrumb" className="breadcrumb">
+      <ol>
+        <li>
+          {crumbs ? (
+            <button type="button" className="crumb" onClick={onWorld}>
+              World
+            </button>
+          ) : (
+            <span aria-current="page" className="crumb current">
+              World
+            </span>
+          )}
+        </li>
+        {crumbs?.groups.map((g, k) => (
+          <li key={k}>
+            <button type="button" className="crumb" onClick={onWorld}>
+              {g}
+            </button>
+          </li>
+        ))}
+        {crumbs && focus !== undefined && (
+          <li>
+            <select
+              aria-label="Factory"
+              aria-current="page"
+              className="crumb-select"
+              value={focus}
+              onChange={(e) => onFactory(e.target.value)}
+            >
+              {world.factories.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          </li>
+        )}
+      </ol>
+    </nav>
   );
 }
 
@@ -96,25 +231,23 @@ function ExportWorld({ store }: { store: WorldStore }) {
 }
 
 /**
- * The world view and the factory views under one breadcrumb. The world is
- * solved once for both (in the worker); the factory view also gets its
- * factory's plan as solved in the world, with its link demand and imports.
+ * The world view and the factory views. The world is solved once for both
+ * (in the worker); the factory view also gets its factory's plan as solved in
+ * the world, with its link demand and imports.
  */
 function Shell(props: {
   client: SolverClient;
   store: WorldStore;
   layout: LayoutEngine;
   catalog: Catalog;
+  focus: string | undefined;
+  onView(view: View): void;
 }) {
-  const { client, store, layout, catalog } = props;
+  const { client, store, layout, catalog, focus, onView } = props;
   const world = useStore(store, (s) => s.world);
-  const [view, setView] = useState<View>({ kind: 'world' });
-  const open = world.factories.some((f) => view.kind === 'factory' && f.id === view.id);
-  const focus = view.kind === 'factory' && open ? view.id : undefined;
   const { state, run } = useWorldPlan(client, world, focus);
   const [actionError, setActionError] = useState<string>();
-  const openFactory = useCallback((id: string) => setView({ kind: 'factory', id }), []);
-  const toWorld = () => setView({ kind: 'world' });
+  const openFactory = useCallback((id: string) => onView({ kind: 'factory', id }), [onView]);
   const sizePower = (factoryId: string) => {
     setActionError(undefined);
     run({ kind: 'size-power', factoryId }).then(
@@ -122,35 +255,9 @@ function Shell(props: {
       (e: unknown) => setActionError(`Size power plant failed: ${(e as Error).message}`),
     );
   };
-  const crumbs = focus !== undefined ? breadcrumb(world, focus) : undefined;
 
   return (
     <>
-      <nav aria-label="Breadcrumb" className="breadcrumb">
-        <ol>
-          <li>
-            {crumbs ? (
-              <button type="button" className="link-button" onClick={toWorld}>
-                World
-              </button>
-            ) : (
-              <span aria-current="page">World</span>
-            )}
-          </li>
-          {crumbs?.groups.map((g, k) => (
-            <li key={k}>
-              <button type="button" className="link-button" onClick={toWorld}>
-                {g}
-              </button>
-            </li>
-          ))}
-          {crumbs && (
-            <li>
-              <span aria-current="page">{crumbs.factory}</span>
-            </li>
-          )}
-        </ol>
-      </nav>
       {actionError && (
         <p className="error" role="alert">
           {actionError}
@@ -170,7 +277,6 @@ function Shell(props: {
             factoryId={focus}
             plan={state}
             run={run}
-            onSwitch={openFactory}
           />
         ) : (
           <WorldView
@@ -208,9 +314,10 @@ function FactoryView(props: {
   factoryId: string;
   plan: WorldPlanState;
   run(action: WorldAction): Promise<SolveOutcome | null>;
-  onSwitch(id: string): void;
 }) {
-  const { store, layout, catalog, factoryId, onSwitch } = props;
+  const { store, layout, catalog, factoryId } = props;
+  const toast = useToast();
+  const [sidebarOpen, setSidebarOpen] = useSidebarOpen();
   const [selection, setSelection] = useState<Selection>();
   const world = useStore(store, (s) => s.world);
   const actions = store.getState();
@@ -305,182 +412,234 @@ function FactoryView(props: {
     else actions.leaveManual(factoryId);
   };
 
-  return (
-    <div className={manual ? 'factory manual' : 'factory'}>
-      <ModeSwitch
-        manual={manual}
-        blocked={plan.kind === 'solving' ? 'Wait for the plan to finish solving.' : undefined}
-        onChange={toManual}
+  const settings = (
+    <fieldset className="plain" disabled={manual}>
+      <TargetsEditor
+        catalog={catalog.targets}
+        targets={factory.request.targets}
+        onChange={(t) => actions.setTargets(factoryId, t)}
       />
-      <section className="controls" aria-label="Factory controls">
-        <div className="row">
-          <Field label="Factory">
-            {(id) => (
-              <select id={id} value={factoryId} onChange={(e) => onSwitch(e.target.value)}>
-                {world.factories.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.name}
-                  </option>
-                ))}
-              </select>
-            )}
-          </Field>
+      <div className="scope" role="radiogroup" aria-label="Settings apply to">
+        <span className="scope-label">Settings apply to</span>
+        <div className="segmented">
+          <label className={scopeKind === 'factory' ? 'checked' : undefined}>
+            <input
+              type="radio"
+              name="scope"
+              checked={scopeKind === 'factory'}
+              onChange={() => setScopeKind('factory')}
+            />
+            This factory
+          </label>
+          <label className={scopeKind === 'world' ? 'checked' : undefined}>
+            <input
+              type="radio"
+              name="scope"
+              checked={scopeKind === 'world'}
+              onChange={() => setScopeKind('world')}
+            />
+            World defaults (all factories)
+          </label>
         </div>
-        {manual && (
-          <p className="hint">
-            These settings are frozen in manual mode. Switch back to Solver to change them.
-          </p>
-        )}
-        <fieldset className="plain" disabled={manual}>
-          <TargetsEditor
-            catalog={catalog.targets}
-            targets={factory.request.targets}
-            onChange={(t) => actions.setTargets(factoryId, t)}
-          />
-          <div className="scope" role="radiogroup" aria-label="Settings apply to">
-            <span>Settings apply to</span>
-            <label className="check">
-              <input
-                type="radio"
-                name="scope"
-                checked={scopeKind === 'factory'}
-                onChange={() => setScopeKind('factory')}
-              />
-              This factory
-            </label>
-            <label className="check">
-              <input
-                type="radio"
-                name="scope"
-                checked={scopeKind === 'world'}
-                onChange={() => setScopeKind('world')}
-              />
-              World defaults (all factories)
-            </label>
-          </div>
-          <SettingsPanel store={store} scope={scope} catalog={catalog} />
-          <details>
-            <summary>Share this factory</summary>
-            <p>Shares this factory alone: its links become targets and imports.</p>
-            <ShareControls
-              world={() =>
-                extractFactory(
-                  store.getState().world,
-                  factoryId,
-                  Object.fromEntries(summary?.links.map((l) => [l.id, l.requested]) ?? []),
-                )
-              }
-              name={factory.name}
-              what="this factory"
-              disabled={
-                !summary && world.links.some((l) => l.from === factoryId && l.mode.kind === 'pull')
-              }
-            />
-          </details>
-          <details>
-            <summary>Recipes</summary>
-            <RecipeToggles store={store} scope={scope} recipes={catalog.recipes} />
-          </details>
-          <details>
-            <summary>Unassigned imports ({factory.unassignedImports.length})</summary>
-            <ImportsEditor
-              catalog={catalog.items}
-              imports={factory.unassignedImports}
-              onChange={(i) => actions.setUnassignedImports(factoryId, i)}
-            />
-          </details>
-          <details>
-            <summary>Resources ({limitsLabel(factory.resources)})</summary>
-            <ResourceLimitsEditor
-              world={world}
-              factory={factory}
-              resources={catalog.resources}
-              usage={usage}
-              onChange={(r) => actions.setResources(factoryId, r)}
-              {...(summary
-                ? {
-                    onAllocateRemaining: () =>
-                      actions.replaceWorld(
-                        allocateRemaining(
-                          world,
-                          rawResourcesOf(catalog.resources, world.nodePool),
-                          summary,
-                          factoryId,
-                        ),
-                      ),
-                  }
-                : {})}
-            />
-          </details>
-        </fieldset>
-      </section>
-      {manual && factory.manual && (
-        <ManualPanel
-          factory={factory}
-          recipes={catalog.recipes}
-          node={selectedNode}
-          missing={outcome?.manual?.missing.length ?? 0}
-          onCount={(recipe, machines) => {
-            actions.setManualCount(factoryId, recipe, machines);
-            if (machines === 0) setSelection(undefined);
-          }}
-          onAdd={(recipe) => {
-            actions.setManualCount(factoryId, recipe, 1);
-            setSelection({ id: recipeNodeId(recipe), from: 'table' });
-          }}
-          onUndo={() => actions.undoManual(factoryId)}
-          onRevert={() => actions.revertManual(factoryId)}
-          onDiscard={() => {
-            setSelection(undefined);
-            actions.discardManual(factoryId);
-          }}
+      </div>
+      <SettingsPanel store={store} scope={scope} catalog={catalog} />
+      <details className="card">
+        <summary>Recipes</summary>
+        <RecipeToggles store={store} scope={scope} recipes={catalog.recipes} />
+      </details>
+      <details className="card">
+        <summary>Unassigned imports ({factory.unassignedImports.length})</summary>
+        <ImportsEditor
+          catalog={catalog.items}
+          imports={factory.unassignedImports}
+          onChange={(i) => actions.setUnassignedImports(factoryId, i)}
         />
-      )}
-      {outcome && !manual && (
-        <TweakPanel
+      </details>
+      <details className="card">
+        <summary>Resources ({limitsLabel(factory.resources)})</summary>
+        <ResourceLimitsEditor
           world={world}
           factory={factory}
-          recipes={catalog.recipes}
-          names={names}
-          node={selectedNode}
-          baseline={baseline}
-          run={props.run}
-          onTweak={(t) => {
-            actions.addTweak(factoryId, t);
-            // Follow a swap to the recipe swapped in; a ban or an import removes the node.
-            setSelection(t.kind === 'swap' ? { id: recipeNodeId(t.to), from: 'table' } : undefined);
-          }}
-          onUndo={() => actions.undoTweak(factoryId)}
-          onRemove={(k) => actions.removeTweak(factoryId, k)}
-          onRevert={() => actions.revertTweaks(factoryId)}
+          resources={catalog.resources}
+          usage={usage}
+          onChange={(r) => actions.setResources(factoryId, r)}
+          {...(summary
+            ? {
+                onAllocateRemaining: () =>
+                  actions.replaceWorld(
+                    allocateRemaining(
+                      world,
+                      rawResourcesOf(catalog.resources, world.nodePool),
+                      summary,
+                      factoryId,
+                    ),
+                  ),
+              }
+            : {})}
         />
-      )}
-      <PlanView
-        plan={plan}
-        diagnostics={diagnostics}
-        layout={layout}
-        selection={selection}
-        onSelect={(id, from) => setSelection(id === undefined ? undefined : { id, from })}
-      />
+      </details>
+      <details className="card">
+        <summary>Share this factory</summary>
+        <p className="hint">Shares this factory alone: its links become targets and imports.</p>
+        <ShareControls
+          world={() =>
+            extractFactory(
+              store.getState().world,
+              factoryId,
+              Object.fromEntries(summary?.links.map((l) => [l.id, l.requested]) ?? []),
+            )
+          }
+          name={factory.name}
+          what="this factory"
+          disabled={
+            !summary && world.links.some((l) => l.from === factoryId && l.mode.kind === 'pull')
+          }
+        />
+      </details>
+    </fieldset>
+  );
+
+  return (
+    <div
+      className={cls('factory', manual && 'manual', !sidebarOpen && 'sidebar-closed')}
+      data-testid="factory-view"
+    >
+      <aside className="sidebar controls" aria-label="Factory controls">
+        <div className="sidebar-head">
+          <button
+            type="button"
+            className="icon-button"
+            aria-expanded={sidebarOpen}
+            aria-controls="factory-settings"
+            aria-label={sidebarOpen ? 'Hide settings' : 'Show settings'}
+            title={sidebarOpen ? 'Hide settings' : 'Show settings'}
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+          >
+            <SidebarIcon />
+          </button>
+          {sidebarOpen && <h2>Settings</h2>}
+        </div>
+        <div id="factory-settings" className="sidebar-body" hidden={!sidebarOpen}>
+          {manual ? (
+            <>
+              <p className="hint frozen-note">
+                These settings are frozen in manual mode. Switch back to Solver to change them.
+              </p>
+              <details className="card frozen">
+                <summary>Frozen settings</summary>
+                {settings}
+              </details>
+            </>
+          ) : (
+            settings
+          )}
+        </div>
+      </aside>
+      <section className="plan-pane" aria-label="Plan">
+        <div className={cls('plan-toolbar', manual && 'manual')}>
+          <ModeSwitch
+            manual={manual}
+            blocked={plan.kind === 'solving' ? 'Wait for the plan to finish solving.' : undefined}
+            onChange={toManual}
+          />
+          {manual && factory.manual && (
+            <ManualPanel
+              factory={factory}
+              recipes={catalog.recipes}
+              node={selectedNode}
+              missing={outcome?.manual?.missing.length ?? 0}
+              onCount={(recipe, machines) => {
+                actions.setManualCount(factoryId, recipe, machines);
+                if (machines === 0) setSelection(undefined);
+              }}
+              onAdd={(recipe) => {
+                actions.setManualCount(factoryId, recipe, 1);
+                setSelection({ id: recipeNodeId(recipe), from: 'table' });
+              }}
+              onUndo={() => {
+                actions.undoManual(factoryId);
+                toast('Undid the last edit.');
+              }}
+              onRevert={() => {
+                actions.revertManual(factoryId);
+                toast('Reverted every manual edit.');
+              }}
+              onDiscard={() => {
+                setSelection(undefined);
+                actions.discardManual(factoryId);
+                toast('Discarded the manual plan. The solver is back in charge.');
+              }}
+            />
+          )}
+          {outcome && !manual && (
+            <TweakPanel
+              world={world}
+              factory={factory}
+              recipes={catalog.recipes}
+              names={names}
+              node={selectedNode}
+              baseline={baseline}
+              run={props.run}
+              onTweak={(t) => {
+                actions.addTweak(factoryId, t);
+                // Follow a swap to the recipe swapped in; a ban or an import removes the node.
+                setSelection(
+                  t.kind === 'swap' ? { id: recipeNodeId(t.to), from: 'table' } : undefined,
+                );
+              }}
+              onUndo={() => {
+                actions.undoTweak(factoryId);
+                toast('Undid the last tweak.');
+              }}
+              onRemove={(k) => actions.removeTweak(factoryId, k)}
+              onRevert={() => {
+                actions.revertTweaks(factoryId);
+                toast('Reverted every tweak. This is the solver’s own plan again.');
+              }}
+            />
+          )}
+        </div>
+        <PlanView
+          plan={plan}
+          diagnostics={diagnostics}
+          layout={layout}
+          catalog={catalog}
+          selection={selection}
+          onSelect={(id, from) => setSelection(id === undefined ? undefined : { id, from })}
+          onFocusTargets={() => {
+            setSidebarOpen(true);
+            // After the sidebar opens, put the cursor in the first target.
+            requestAnimationFrame(() =>
+              document.querySelector<HTMLInputElement>('.targets input')?.focus(),
+            );
+          }}
+        />
+      </section>
     </div>
   );
 }
+
+const cls = (...xs: (string | false | undefined)[]) => xs.filter(Boolean).join(' ');
 
 function PlanView(props: {
   plan: PlanState;
   diagnostics: ReactNode;
   layout: LayoutEngine;
+  catalog: Catalog;
   selection: Selection | undefined;
   onSelect: (id: string | undefined, from: Selection['from']) => void;
+  onFocusTargets(): void;
 }) {
-  const { plan, layout, selection, onSelect, diagnostics } = props;
-  const solved = (o: Focused) => (
+  const { plan, layout, catalog, selection, onSelect, diagnostics } = props;
+  const solved = (o: Focused, timing: string) => (
     <>
+      <PlanStats plan={o.plan} manual={o.manual !== undefined} timing={timing} />
       {diagnostics}
       <ErrorBoundary what="the flowchart" resetKey={o.graph}>
         <Flowchart
           engine={layout}
           graph={o.graph}
+          catalog={catalog}
           selection={selection}
           onSelect={(id) => onSelect(id, 'graph')}
         />
@@ -496,7 +655,15 @@ function PlanView(props: {
   );
   switch (plan.kind) {
     case 'idle':
-      return <p>Pick an item and a rate to plan a factory.</p>;
+      return (
+        <div className="empty-state">
+          <h2>Nothing to plan yet</h2>
+          <p>Pick an item and a rate to plan a factory.</p>
+          <button type="button" className="primary" onClick={props.onFocusTargets}>
+            Add a target
+          </button>
+        </div>
+      );
     case 'error':
       return (
         <p className="error" role="alert">
@@ -507,16 +674,16 @@ function PlanView(props: {
       return (
         <div aria-busy="true">
           <SolvingNote progress={plan.progress} what="the plan" />
-          {plan.previous && <div className="stale">{solved(plan.previous)}</div>}
+          {plan.previous && <div className="stale">{solved(plan.previous, 'Updating…')}</div>}
         </div>
       );
     case 'done':
       return (
         <div aria-busy="false" data-testid="plan">
-          <p className="timing">
-            {plan.outcome.manual ? 'Computed' : 'Solved'} in {Math.round(plan.outcome.ms)} ms.
-          </p>
-          {solved(plan.outcome)}
+          {solved(
+            plan.outcome,
+            `${plan.outcome.manual ? 'Computed' : 'Solved'} in ${Math.round(plan.outcome.ms)} ms`,
+          )}
         </div>
       );
   }

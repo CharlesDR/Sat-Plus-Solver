@@ -25,6 +25,7 @@ export type {
 } from './factory';
 export {
   CHAR_WIDTH,
+  ICON_GAP,
   layoutFactoryGraph,
   LINE_HEIGHT,
   nodeLines,

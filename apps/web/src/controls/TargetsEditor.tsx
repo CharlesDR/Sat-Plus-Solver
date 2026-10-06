@@ -1,5 +1,6 @@
 import type { ItemRate } from '@sps/solver';
 import { useId, useState } from 'react';
+import { CloseIcon, PlusIcon } from '../ui/icons';
 import type { CatalogItem } from '../solver/protocol';
 import { newRowKey, positive, useItemLookup, type DraftRow } from './itemRows';
 
@@ -24,19 +25,39 @@ export function TargetsEditor({ catalog, targets, onChange }: Props) {
     })),
   );
 
-  const update = (next: DraftRow[]) => {
-    setRows(next);
+  const validOf = (next: DraftRow[]) => {
     const valid: ItemRate[] = [];
     for (const r of next) {
       const item = items.find(r.itemText);
       const rate = positive(r.numberText);
       if (item && rate !== undefined) valid.push({ item: item.id, rate });
     }
-    const same =
-      valid.length === targets.length &&
-      valid.every((t, k) => t.item === targets[k]!.item && t.rate === targets[k]!.rate);
-    if (!same) onChange(valid);
+    return valid;
   };
+  const sameAs = (valid: ItemRate[]) =>
+    valid.length === targets.length &&
+    valid.every((t, k) => t.item === targets[k]!.item && t.rate === targets[k]!.rate);
+  const update = (next: DraftRow[]) => {
+    setRows(next);
+    const valid = validOf(next);
+    if (!sameAs(valid)) onChange(valid);
+  };
+  const addRow = () => update([...rows, { key: newRowKey(), itemText: '', numberText: '60' }]);
+
+  // Targets changed elsewhere (quick search, a loaded world): show them. This
+  // adjusts state while rendering, React's pattern for following a prop.
+  const [shown, setShown] = useState(targets);
+  if (shown !== targets) {
+    setShown(targets);
+    if (!sameAs(validOf(rows)))
+      setRows(
+        (targets.length ? targets : [undefined]).map((t) => ({
+          key: newRowKey(),
+          itemText: t ? items.name(t.item) : '',
+          numberText: String(t?.rate ?? 60),
+        })),
+      );
+  }
   const edit = (key: number, patch: Partial<DraftRow>) =>
     update(rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
 
@@ -72,26 +93,32 @@ export function TargetsEditor({ catalog, targets, onChange }: Props) {
                 value={r.numberText}
                 aria-invalid={positive(r.numberText) === undefined}
                 onChange={(e) => edit(r.key, { numberText: e.target.value })}
+                // Enter in the last rate adds the next target.
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && k === rows.length - 1) {
+                    e.preventDefault();
+                    addRow();
+                  }
+                }}
               />
             </label>
             {rows.length > 1 && (
               <button
                 type="button"
+                className="icon-button"
                 aria-label={`Remove target${n || ' 1'}`}
+                title="Remove this target"
                 onClick={() => update(rows.filter((x) => x.key !== r.key))}
               >
-                Remove
+                <CloseIcon />
               </button>
             )}
             {unknown && <p className="hint">No item named “{r.itemText}”.</p>}
           </div>
         );
       })}
-      <button
-        type="button"
-        onClick={() => update([...rows, { key: newRowKey(), itemText: '', numberText: '60' }])}
-      >
-        Add target
+      <button type="button" className="ghost" onClick={addRow}>
+        <PlusIcon /> Add target
       </button>
     </fieldset>
   );

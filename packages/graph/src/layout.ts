@@ -48,7 +48,15 @@ export interface LayoutOptions {
   edgeLabel?: (e: FlowEdge) => string;
   /** Text lines of a node, used to size it. Default: `nodeLines`. */
   nodeLines?: (n: FlowNode) => string[];
+  /**
+   * Side of a square icon drawn left of each node's text, in px. Default 0
+   * (no icon). Nodes grow by the icon and its gap, and are at least as tall.
+   */
+  iconSize?: number;
 }
+
+/** Space between a node's icon and its text. */
+export const ICON_GAP = 6;
 
 /** Estimated text metrics of the world graph's 12px UI font. */
 export const CHAR_WIDTH = 7;
@@ -99,10 +107,12 @@ const LAYER: Partial<Record<FlowNodeKind, string>> = {
   byproduct: 'LAST',
 };
 
-/** Compact rate: up to 3 decimals, 3 significant digits below 0.001. */
+/** Compact rate: up to 3 decimals, 3 significant digits below 0.001, commas between thousands. */
 export function rateText(n: number): string {
   if (n !== 0 && Math.abs(n) < 0.001) return n.toPrecision(3);
-  return String(Math.round(n * 1000) / 1000);
+  const [whole = '', frac] = String(Math.round(n * 1000) / 1000).split('.');
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return frac === undefined ? grouped : `${grouped}.${frac}`;
 }
 
 /** The text lines a node shows, which also size it. */
@@ -168,6 +178,8 @@ export async function layoutFactoryGraph(
   options: LayoutOptions = {},
 ): Promise<FactoryLayout> {
   const lines = options.nodeLines ?? nodeLines;
+  const icon = options.iconSize ?? 0;
+  const iconSpace = icon > 0 ? icon + ICON_GAP : 0;
   const edgeLabel = options.edgeLabel ?? defaultEdgeLabel;
   const nodeTexts = new Map(graph.nodes.map((n) => [n.id, nodeText(lines(n))]));
   const labels = new Map(graph.edges.map((e) => [e.id, labelLines(edgeLabel(e))]));
@@ -183,8 +195,10 @@ export async function layoutFactoryGraph(
       );
       return {
         id: n.id,
-        width: Math.max(MIN_NODE_WIDTH, textWidth + 2 * (PADDING_X + BORDER)),
-        height: (title.length + details.length) * FLOW_LINE_HEIGHT + 2 * (PADDING_Y + BORDER),
+        width: Math.max(MIN_NODE_WIDTH, textWidth + iconSpace + 2 * (PADDING_X + BORDER)),
+        height:
+          Math.max((title.length + details.length) * FLOW_LINE_HEIGHT, icon) +
+          2 * (PADDING_Y + BORDER),
         ...(layer ? { layoutOptions: { 'elk.layered.layering.layerConstraint': layer } } : {}),
       };
     }),

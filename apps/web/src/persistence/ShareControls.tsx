@@ -5,6 +5,7 @@
  */
 import { serializeWorld, type World } from '@sps/world';
 import { useState } from 'react';
+import { useToast } from '../ui/toasts';
 import { shareLink, type ShareLink } from './share';
 
 /** A file name from a display name: "Plate Works" → "plate-works.json". */
@@ -42,6 +43,7 @@ export function ShareControls(props: {
   const { world, name, what, disabled } = props;
   const [link, setLink] = useState<ShareLink>();
   const [copied, setCopied] = useState<boolean>();
+  const toast = useToast();
   const exportFile = () => downloadText(fileName(name), serializeWorld(world(), true));
   const share = () => {
     const out = shareLink(world(), window.location.href);
@@ -50,7 +52,10 @@ export function ShareControls(props: {
     if (!out.ok) return;
     // The clipboard may be refused (permissions, insecure context); the link is shown either way.
     navigator.clipboard?.writeText(out.url).then(
-      () => setCopied(true),
+      () => {
+        setCopied(true);
+        toast('Share link copied to the clipboard.');
+      },
       () => setCopied(false),
     );
   };

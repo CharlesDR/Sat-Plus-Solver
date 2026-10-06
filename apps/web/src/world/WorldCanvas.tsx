@@ -40,6 +40,7 @@ import {
   useMemo,
   useState,
 } from 'react';
+import { StatusChip } from '../ui/StatusChip';
 
 /** What the canvas's nodes can ask the view to do. */
 export interface CanvasActions {
@@ -57,6 +58,8 @@ type CanvasNode = Node<WorldNodeData, 'world' | 'frame'>;
 type WorldEdgeData = { edge: PlacedWorldEdge; mark: Mark };
 type CanvasEdge = Edge<WorldEdgeData, 'routed'>;
 
+const STATUS = 'Status: ';
+
 const cls = (...xs: (string | false | undefined)[]) => xs.filter(Boolean).join(' ');
 
 const WorldNodeView = memo(function WorldNodeView({ data }: NodeProps<CanvasNode>) {
@@ -73,11 +76,23 @@ const WorldNodeView = memo(function WorldNodeView({ data }: NodeProps<CanvasNode
       <div className="flow-title" title={title}>
         {title}
       </div>
-      {rest.map((l) => (
-        <div key={l} className="flow-detail">
-          {l}
-        </div>
-      ))}
+      {rest.map((l) =>
+        l.startsWith(STATUS) ? (
+          <div key={l} className="flow-detail">
+            {STATUS}
+            <StatusChip status={l.slice(STATUS.length).split(' · ')[0]!} />
+            {l
+              .slice(STATUS.length)
+              .split(' · ')
+              .slice(1)
+              .map((x) => ` · ${x}`)}
+          </div>
+        ) : (
+          <div key={l} className="flow-detail">
+            {l}
+          </div>
+        ),
+      )}
       {factory && (
         <button
           type="button"

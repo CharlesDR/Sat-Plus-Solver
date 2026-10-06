@@ -1,7 +1,7 @@
 import ELK from 'elkjs/lib/elk.bundled.js';
 import { describe, expect, test } from 'vitest';
 import type { FactoryGraph } from './factory';
-import { layoutFactoryGraph, nodeText, overlaps, wrapText } from './layout';
+import { ICON_GAP, layoutFactoryGraph, nodeText, overlaps, rateText, wrapText } from './layout';
 
 const graph: FactoryGraph = {
   nodes: [
@@ -55,7 +55,25 @@ const graph: FactoryGraph = {
   ],
 };
 
+test('rateText: 3 decimals, commas between thousands', () => {
+  expect(rateText(60)).toBe('60');
+  expect(rateText(1555.5556)).toBe('1,555.556');
+  expect(rateText(-12345)).toBe('-12,345');
+  expect(rateText(0.0004)).toBe('0.000400');
+});
+
 describe('layoutFactoryGraph', () => {
+  test('an icon widens every node by its size and gap, and sets a minimum height', async () => {
+    const plain = await layoutFactoryGraph(graph, new ELK());
+    const iconed = await layoutFactoryGraph(graph, new ELK(), { iconSize: 60 });
+    for (const n of plain.nodes) {
+      const m = iconed.nodes.find((x) => x.id === n.id)!;
+      expect(m.width).toBe(Math.max(80, n.width + 60 + ICON_GAP));
+      expect(m.height).toBeGreaterThanOrEqual(60);
+    }
+    expect(overlaps(iconed)).toEqual([]);
+  });
+
   test('left to right: import, recipe, target, with routed edges and labels', async () => {
     const l = await layoutFactoryGraph(graph, new ELK());
     const [imp, rec, tgt] = l.nodes;
