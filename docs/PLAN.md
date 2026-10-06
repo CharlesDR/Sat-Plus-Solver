@@ -4,22 +4,23 @@ Every milestone is merged on its own and leaves `main` green: lint, typecheck, t
 Order: data → factory solver → an early end-to-end slice → full objectives → **world core (pure logic)** → factory UI → world UI → sharing → hardening.
 References like §4.3 point into `ARCHITECTURE.md`.
 
-| #   | Milestone                   | Ships                                                                                                        | Depends on |
-| --- | --------------------------- | ------------------------------------------------------------------------------------------------------------ | ---------- |
-| M0  | Scaffold and CI             | Empty workspaces, toolchain, CI                                                                              | —          |
-| M1  | Data pipeline               | `model.json` + validation report                                                                             | M0         |
-| M2  | Factory solver core + CLI   | `pnpm solve` prints a plan table                                                                             | M1         |
-| M3  | **Vertical slice (web)**    | Page: one target → summary table. The store is already a one-factory `World`.                                | M2         |
-| M4  | Full objectives + power     | 6 objectives, lexicographic stack, tolerance, MILP, import costing, `MW` pseudo-item                         | M2         |
-| M5  | **World core** (pure) + CLI | `world` package: links, resolution, node pool, ledgers, groups; `pnpm world`                                 | M4         |
-| M6  | Factory controls            | Factory view: targets, toggles, tier filter, resource limits, imports, objective stack                       | M3, M4     |
-| M7  | Factory flowchart           | Interactive factory graph synced with the table                                                              | M6         |
-| M8  | **World UI**                | Outer canvas, groups, link editor, ledgers, power, nodes, item trace, drill-down                             | M5, M7     |
-| M9  | Saves and sharing           | Local save slots, JSON export/import, URL share, versioning                                                  | M8         |
-| M10 | Hardening and release       | Perf, diagnostics UX, E2E, Pages deploy                                                                      | M9         |
-| M11 | Backlog (after v1)          | Joint world optimization, SF+ golden cases, multiple power grids, transport calculators, per-group overclock | M10        |
-| M12 | Plan tweaks                 | Ban, swap or import a recipe group from the flowchart; tweak list with Undo and Revert all (A35)             | M10        |
-| M13 | Manual mode (proposed)      | Per-factory switch that freezes the plan for hand editing; awaiting decisions, not started                   | M12        |
+| #   | Milestone                   | Ships                                                                                                            | Depends on |
+| --- | --------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------- |
+| M0  | Scaffold and CI             | Empty workspaces, toolchain, CI                                                                                  | —          |
+| M1  | Data pipeline               | `model.json` + validation report                                                                                 | M0         |
+| M2  | Factory solver core + CLI   | `pnpm solve` prints a plan table                                                                                 | M1         |
+| M3  | **Vertical slice (web)**    | Page: one target → summary table. The store is already a one-factory `World`.                                    | M2         |
+| M4  | Full objectives + power     | 6 objectives, lexicographic stack, tolerance, MILP, import costing, `MW` pseudo-item                             | M2         |
+| M5  | **World core** (pure) + CLI | `world` package: links, resolution, node pool, ledgers, groups; `pnpm world`                                     | M4         |
+| M6  | Factory controls            | Factory view: targets, toggles, tier filter, resource limits, imports, objective stack                           | M3, M4     |
+| M7  | Factory flowchart           | Interactive factory graph synced with the table                                                                  | M6         |
+| M8  | **World UI**                | Outer canvas, groups, link editor, ledgers, power, nodes, item trace, drill-down                                 | M5, M7     |
+| M9  | Saves and sharing           | Local save slots, JSON export/import, URL share, versioning                                                      | M8         |
+| M10 | Hardening and release       | Perf, diagnostics UX, E2E, Pages deploy                                                                          | M9         |
+| M11 | Backlog (after v1)          | Joint world optimization, SF+ golden cases, multiple power grids, transport calculators, per-group overclock     | M10        |
+| M12 | Plan tweaks                 | Ban, swap or import a recipe group from the flowchart; tweak list with Undo and Revert all (A35)                 | M10        |
+| M13 | Manual mode (proposed)      | Per-factory switch that freezes the plan for hand editing; awaiting decisions, not started                       | M12        |
+| M14 | Modeler files (.sfmd)       | Import a Satisfactory Modeler save as factories; export a factory or world as a `.sfmd` that Modeler opens (A36) | M13        |
 
 ---
 
@@ -123,6 +124,13 @@ References like §4.3 point into `ARCHITECTURE.md`.
 ### M13 — Manual mode (proposed)
 
 - A highly visible per-factory **Solver | Manual** switch freezes the plan for hand editing without re-solving. The plan, its approaches and the decisions it needs are in the project's manual-mode plan; this milestone is not started until those decisions are made.
+
+### M14 — Modeler files (.sfmd)
+
+- Starts after M13 (manual mode) is done. Satisfactory Modeler stays a separate program: we read and write its save format only, and never ship its code, icons or data (A36).
+- **Export.** "Export to Modeler" on a factory writes one `.sfmd` file with the solver set to `Manual`. Each recipe group becomes one Modeler node named by its recipe, with its machine count as an exact fraction in `Max`, its position from the flowchart layout, and an input connection for each flow in the plan. Raw resources become extractor nodes; imports and links become Modeler's own input points. Exporting the world writes one Outpost per factory, wired along the world's links.
+- **Import.** "Import from Modeler" reads a `.sfmd` and makes one factory per top-level Outpost (or one factory when the save has none). Recipe nodes and their counts become a manual-mode plan (M13), so the plan is kept exactly as built; switching that factory to Solver re-solves it with its net outputs as targets. Splitters, mergers, storage, sinks and Dimensional Depots are read as flows, not machines. Every node we can't map (an unknown name, a part or recipe missing from our data, a Modeler-only setting) is listed in an import report. Nothing is dropped silently.
+- **Acceptance:** Exporting a solved factory and importing the file back gives the same recipes and machine counts, exactly. A sample `.sfmd` fixture imports with the expected factories, counts and report entries. An exported multi-factory world opens in Modeler with every node and connection in place (checked by Charles in Modeler, since it is a closed Windows app). A malformed file shows an error and leaves the world unchanged.
 
 ---
 
