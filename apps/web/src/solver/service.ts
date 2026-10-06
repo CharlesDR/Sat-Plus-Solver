@@ -4,7 +4,14 @@
  */
 import { MW_ITEM_ID, type Model } from '@sps/data';
 import { factoryGraph, type GraphLabels } from '@sps/graph';
-import { compareTiers, solve, summarizePlan, type LpBackend } from '@sps/solver';
+import {
+  bestNodeRates,
+  compareTiers,
+  rawResources,
+  solve,
+  summarizePlan,
+  type LpBackend,
+} from '@sps/solver';
 import {
   createSolveCache,
   DEFAULT_PIPE_CAPACITIES,
@@ -18,6 +25,7 @@ import {
 import type {
   Catalog,
   CatalogItem,
+  CatalogResource,
   FocusPlan,
   SolveProgress,
   WorldSolved,
@@ -119,6 +127,27 @@ export function targetCatalog(model: Model): CatalogItem[] {
     .sort(byName((c) => c.name));
 }
 
+/** Raw resources for the resource-limits editor (A33). */
+export function resourceCatalog(model: Model): CatalogResource[] {
+  const item = new Map(model.items.map((i) => [i.id, i]));
+  const best = bestNodeRates(model);
+  return rawResources(model)
+    .map((r) => ({
+      id: r.item,
+      name: item.get(r.item)?.name ?? r.item,
+      fluid: item.get(r.item)?.form === 'fluid',
+      limited: r.limited,
+      ...(r.limited
+        ? {
+            nodes: model.nodes
+              .filter((n) => n.resource === r.item)
+              .map((n) => ({ id: n.id, count: n.count, rate: best.get(n.id) ?? 0 })),
+          }
+        : {}),
+    }))
+    .sort(byName((r) => r.name));
+}
+
 export function modelCatalog(model: Model): Catalog {
   const item = new Map(model.items.map((i) => [i.id, i.name]));
   const machine = new Map(model.machines.map((m) => [m.id, m.name]));
@@ -150,6 +179,7 @@ export function modelCatalog(model: Model): Catalog {
         count: n.count,
       }))
       .sort(byName((n) => n.label)),
+    resources: resourceCatalog(model),
     tiers,
     fluids: model.items
       .filter((i) => i.form === 'fluid')

@@ -1,7 +1,7 @@
 /**
  * M6 acceptance (docs/PLAN.md) in the factory view: several targets, a
- * single alternate turned on and used, the max-tier filter, an explicit node
- * budget below usage, and settings that inherit the world defaults.
+ * single alternate turned on and used, the max-tier filter, resource limits
+ * below usage (A33), and settings that inherit the world defaults.
  */
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
@@ -63,20 +63,32 @@ test('an alternate turned on is used when better; the tier filter takes it away'
   await expect(page.getByText('above max tier')).toBeVisible();
 });
 
-test('a node budget below usage gives the infeasibility diagnostic', async ({ page }) => {
+test('a resource limit below usage gives the infeasibility diagnostic', async ({ page }) => {
   await plan(page, 'Iron Plate', '60');
-  await page.locator('summary', { hasText: 'Node budget' }).click();
-  await page.getByLabel('Explicit caps').check();
-  await settled(page);
-  await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
-  for (const cap of await page.getByLabel(/^Cap for /).all()) await cap.fill('0');
+  await page.locator('summary', { hasText: 'Resources' }).click();
+  const limits = page.getByRole('table', { name: 'Resource limits' });
+  // One row per resource; Water only turns on and off.
+  await expect(limits.getByRole('row', { name: /Water/ }).getByRole('spinbutton')).toHaveCount(0);
+  await expect(limits.getByRole('row', { name: /Water/ })).toContainText('unlimited');
+
+  // Limit every node-limited resource to 1/min.
+  for (const max of await limits.getByRole('spinbutton').all()) await max.fill('1');
   await settled(page);
   await expect(page.getByTestId('plan-status')).toContainText('Status: infeasible');
-  await expect(page.locator('.diagnostics')).toContainText(/Infeasible: needs .* nodes/);
+  await expect(page.locator('.diagnostics')).toContainText(/Infeasible: needs .* than its limit/);
 
-  await page.getByLabel('Whole map pool').check();
+  // Turned off, a resource reports what the plan would need of it.
+  for (const use of await limits.getByRole('checkbox').all()) await use.uncheck();
+  await settled(page);
+  await expect(page.locator('.diagnostics')).toContainText(/which is turned off/);
+  await expect(page.locator('summary', { hasText: 'Resources' })).toContainText(/\d+ off/);
+
+  await page.getByRole('button', { name: 'Clear limits' }).click();
   await settled(page);
   await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
+  await expect(page.locator('summary', { hasText: 'Resources' })).toContainText(
+    'all on, no limits',
+  );
 });
 
 test('settings inherit the world defaults until the factory overrides them', async ({ page }) => {

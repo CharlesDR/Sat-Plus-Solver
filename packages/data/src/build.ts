@@ -226,6 +226,16 @@ export function buildModel(inputs: BuildInputs): BuildResult {
       const [resource, purity] = d.node.split('|') as [string, string];
       recipe.node = nodeId(resource, purity);
     }
+    if (d.kind === 'extraction') {
+      // A33: what the resource limit counts. The resource is the node's (or,
+      // for an unlimited extractor, its one output).
+      const resource = d.node ? d.node.split('|')[0]! : d.outputs[0]?.part;
+      const out = d.outputs.find((f) => f.part === resource);
+      const rate = d.baseRate ?? out?.rate;
+      if (resource === undefined || rate === undefined)
+        issues.error('extract.resource', `${d.name}: cannot tell which resource it extracts`);
+      else recipe.extracts = { item: itemId.get(resource)!, rate: toNumber(rate) };
+    }
     if (d.route) {
       recipe.route = {
         resource: itemId.get(d.route.resource)!,

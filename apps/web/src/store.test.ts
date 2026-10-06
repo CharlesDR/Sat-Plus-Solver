@@ -108,20 +108,22 @@ describe('world store', () => {
     expect(store.getState().world.factories[0]!.request).not.toHaveProperty('recipes');
   });
 
-  test('imports and node budgets are per factory', () => {
+  test('imports and resource limits are per factory', () => {
     const store = twoFactories();
     const b = store.getState().world.factories[1];
     store.getState().setUnassignedImports(F, [{ item: 'iron-ingot' }, { item: 'screw', cap: 5 }]);
-    store.getState().setNodeBudget(F, { 'node:iron-ore:normal': 2 });
+    const limits = { 'iron-ore': { enabled: true, max: 120 }, water: { enabled: false } };
+    store.getState().setResources(F, limits);
     const w = store.getState().world;
     expect(w.factories[0]!.unassignedImports).toEqual([
       { item: 'iron-ingot' },
       { item: 'screw', cap: 5 },
     ]);
-    expect(w.factories[0]!.nodeBudget).toEqual({ 'node:iron-ore:normal': 2 });
+    expect(w.factories[0]!.resources).toEqual(limits);
+    expect(w.factories[0]!.resources['iron-ore']).not.toBe(limits['iron-ore']);
     expect(w.factories[1]).toBe(b);
-    store.getState().setNodeBudget(F, 'pool');
-    expect(store.getState().world.factories[0]!.nodeBudget).toBe('pool');
+    store.getState().setResources(F, {});
+    expect(store.getState().world.factories[0]!.resources).toEqual({});
   });
 
   test('attachData fills an empty hash, keeps a matching one, and flags a mismatch', () => {

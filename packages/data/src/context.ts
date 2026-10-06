@@ -38,6 +38,8 @@ export interface DraftRecipe {
   source: 'dataset' | 'generated';
   /** Generated Modular Miner route, with part names (converted to ids on emission). */
   route?: MinerRoute;
+  /** Modular Miner routes: base extraction per machine (A33). Other extractors use their output. */
+  baseRate?: Rational;
   /** Heater/boiler recipe (A17). */
   heater?: true;
 }

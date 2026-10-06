@@ -145,6 +145,10 @@ export function analyze(
         power: result.status === 'ok' ? { ...result.power } : { ...ZERO_POWER },
         nodes:
           result.status === 'ok' ? result.nodes.map((n) => ({ node: n.node, used: n.used })) : [],
+        extraction:
+          result.status === 'ok'
+            ? result.extraction.map((e) => ({ item: e.item, rate: e.rate }))
+            : [],
         machines:
           result.status === 'ok' ? result.recipes.reduce((s, r) => s + r.machinesCeil, 0) : 0,
       };

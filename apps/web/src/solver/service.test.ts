@@ -54,7 +54,7 @@ describe('solver service', () => {
       mini,
       {
         targets: [{ item: 'iron-plate', rate: 60 }],
-        objective: 'resources',
+        objective: 'scarcity',
         recipes: { alternates: false, exclude: [] },
       },
       backend,

@@ -1,5 +1,5 @@
 import type { Model } from '@sps/data';
-import { createHighsBackend, solve, type SolveRequest } from '@sps/solver';
+import { createHighsBackend, rawResources, solve, type SolveRequest } from '@sps/solver';
 import { describe, expect, test } from 'vitest';
 import vanillaMini from '../../../fixtures/vanilla-mini/model.json';
 import { createSolveCache } from './hash';
@@ -102,7 +102,7 @@ describe('scenarios (§9 world scenarios)', () => {
   test('an infeasible upstream marks its links short and the world still solves', async () => {
     const world = buildWorld(
       [
-        { id: 'a', nodeBudget: {} },
+        { id: 'a', resources: { 'iron-ore': { enabled: false } } },
         { id: 'b', targets: [{ item: 'reinforced-iron-plate', rate: 5 }] },
         { id: 'c', targets: [{ item: 'concrete', rate: 15 }] },
       ],
@@ -124,7 +124,7 @@ describe('scenarios (§9 world scenarios)', () => {
     expect(row(factory(r, 'b').ledger, 'screw')?.produced).toBeCloseTo(60, 9);
   });
 
-  test('node over-allocation is flagged, and "allocate remaining" sets the budget', async () => {
+  test('node over-allocation is flagged, and "allocate remaining" sets resource limits', async () => {
     // 40 normal iron nodes; each factory needs 30 (1800 ore/min).
     const world = buildWorld([
       { id: 'a', targets: [{ item: 'iron-plate', rate: 1200 }] },
@@ -137,10 +137,24 @@ describe('scenarios (§9 world scenarios)', () => {
     expect(iron.byFactory.map((u) => u.factory)).toEqual(['a', 'b']);
     expect(r.diagnostics.map((d) => d.code)).toEqual(['node-over-allocated']);
 
-    const edited = allocateRemaining(world, model, r, 'b');
-    const budget = edited.factories.find((f) => f.id === 'b')!.nodeBudget as Record<string, number>;
-    expect(budget['node:iron-ore:normal']).toBeCloseTo(10, 9);
-    expect(budget['node:coal:normal']).toBe(10);
+    const edited = allocateRemaining(world, rawResources(model, world.nodePool), r, 'b');
+    // The map extracts 2400 iron ore/min (40 nodes × 60) and A takes 1800.
+    const limits = edited.factories.find((f) => f.id === 'b')!.resources;
+    expect(limits['iron-ore']!.enabled).toBe(true);
+    expect(limits['iron-ore']!.max).toBeCloseTo(600, 9);
+    expect(limits.coal).toEqual({ enabled: true, max: 600 });
+    expect(limits).not.toHaveProperty('water');
+    // A resource the factory turned off stays off.
+    const coalOff = {
+      ...world,
+      factories: world.factories.map((f) =>
+        f.id === 'b' ? { ...f, resources: { coal: { enabled: false } } } : f,
+      ),
+    };
+    expect(
+      allocateRemaining(coalOff, rawResources(model), r, 'b').factories.find((f) => f.id === 'b')!
+        .resources.coal,
+    ).toEqual({ enabled: false, max: 600 });
     const after = await resolveWorld(edited, model, solveFactory);
     expect(factory(after, 'b').status).toBe('infeasible');
     expect(after.nodePool.find((n) => n.node === 'node:iron-ore:normal')!.overAllocated).toBe(
@@ -371,6 +385,8 @@ describe('linked-import costing (A18)', () => {
       ],
       [pull('ab', 'a', 'b', 'iron-plate')],
     );
+    // Costs below are O1 (node-equivalents); the default stack is O2.
+    world.defaults.objectives = ['resources'];
     const r = await resolveWorld(world, model, solveFactory);
     expect(r.diagnostics).toEqual([]);
     const b = factory(r, 'b');

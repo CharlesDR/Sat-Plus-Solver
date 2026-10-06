@@ -203,6 +203,15 @@ summary {
 .nodes .text {
   text-align: left;
 }
+.nodes .unit {
+  display: inline-block;
+  min-width: 4.5em;
+  text-align: left;
+  color: var(--muted);
+}
+.nodes tr.off td {
+  color: var(--muted);
+}
 .flowchart {
   margin: 16px 0;
 }

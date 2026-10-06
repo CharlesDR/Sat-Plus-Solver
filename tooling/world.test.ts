@@ -152,6 +152,8 @@ describe('full SF+ model', () => {
       ],
       [{ id: 'steam', from: 'boilers', to: 'turbines', item: 'steam', mode: { kind: 'pull' } }],
     );
+    // The costs below are O1's; the default stack is O2.
+    w.defaults.objectives = ['resources'];
     const r = await resolveWorld(w, model, solveFactory);
     expect(r.diagnostics.filter((d) => d.severity === 'error')).toEqual([]);
     expect(r.links[0]!.requested).toBeCloseTo(20, 6);

@@ -35,6 +35,7 @@ describe('solver client', () => {
       items: [],
       recipes: [],
       nodes: [],
+      resources: [],
       tiers: [],
       fluids: [],
       belts: [],

@@ -44,7 +44,8 @@ export interface WorldState {
   /** Turns recipes on or off in a scope; `undefined` removes the scope's toggle. */
   setRecipes(scope: Scope, ids: readonly string[], on: boolean | undefined): void;
   setUnassignedImports(factoryId: string, imports: UnassignedImport[]): void;
-  setNodeBudget(factoryId: string, budget: Factory['nodeBudget']): void;
+  /** Replaces the factory's resource limits (A33). */
+  setResources(factoryId: string, resources: Factory['resources']): void;
   /** Records the loaded model's hash; a different non-empty hash is a warning, not an error. */
   attachData(dataHash: string): void;
   /**
@@ -163,10 +164,12 @@ export function createWorldStore(initial: World = createWorld()) {
           ...f,
           unassignedImports: imports.map((i) => ({ ...i })),
         })),
-      setNodeBudget: (factoryId, budget) =>
+      setResources: (factoryId, resources) =>
         editFactory(factoryId, (f) => ({
           ...f,
-          nodeBudget: budget === 'pool' ? 'pool' : { ...budget },
+          resources: Object.fromEntries(
+            Object.entries(resources).map(([item, limit]) => [item, { ...limit }]),
+          ),
         })),
       attachData: (dataHash) =>
         set(({ world }) => ({ modelHash: dataHash, ...checkData(world, dataHash) })),

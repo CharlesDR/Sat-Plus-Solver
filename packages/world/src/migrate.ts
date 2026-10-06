@@ -44,7 +44,35 @@ function v2ToV3(doc: Doc): Doc {
   };
 }
 
-const MIGRATIONS: Record<number, (doc: Doc) => Doc> = { 1: v1ToV2, 2: v2ToV3 };
+/**
+ * v3 → v4 (A33): the factory's node budget becomes per-resource limits.
+ * `'pool'` becomes no limits. An explicit budget turns off each resource
+ * whose node caps are all 0; its other caps are dropped (a rate limit needs
+ * the model's extraction rates), so those resources are limited only by the
+ * map's node pool.
+ */
+function v3ToV4(doc: Doc): Doc {
+  const factories = ((doc.factories ?? []) as Doc[]).map((f) => {
+    const { nodeBudget, ...rest } = f;
+    const caps = new Map<string, number>();
+    if (typeof nodeBudget === 'object' && nodeBudget !== null)
+      for (const [node, cap] of Object.entries(nodeBudget as Record<string, unknown>)) {
+        // Node ids are `node:<resource item id>:<purity>`.
+        const resource = node.split(':')[1];
+        if (resource) caps.set(resource, (caps.get(resource) ?? 0) + (Number(cap) || 0));
+      }
+    const resources = Object.fromEntries(
+      [...caps]
+        .filter(([, total]) => total === 0)
+        .sort(([a], [b]) => (a < b ? -1 : 1))
+        .map(([resource]) => [resource, { enabled: false }]),
+    );
+    return { ...rest, resources };
+  });
+  return { ...doc, meta: { ...(doc.meta as Doc), v: 4 }, factories };
+}
+
+const MIGRATIONS: Record<number, (doc: Doc) => Doc> = { 1: v1ToV2, 2: v2ToV3, 3: v3ToV4 };
 
 /** Returns `doc` upgraded to the current version; throws on a newer or malformed document. */
 export function migrateWorld(doc: unknown): World {

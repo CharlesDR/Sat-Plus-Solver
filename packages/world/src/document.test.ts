@@ -33,7 +33,7 @@ describe('World document', () => {
     expect(w.groups).toEqual([]);
     expect(w.links).toEqual([]);
     expect(w.defaults).toEqual({
-      objectives: ['resources'],
+      objectives: ['scarcity'],
       tolerance: TOLERANCE_DEFAULT,
       alternates: false,
       wholeMachines: false,
@@ -69,7 +69,7 @@ describe('factorySolveRequest', () => {
   test('inherits the world defaults', () => {
     expect(factorySolveRequest(world(), model, DEFAULT_FACTORY_ID)).toEqual({
       targets: [{ item: 'iron-plate', rate: 60 }],
-      objectives: ['resources'],
+      objectives: ['scarcity'],
       tolerance: TOLERANCE_DEFAULT,
       recipes: { alternates: false, exclude: [] },
       nodeBudget: 'pool',
@@ -124,7 +124,7 @@ describe('factorySolveRequest', () => {
       tolerance: 0.1,
       wholeMachines: true,
     });
-    w.factories[0]!.nodeBudget = { 'node:iron-ore:normal': 1 };
+    w.factories[0]!.resources = { 'iron-ore': { enabled: false } };
     w.factories[0]!.unassignedImports.push({ item: 'iron-ingot', cap: 5 });
     expect(factorySolveRequest(w, model, 'b')).toEqual(before);
     expect(factorySolveRequest(w, model, DEFAULT_FACTORY_ID)).not.toEqual(before);
@@ -143,17 +143,35 @@ describe('factorySolveRequest', () => {
     expect(factorySolveRequest(w, model, DEFAULT_FACTORY_ID)).not.toHaveProperty('costImports');
   });
 
-  test('pool edits and explicit budgets become node caps', () => {
+  test('pool edits become node caps', () => {
     const w = world();
+    expect(factorySolveRequest(w, model, DEFAULT_FACTORY_ID).nodeBudget).toBe('pool');
     w.nodePool = { 'node:iron-ore:pure': 1 };
     expect(factorySolveRequest(w, model, DEFAULT_FACTORY_ID).nodeBudget).toEqual({
       'node:iron-ore:normal': 4,
       'node:iron-ore:pure': 1,
     });
-    w.factories[0]!.nodeBudget = { 'node:iron-ore:normal': 3 };
-    expect(factorySolveRequest(w, model, DEFAULT_FACTORY_ID).nodeBudget).toEqual({
-      'node:iron-ore:normal': 3,
+  });
+
+  test('resource limits (A33): off is 0, a max is its rate, on without a max is no limit', () => {
+    const w = world();
+    expect(factorySolveRequest(w, model, DEFAULT_FACTORY_ID)).not.toHaveProperty('resourceLimits');
+    w.factories[0]!.resources = {
+      water: { enabled: false },
+      'iron-ore': { enabled: true, max: 120 },
+      coal: { enabled: true },
+      limestone: { enabled: false, max: 30 },
+    };
+    expect(factorySolveRequest(w, model, DEFAULT_FACTORY_ID).resourceLimits).toEqual({
+      'iron-ore': 120,
+      limestone: 0,
+      water: 0,
     });
+    expect(Object.keys(factorySolveRequest(w, model, DEFAULT_FACTORY_ID).resourceLimits!)).toEqual([
+      'iron-ore',
+      'limestone',
+      'water',
+    ]);
   });
 
   test('does not alias the document', () => {

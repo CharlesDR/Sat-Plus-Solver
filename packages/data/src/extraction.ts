@@ -295,7 +295,7 @@ export function buildExtraction(ctx: Ctx): ExtractionResult {
     fluid: string | null,
     mk: number,
     booster: Rational,
-  ): { outputs: RFlow[]; inputs: RFlow[] } | undefined => {
+  ): { outputs: RFlow[]; inputs: RFlow[]; baseRate: Rational } | undefined => {
     const ratio = mkRatio(mk);
     const proc = processing ? o.processing.get(processing) : undefined;
     const opt = fluid ? o.fluids.get(fluid) : undefined;
@@ -315,6 +315,7 @@ export function buildExtraction(ctx: Ctx): ExtractionResult {
     return {
       outputs: parts.map(({ part, amount }) => ({ part, rate: mul(baseRate, amount) })),
       inputs: opt ? [{ part: opt.fluid, rate: mul(opt.base, purity[p]) }] : [],
+      baseRate,
     };
   };
 
@@ -387,9 +388,10 @@ export function buildExtraction(ctx: Ctx): ExtractionResult {
         for (const fluid of fluidChoices) {
           if (proc && fluid && !mm.allowProcessingWithFluid && !proc.withFluidOnly) continue;
           if (proc?.withFluidOnly && !fluid) continue;
-          const flows = compute(o, p, processing, fluid, mm.mk, booster);
+          const computed = compute(o, p, processing, fluid, mm.mk, booster);
           const machine = machineFor(proc, fluid !== null);
-          if (!flows || !machine) continue;
+          if (!computed || !machine) continue;
+          const { baseRate, ...flows } = computed;
           const tier = maxTier(
             o.plain ? o.plainTier : '0-0',
             proc?.tier ?? '0-0',
@@ -417,6 +419,7 @@ export function buildExtraction(ctx: Ctx): ExtractionResult {
             node: nodeKey(o.resource, p),
             source: 'generated',
             route: { resource: o.resource, purity: p, processing, fluid },
+            baseRate,
           });
         }
       }

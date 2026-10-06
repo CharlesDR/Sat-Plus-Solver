@@ -7,12 +7,13 @@
  * M3 used a single implicit factory; M5 resolves links and groups
  * (`resolveWorld`). v2 (M5) added the whole-machines and cost-imports toggles;
  * v3 (M6) replaced the recipe exclusion lists with per-recipe toggles and
- * added the max-tier filter. `migrateWorld` upgrades older documents.
+ * added the max-tier filter; v4 replaced the factory's node budget with
+ * per-resource limits (A33). `migrateWorld` upgrades older documents.
  */
 import type { Model } from '@sps/data';
 import type { ItemRate, ObjectiveId, RecipeFilter, SolveRequest } from '@sps/solver';
 
-export const WORLD_VERSION = 3;
+export const WORLD_VERSION = 4;
 
 /** Lexicographic tolerance bounds (CLAUDE.md): 0.01%–90%, default 0.01%. */
 export const TOLERANCE_MIN = 0.0001;
@@ -69,14 +70,28 @@ export interface UnassignedImport {
   cap?: number;
 }
 
+/** A factory's setting for one raw resource (A33). */
+export interface ResourceLimit {
+  /** `false` turns the resource off: the factory extracts none of it. */
+  enabled: boolean;
+  /**
+   * Most it may extract, per minute (m³/min for fluids). Missing = no limit
+   * beyond the map's node pool. Kept while the resource is off.
+   */
+  max?: number;
+}
+
 export interface Factory {
   id: string;
   name: string;
   groupId?: string;
   request: FactoryRequest;
   unassignedImports: UnassignedImport[];
-  /** `'pool'` = up to the whole map pool; otherwise explicit caps per node id (missing = 0). */
-  nodeBudget: 'pool' | Record<string, number>;
+  /**
+   * Per raw resource item id (A33). A resource not listed is on, with no
+   * limit beyond the map's node pool.
+   */
+  resources: Record<string, ResourceLimit>;
   priority: number;
   notes: string;
 }
@@ -111,7 +126,7 @@ export interface World {
 
 export function defaultWorldDefaults(): WorldDefaults {
   return {
-    objectives: ['resources'],
+    objectives: ['scarcity'],
     tolerance: TOLERANCE_DEFAULT,
     alternates: false,
     wholeMachines: false,
@@ -127,7 +142,7 @@ export function createFactory(id: string, name: string): Factory {
     name,
     request: { targets: [] },
     unassignedImports: [],
-    nodeBudget: 'pool',
+    resources: {},
     priority: 0,
     notes: '',
   };
@@ -154,7 +169,8 @@ export function clampTolerance(t: number): number {
  * The solver request for one factory on its own: defaults merged with the
  * factory's overrides. Link demand and link imports are added by world
  * resolution (`resolveWorld`); here only unassigned imports apply. `model`
- * supplies the map node counts that pool edits apply to.
+ * supplies the map node counts that pool edits apply to. Every factory may
+ * use up to the whole node pool; its resource limits come on top (A33).
  */
 export function factorySolveRequest(
   world: World,
@@ -169,10 +185,11 @@ export function factorySolveRequest(
   const imports = factory.unassignedImports.map((i) => ({ item: i.item, cap: i.cap ?? Infinity }));
   return {
     targets: r.targets.map((t) => ({ ...t })),
-    objectives: objectives.length ? objectives : ['resources'],
+    objectives: objectives.length ? objectives : [...defaultWorldDefaults().objectives],
     tolerance: r.tolerance ?? d.tolerance,
     recipes: recipeFilter(world, factory),
-    nodeBudget: nodeBudget(world, model, factory),
+    nodeBudget: nodeBudget(world, model),
+    ...resourceLimits(factory),
     ...(imports.length ? { imports } : {}),
     ...((r.wholeMachines ?? d.wholeMachines) ? { wholeMachines: true } : {}),
     ...((r.costImports ?? d.costImports) ? { costImports: true } : {}),
@@ -202,12 +219,18 @@ export function recipeFilter(world: World, factory: Factory): RecipeFilter {
   };
 }
 
-function nodeBudget(
-  world: World,
-  model: Pick<Model, 'nodes'>,
-  factory: Factory,
-): 'pool' | Record<string, number> {
-  if (factory.nodeBudget !== 'pool') return { ...factory.nodeBudget };
+/** The factory's resource limits as solver limits: off is 0. Sorted, so equal settings give equal requests. */
+function resourceLimits(factory: Factory): Pick<SolveRequest, 'resourceLimits'> {
+  const limits: Record<string, number> = {};
+  for (const item of Object.keys(factory.resources).sort()) {
+    const l = factory.resources[item]!;
+    if (!l.enabled) limits[item] = 0;
+    else if (l.max !== undefined) limits[item] = l.max;
+  }
+  return Object.keys(limits).length ? { resourceLimits: limits } : {};
+}
+
+function nodeBudget(world: World, model: Pick<Model, 'nodes'>): 'pool' | Record<string, number> {
   if (Object.keys(world.nodePool).length === 0) return 'pool';
   return Object.fromEntries(model.nodes.map((n) => [n.id, world.nodePool[n.id] ?? n.count]));
 }

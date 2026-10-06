@@ -87,6 +87,13 @@ export interface SolveRequest {
   recipes?: RecipeFilter;
   /** `'pool'` (default) caps each node class at its map count; a record gives explicit caps (missing = 0). */
   nodeBudget?: 'pool' | Readonly<Record<string, number>>;
+  /**
+   * Most of each raw resource (item id) the plan may extract, per minute
+   * (A33): the sum over its extraction recipes of `extracts` × machines.
+   * 0 turns the resource off; a missing resource is limited only by the node
+   * budget. Must be ≥ 0.
+   */
+  resourceLimits?: Readonly<Record<string, number>>;
 }
 
 export type SolveStatus = 'ok' | 'unreachable' | 'infeasible' | 'unbounded' | 'error';
@@ -138,6 +145,15 @@ export interface NodeUsage {
   nne: number;
 }
 
+/** A raw resource the plan extracts (A33). */
+export interface ResourceExtraction {
+  item: string;
+  /** Per minute: Σ `extracts` × machines over its extraction recipes. */
+  rate: number;
+  /** `request.resourceLimits` entry, when the resource has one. */
+  limit?: number;
+}
+
 export interface PowerSummary {
   /** Sum of machine draw, MW. */
   consumptionMW: number;
@@ -148,7 +164,10 @@ export interface PowerSummary {
 }
 
 export type Relaxation =
-  { kind: 'node'; node: string; amount: number } | { kind: 'import'; item: string; amount: number };
+  | { kind: 'node'; node: string; amount: number }
+  | { kind: 'import'; item: string; amount: number }
+  /** Raise a resource limit (A33) by `amount` per minute. */
+  | { kind: 'resource'; item: string; amount: number };
 
 export type Diagnostic =
   | {
@@ -242,6 +261,8 @@ export interface SolveResult {
   surplus: ItemRate[];
   /** Node classes in use, sorted by id. */
   nodes: NodeUsage[];
+  /** Raw resources extracted, sorted by item (A33). */
+  extraction: ResourceExtraction[];
   power: PowerSummary;
   diagnostics: Diagnostic[];
   stats: SolveStats;

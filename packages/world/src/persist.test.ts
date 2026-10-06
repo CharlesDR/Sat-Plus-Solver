@@ -5,7 +5,7 @@ import { describe, expect, test } from 'vitest';
 import vanillaMini from '../../../fixtures/vanilla-mini/model.json';
 import mini from '../../../fixtures/worlds/mini-world.json';
 import v1 from '../../../fixtures/worlds/v1-world.json';
-import v3 from '../../../fixtures/worlds/v3-world.json';
+import v4 from '../../../fixtures/worlds/v4-world.json';
 import { WORLD_VERSION, createWorld, type World } from './document';
 import { migrateWorld } from './migrate';
 import { WorldLoadError, extractFactory, loadWorld, parseWorld, serializeWorld } from './persist';
@@ -53,7 +53,11 @@ const worldArb: fc.Arbitrary<World> = (() => {
       unassignedImports: fc.array(fc.record({ item: id, cap: rate }, { requiredKeys: ['item'] }), {
         maxLength: 2,
       }),
-      nodeBudget: fc.oneof(fc.constant('pool' as const), fc.dictionary(id, rate, { maxKeys: 3 })),
+      resources: fc.dictionary(
+        id,
+        fc.record({ enabled: fc.boolean(), max: rate }, { requiredKeys: ['enabled'] }),
+        { maxKeys: 3 },
+      ),
       priority: fc.integer({ min: -5, max: 5 }),
       notes: text,
     },
@@ -63,7 +67,7 @@ const worldArb: fc.Arbitrary<World> = (() => {
         'name',
         'request',
         'unassignedImports',
-        'nodeBudget',
+        'resources',
         'priority',
         'notes',
       ],
@@ -134,9 +138,9 @@ describe('World → JSON → World', () => {
   });
 
   test('is deep-equal for the current-version fixture, and the fixture is current', () => {
-    expect(v3.meta.v).toBe(WORLD_VERSION);
-    const w = parseWorld(JSON.stringify(v3));
-    expect(w).toStrictEqual(v3);
+    expect(v4.meta.v).toBe(WORLD_VERSION);
+    const w = parseWorld(JSON.stringify(v4));
+    expect(w).toStrictEqual(v4);
     expect(parseWorld(serializeWorld(w, true))).toStrictEqual(w);
   });
 

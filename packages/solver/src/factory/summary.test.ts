@@ -21,6 +21,7 @@ const plan = (recipes: PlanSummary['recipes']): PlanSummary => ({
   imports: [],
   byproducts: [],
   nodes: [],
+  extraction: [],
   power: { consumptionMW: 0, generationMW: 0, netMW: 0 },
 });
 const smelter = {
