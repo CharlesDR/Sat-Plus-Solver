@@ -25,6 +25,7 @@ import {
 } from './Panels';
 import { traceableItems } from './viewModel';
 import { WorldCanvas, type CanvasActions } from './WorldCanvas';
+import { PlusIcon } from '../ui/icons';
 
 const TABS = ['Ledger', 'Factories', 'Links', 'Power', 'Nodes', 'Groups'] as const;
 type Tab = (typeof TABS)[number];
@@ -43,6 +44,7 @@ export function WorldView(props: {
   const [traceItem, setTraceId] = useState<string>();
   const [traceText, setTraceText] = useState('');
   const [draft, setDraft] = useState<LinkDraft>();
+  const [newName, setNewName] = useState('');
   const traceId = useId();
   const panelId = useId();
   const items = useItemLookup(catalog.items);
@@ -87,6 +89,17 @@ export function WorldView(props: {
   );
 
   const names = useNames(catalog, world);
+  // A new world: nothing to plan until a factory gets a target or a link.
+  const unplanned =
+    world.links.length === 0 && world.factories.every((f) => f.request.targets.length === 0);
+  const count = (t: Tab) =>
+    t === 'Factories'
+      ? world.factories.length
+      : t === 'Links'
+        ? world.links.length
+        : t === 'Groups'
+          ? world.groups.length
+          : undefined;
   const fix = (f: Fix) => {
     if (f.kind === 'open-factory') onOpen(f.factory);
     else if (f.kind === 'remove-link') store.getState().removeLink(f.link);
@@ -156,11 +169,37 @@ export function WorldView(props: {
           onFix={fix}
         />
       )}
-      {structure && traced && (
-        <ErrorBoundary what="the world canvas" resetKey={structure}>
-          <WorldCanvas engine={layout} graph={structure} traced={traced} actions={actions} />
-        </ErrorBoundary>
-      )}
+      <div className="canvas-wrap">
+        {structure && traced && (
+          <ErrorBoundary what="the world canvas" resetKey={structure}>
+            <WorldCanvas engine={layout} graph={structure} traced={traced} actions={actions} />
+          </ErrorBoundary>
+        )}
+        <form
+          className="canvas-overlay add-factory"
+          onSubmit={(e) => {
+            e.preventDefault();
+            store.getState().addFactory(newName);
+            setNewName('');
+          }}
+        >
+          <input
+            aria-label="New factory name"
+            placeholder="New factory name"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+          />
+          <button type="submit" className="primary">
+            <PlusIcon /> Add factory
+          </button>
+        </form>
+        {unplanned && (
+          <div className="canvas-overlay canvas-hint">
+            <strong>Start here.</strong> Open a factory and add a target to plan it. Drag from one
+            factory’s right edge to another’s left edge to link them.
+          </div>
+        )}
+      </div>
       {draft && (
         <LinkEditor
           key={`${draft.link?.id ?? 'new'}:${draft.from}:${draft.to}`}
@@ -212,6 +251,12 @@ export function WorldView(props: {
             onClick={() => setTab(t)}
           >
             {t}
+            {count(t) !== undefined && (
+              <>
+                {' '}
+                <span className="tab-count">{count(t)}</span>
+              </>
+            )}
           </button>
         ))}
       </div>

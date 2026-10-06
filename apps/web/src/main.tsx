@@ -6,7 +6,11 @@ import { browserStorage, createSaves } from './persistence/saves';
 import { bootWorld, startAutosave } from './persistence/session';
 import { startSolverWorker } from './solver/client';
 import { createWorldStore } from './store';
+import { applyTheme, readTheme } from './ui/prefs';
 import './styles.css';
+
+// The saved theme applies before the first paint.
+applyTheme(readTheme());
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root element');

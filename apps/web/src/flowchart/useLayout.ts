@@ -11,12 +11,15 @@ export type LayoutState =
   | { kind: 'done'; layout: FactoryLayout }
   | { kind: 'error'; message: string };
 
+/** Side of the item icon drawn in every flowchart node, in px (A38). */
+export const ICON_SIZE = 32;
+
 /** Lays the graph out in the layout worker whenever it changes. */
 export function useLayout(engine: LayoutEngine, graph: FactoryGraph): LayoutState {
   const [settled, setSettled] = useState<{ graph: FactoryGraph; state: LayoutState }>();
   useEffect(() => {
     let live = true;
-    layoutFactoryGraph(graph, engine).then(
+    layoutFactoryGraph(graph, engine, { iconSize: ICON_SIZE }).then(
       (layout) => {
         if (live) startTransition(() => setSettled({ graph, state: { kind: 'done', layout } }));
       },

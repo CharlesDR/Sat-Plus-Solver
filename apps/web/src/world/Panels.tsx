@@ -3,6 +3,7 @@
  * or per factory), factory table, link table, power, node pool and groups.
  */
 import { formatRate as fmt, type PowerSummary } from '@sps/solver';
+import { StatusChip } from '../ui/StatusChip';
 import { groupAncestors, type World } from '@sps/world';
 import { useState, type ReactNode } from 'react';
 import type { Catalog, WorldSummary } from '../solver/protocol';
@@ -125,24 +126,9 @@ export function FactoriesPanel(props: {
 }) {
   const { world, summary, store, itemName, onOpen } = props;
   const actions = store.getState();
-  const [name, setName] = useState('');
   const solved = new Map(summary.factories.map((f) => [f.id, f]));
   return (
     <div>
-      <form
-        className="controls row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          actions.addFactory(name);
-          setName('');
-        }}
-      >
-        <label>
-          New factory name
-          <input value={name} onChange={(e) => setName(e.target.value)} />
-        </label>
-        <button type="submit">Add factory</button>
-      </form>
       <Table
         label="Factories"
         textColumns={7}
@@ -194,7 +180,7 @@ export function FactoriesPanel(props: {
                 </select>
               </td>
               <td className={`text status ${r?.status ?? ''}`} data-testid="factory-status">
-                {r?.status ?? '…'}
+                {r ? <StatusChip status={r.status} /> : '…'}
               </td>
               <td className="text">{rates(f.request.targets, itemName)}</td>
               <td className="text" data-testid="link-demand">
