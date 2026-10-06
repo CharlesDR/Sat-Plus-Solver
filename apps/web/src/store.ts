@@ -11,6 +11,7 @@ import {
   type Factory,
   type FactoryRequest,
   type LinkSpec,
+  type Tweak,
   type UnassignedImport,
   type World,
   type WorldDefaults,
@@ -70,6 +71,14 @@ export interface WorldState {
   addLink(spec: LinkSpec): string;
   updateLink(id: string, spec: LinkSpec): void;
   removeLink(id: string): void;
+
+  // Plan tweaks (A35): the factory's tweak list is its undo history.
+  addTweak(factoryId: string, tweak: Tweak): void;
+  /** Undoes the most recent tweak. */
+  undoTweak(factoryId: string): void;
+  removeTweak(factoryId: string, index: number): void;
+  /** Drops every tweak: back to the pure solver plan. */
+  revertTweaks(factoryId: string): void;
   /** Replaces the document with an edited copy ("allocate remaining", "size power plant"). */
   replaceWorld(world: World): void;
 }
@@ -191,6 +200,10 @@ export function createWorldStore(initial: World = createWorld()) {
       addLink: (spec) => create((w) => edit.addLink(w, spec)),
       updateLink: (id, spec) => apply((w) => edit.updateLink(w, id, spec)),
       removeLink: (id) => apply((w) => edit.removeLink(w, id)),
+      addTweak: (factoryId, tweak) => apply((w) => edit.addTweak(w, factoryId, tweak)),
+      undoTweak: (factoryId) => apply((w) => edit.undoTweak(w, factoryId)),
+      removeTweak: (factoryId, index) => apply((w) => edit.removeTweak(w, factoryId, index)),
+      revertTweaks: (factoryId) => apply((w) => edit.revertTweaks(w, factoryId)),
       replaceWorld: (world) => set({ world }),
     };
   });

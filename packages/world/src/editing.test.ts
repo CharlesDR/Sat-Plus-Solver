@@ -58,6 +58,7 @@ describe('factories', () => {
       resources: {},
       priority: 0,
       notes: '',
+      tweaks: [],
     });
     expect(addFactory(w, '').world.factories[1]!.name).toBe('Factory 2');
   });

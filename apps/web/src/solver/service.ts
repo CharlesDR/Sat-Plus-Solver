@@ -13,6 +13,7 @@ import {
   type LpBackend,
 } from '@sps/solver';
 import {
+  addTweak,
   createSolveCache,
   DEFAULT_PIPE_CAPACITIES,
   resolveWorld,
@@ -28,6 +29,7 @@ import type {
   CatalogResource,
   FocusPlan,
   SolveProgress,
+  SwapPreview,
   WorldSolved,
   WorldSolveRequest,
   WorldSummary,
@@ -61,6 +63,7 @@ export function createSolverService(model: Model, backend: LpBackend): SolverSer
         : {};
       let result: WorldResult;
       let edited: World | undefined;
+      let previews: SwapPreview[] | undefined;
       if (action?.kind === 'size-power') {
         const sized = await sizePowerPlant(
           world,
@@ -73,6 +76,26 @@ export function createSolverService(model: Model, backend: LpBackend): SolverSer
         result = sized.result;
         edited = sized.world;
       } else result = await resolveWorld(world, model, solveFactory, cache, options);
+      if (action?.kind === 'preview-swaps') {
+        previews = [];
+        for (const to of action.candidates) {
+          const swapped = addTweak(world, action.factoryId, {
+            kind: 'swap',
+            from: action.from,
+            to,
+          });
+          const r = await resolveWorld(swapped, model, solveFactory, cache);
+          const f = r.factories.find((x) => x.id === action.factoryId);
+          if (!f) throw new Error(`Unknown factory "${action.factoryId}".`);
+          previews.push({
+            recipe: to,
+            status: f.status,
+            machines: f.machines,
+            consumptionMW: f.power.consumptionMW,
+            extraction: f.extraction.map((e) => ({ item: e.item, rate: e.rate })),
+          });
+        }
+      }
       for (const key of cache.keys()) {
         if (cache.size <= CACHE_LIMIT) break;
         cache.delete(key);
@@ -87,6 +110,7 @@ export function createSolverService(model: Model, backend: LpBackend): SolverSer
         world: summarizeWorld(result),
         ...(plan ? { focus: plan } : {}),
         ...(edited ? { edited } : {}),
+        ...(previews ? { previews } : {}),
       };
     },
   };
@@ -169,6 +193,7 @@ export function modelCatalog(model: Model): Catalog {
         alternate: r.alternate,
         tier: r.tier,
         products: r.outputs.filter((o) => o.item !== MW_ITEM_ID).map((o) => name(o.item)),
+        outputs: r.outputs.filter((o) => o.item !== MW_ITEM_ID).map((o) => o.item),
       }))
       .sort(byName((r) => r.name)),
     nodes: model.nodes

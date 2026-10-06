@@ -89,11 +89,18 @@ function v4ToV5(doc: Doc): Doc {
   };
 }
 
+/** v5 → v6 (A35): factories gain plan tweaks, none yet. */
+function v5ToV6(doc: Doc): Doc {
+  const factories = ((doc.factories ?? []) as Doc[]).map((f) => ({ ...f, tweaks: [] }));
+  return { ...doc, meta: { ...(doc.meta as Doc), v: 6 }, factories };
+}
+
 const MIGRATIONS: Record<number, (doc: Doc) => Doc> = {
   1: v1ToV2,
   2: v2ToV3,
   3: v3ToV4,
   4: v4ToV5,
+  5: v5ToV6,
 };
 
 /** Returns `doc` upgraded to the current version; throws on a newer or malformed document. */

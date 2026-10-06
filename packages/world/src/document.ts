@@ -9,12 +9,13 @@
  * v3 (M6) replaced the recipe exclusion lists with per-recipe toggles and
  * added the max-tier filter; v4 replaced the factory's node budget with
  * per-resource limits (A33); v5 moved worlds on the old default objective
- * stack (O1) to the new one (O2). `migrateWorld` upgrades older documents.
+ * stack (O1) to the new one (O2); v6 added plan tweaks (A35). `migrateWorld`
+ * upgrades older documents.
  */
 import type { Model } from '@sps/data';
 import type { ItemRate, ObjectiveId, RecipeFilter, SolveRequest } from '@sps/solver';
 
-export const WORLD_VERSION = 5;
+export const WORLD_VERSION = 6;
 
 /** Lexicographic tolerance bounds (CLAUDE.md): 0.01%–90%, default 0.01%. */
 export const TOLERANCE_MIN = 0.0001;
@@ -95,7 +96,24 @@ export interface Factory {
   resources: Record<string, ResourceLimit>;
   priority: number;
   notes: string;
+  /**
+   * Plan tweaks (A35): manual changes made from the flowchart, oldest first,
+   * applied over the request when the factory is solved. The list is also the
+   * undo history: undo drops the last, "revert all" empties it.
+   */
+  tweaks: Tweak[];
 }
+
+/**
+ * One plan tweak (A35). `ban` turns a recipe off; `swap` turns `from` off and
+ * `to` on; `import` makes an item an uncapped unassigned import, so the
+ * factory buys it instead of making it. Later tweaks win over earlier ones
+ * and over the request's own toggles and imports.
+ */
+export type Tweak =
+  | { kind: 'ban'; recipe: string }
+  | { kind: 'swap'; from: string; to: string }
+  | { kind: 'import'; item: string };
 
 export interface Group {
   id: string;
@@ -146,6 +164,7 @@ export function createFactory(id: string, name: string): Factory {
     resources: {},
     priority: 0,
     notes: '',
+    tweaks: [],
   };
 }
 
@@ -183,7 +202,7 @@ export function factorySolveRequest(
   const d = world.defaults;
   const r = factory.request;
   const objectives = [...(r.objectives ?? d.objectives)];
-  const imports = factory.unassignedImports.map((i) => ({ item: i.item, cap: i.cap ?? Infinity }));
+  const imports = tweakedImports(factory).map((i) => ({ item: i.item, cap: i.cap ?? Infinity }));
   return {
     targets: r.targets.map((t) => ({ ...t })),
     objectives: objectives.length ? objectives : [...defaultWorldDefaults().objectives],
@@ -199,13 +218,26 @@ export function factorySolveRequest(
 
 /**
  * The factory's recipe filter: its toggles over the world's, its alternates
- * and max-tier settings over the defaults. Ids are sorted, so equal settings
- * give equal requests (and cache keys).
+ * and max-tier settings over the defaults, and its plan tweaks over all of
+ * those (A35; `tweaks: false` leaves them out). Ids are sorted, so equal
+ * settings give equal requests (and cache keys).
  */
-export function recipeFilter(world: World, factory: Factory): RecipeFilter {
+export function recipeFilter(
+  world: World,
+  factory: Factory,
+  options: { tweaks?: boolean } = {},
+): RecipeFilter {
   const d = world.defaults;
   const r = factory.request;
-  const toggles = { ...d.recipes, ...r.recipes };
+  const toggles: Record<string, boolean> = { ...d.recipes, ...r.recipes };
+  if (options.tweaks ?? true)
+    for (const t of factory.tweaks) {
+      if (t.kind === 'ban') toggles[t.recipe] = false;
+      else if (t.kind === 'swap') {
+        toggles[t.from] = false;
+        toggles[t.to] = true;
+      }
+    }
   const ids = (on: boolean) =>
     Object.keys(toggles)
       .filter((id) => toggles[id] === on)
@@ -218,6 +250,20 @@ export function recipeFilter(world: World, factory: Factory): RecipeFilter {
     ...(include.length ? { include } : {}),
     ...(maxTier !== null ? { maxTier } : {}),
   };
+}
+
+/**
+ * The factory's unassigned imports with its `import` tweaks applied: a
+ * tweaked item is imported without a cap (A35). Order is kept, tweaked items
+ * not already listed come last.
+ */
+export function tweakedImports(factory: Factory): UnassignedImport[] {
+  const tweaked = new Set(factory.tweaks.flatMap((t) => (t.kind === 'import' ? [t.item] : [])));
+  const out = factory.unassignedImports.map((i) =>
+    tweaked.has(i.item) ? { item: i.item } : { ...i },
+  );
+  for (const item of tweaked) if (!out.some((i) => i.item === item)) out.push({ item });
+  return out;
 }
 
 /** The factory's resource limits as solver limits: off is 0. Sorted, so equal settings give equal requests. */

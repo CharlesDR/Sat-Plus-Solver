@@ -90,6 +90,7 @@ export function createSolverClient(worker: WorkerLike): SolverClient {
         ms: msg.ms,
         ...(msg.focus ? { focus: msg.focus } : {}),
         ...(msg.edited ? { edited: msg.edited } : {}),
+        ...(msg.previews ? { previews: msg.previews } : {}),
       });
     } else done.reject(new Error(msg.message));
     if (queued) {

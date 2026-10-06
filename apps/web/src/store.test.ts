@@ -211,4 +211,26 @@ describe('world editing (M8)', () => {
     store.getState().replaceWorld(next);
     expect(store.getState().world).toBe(next);
   });
+
+  test('plan tweaks: add, undo, remove and revert all, per factory (A35)', () => {
+    const store = twoFactories();
+    const s = () => store.getState();
+    const tweaks = (id: string) => s().world.factories.find((f) => f.id === id)!.tweaks;
+    const before = s().world;
+    s().addTweak(F, { kind: 'ban', recipe: 'screw' });
+    s().addTweak(F, { kind: 'import', item: 'iron-rod' });
+    s().addTweak(F, { kind: 'swap', from: 'iron-plate', to: 'alternate-coated-iron-plate' });
+    expect(tweaks(F)).toHaveLength(3);
+    expect(tweaks('b')).toEqual([]);
+    expect(s().world.factories[1]).toBe(before.factories[1]);
+    s().undoTweak(F);
+    expect(tweaks(F)).toEqual([
+      { kind: 'ban', recipe: 'screw' },
+      { kind: 'import', item: 'iron-rod' },
+    ]);
+    s().removeTweak(F, 0);
+    expect(tweaks(F)).toEqual([{ kind: 'import', item: 'iron-rod' }]);
+    s().revertTweaks(F);
+    expect(s().world.factories[0]).toEqual(before.factories[0]);
+  });
 });

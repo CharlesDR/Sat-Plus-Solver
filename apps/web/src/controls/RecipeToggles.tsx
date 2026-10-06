@@ -97,7 +97,7 @@ export function RecipeToggles({ store, scope, recipes }: Props) {
               <input
                 type="checkbox"
                 checked={r.on}
-                disabled={r.reason === 'tier'}
+                disabled={r.reason === 'tier' || r.tweaked}
                 onChange={(e) => setRecipes(scope, [r.recipe.id], e.target.checked)}
               />
               <span className="name">{r.recipe.name}</span>
@@ -106,6 +106,7 @@ export function RecipeToggles({ store, scope, recipes }: Props) {
               {r.recipe.machine} · tier {r.recipe.tier}
               {r.recipe.alternate && <span className="badge">alternate</span>}
               {r.reason && <span className="badge muted">{REASONS[r.reason]}</span>}
+              {r.tweaked && <span className="badge tweak">set by a plan tweak</span>}
               {r.toggle !== undefined && (
                 <button
                   type="button"

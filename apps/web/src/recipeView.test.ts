@@ -1,5 +1,5 @@
 import type { Model } from '@sps/data';
-import { createFactory, createWorld, DEFAULT_FACTORY_ID } from '@sps/world';
+import { addTweak, createFactory, createWorld, DEFAULT_FACTORY_ID } from '@sps/world';
 import { describe, expect, test } from 'vitest';
 import miniJson from '../../../fixtures/vanilla-mini/model.json';
 import { recipeRows } from './recipeView';
@@ -15,6 +15,16 @@ const row = (rows: ReturnType<typeof recipeRows>, id: string) =>
   rows.find((r) => r.recipe.id === id);
 
 describe('recipe rows', () => {
+  test('a plan tweak shows as tweaked, with the state it gives (A35)', () => {
+    let w = addTweak(createWorld(), F, { kind: 'swap', from: 'screw', to: 'cast-screw' });
+    w = addTweak(w, F, { kind: 'ban', recipe: 'iron-rod' });
+    const rows = recipeRows(w, { kind: 'factory', id: F }, recipes);
+    expect(row(rows, 'screw')).toMatchObject({ on: false, reason: 'excluded', tweaked: true });
+    expect(row(rows, 'cast-screw')).toMatchObject({ on: true, tweaked: true });
+    expect(row(rows, 'iron-rod')).toMatchObject({ on: false, tweaked: true });
+    expect(row(rows, 'iron-plate')!.tweaked).toBeUndefined();
+  });
+
   test('standard on, alternates off by default', () => {
     const rows = recipeRows(createWorld(), { kind: 'factory', id: F }, recipes);
     expect(rows).toHaveLength(recipes.length);

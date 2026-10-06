@@ -5,7 +5,7 @@ import { describe, expect, test } from 'vitest';
 import vanillaMini from '../../../fixtures/vanilla-mini/model.json';
 import mini from '../../../fixtures/worlds/mini-world.json';
 import v1 from '../../../fixtures/worlds/v1-world.json';
-import v5 from '../../../fixtures/worlds/v5-world.json';
+import v6 from '../../../fixtures/worlds/v6-world.json';
 import { WORLD_VERSION, createWorld, type World } from './document';
 import { migrateWorld } from './migrate';
 import { WorldLoadError, extractFactory, loadWorld, parseWorld, serializeWorld } from './persist';
@@ -60,6 +60,14 @@ const worldArb: fc.Arbitrary<World> = (() => {
       ),
       priority: fc.integer({ min: -5, max: 5 }),
       notes: text,
+      tweaks: fc.array(
+        fc.oneof(
+          fc.record({ kind: fc.constant('ban' as const), recipe: id }),
+          fc.record({ kind: fc.constant('swap' as const), from: id, to: id }),
+          fc.record({ kind: fc.constant('import' as const), item: id }),
+        ),
+        { maxLength: 3 },
+      ),
     },
     {
       requiredKeys: [
@@ -70,6 +78,7 @@ const worldArb: fc.Arbitrary<World> = (() => {
         'resources',
         'priority',
         'notes',
+        'tweaks',
       ],
     },
   );
@@ -138,9 +147,9 @@ describe('World → JSON → World', () => {
   });
 
   test('is deep-equal for the current-version fixture, and the fixture is current', () => {
-    expect(v5.meta.v).toBe(WORLD_VERSION);
-    const w = parseWorld(JSON.stringify(v5));
-    expect(w).toStrictEqual(v5);
+    expect(v6.meta.v).toBe(WORLD_VERSION);
+    const w = parseWorld(JSON.stringify(v6));
+    expect(w).toStrictEqual(v6);
     expect(parseWorld(serializeWorld(w, true))).toStrictEqual(w);
   });
 

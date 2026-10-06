@@ -4,6 +4,7 @@ import v2 from '../../../fixtures/worlds/v2-world.json';
 import v3 from '../../../fixtures/worlds/v3-world.json';
 import v4 from '../../../fixtures/worlds/v4-world.json';
 import v5 from '../../../fixtures/worlds/v5-world.json';
+import v6 from '../../../fixtures/worlds/v6-world.json';
 import { WORLD_VERSION, createWorld, factorySolveRequest } from './document';
 import { WorldMigrationError, migrateWorld } from './migrate';
 
@@ -25,7 +26,7 @@ describe('migrateWorld', () => {
     // The whole-pool budget becomes no resource limits (v4, A33); everything
     // else is carried over unchanged, and the input is untouched.
     expect(w.factories).toEqual(
-      v1.factories.map(({ nodeBudget: _, ...f }) => ({ ...f, resources: {} })),
+      v1.factories.map(({ nodeBudget: _, ...f }) => ({ ...f, resources: {}, tweaks: [] })),
     );
     expect(w.nodePool).toEqual(v1.nodePool);
     expect(JSON.stringify(v1)).toBe(before);
@@ -52,7 +53,7 @@ describe('migrateWorld', () => {
     });
     expect(w.factories[1]!.request).toEqual(v2.factories[1]!.request);
     expect(w.factories.map(({ request: _, resources: __, ...f }) => f)).toEqual(
-      v2.factories.map(({ request: _, nodeBudget: __, ...f }) => f),
+      v2.factories.map(({ request: _, nodeBudget: __, ...f }) => ({ ...f, tweaks: [] })),
     );
     // v2 unioned the world's and the factory's exclusions; v3 toggles give the same filter.
     const model = { nodes: [] };
@@ -76,7 +77,7 @@ describe('migrateWorld', () => {
     expect(w.factories.every((f) => !('nodeBudget' in f))).toBe(true);
     // Everything else is carried over unchanged, and the input is untouched.
     expect(w.factories.map(({ resources: _, ...f }) => f)).toEqual(
-      v3.factories.map(({ nodeBudget: _, ...f }) => f),
+      v3.factories.map(({ nodeBudget: _, ...f }) => ({ ...f, tweaks: [] })),
     );
     expect(w.defaults).toEqual({ ...v3.defaults, objectives: ['scarcity'] });
     expect(JSON.stringify(v3)).toBe(before);
@@ -119,8 +120,23 @@ describe('migrateWorld', () => {
     expect(migrateWorld(v4(['power'])).defaults.objectives).toEqual(['power']);
   });
 
-  test('the v4 fixture (already on scarcity) migrates to the v5 fixture', () => {
-    expect(migrateWorld(v4)).toEqual(v5);
+  test('the v4 fixture (already on scarcity) migrates as the v5 fixture does', () => {
+    expect(migrateWorld(v4)).toEqual(migrateWorld(v5));
+  });
+
+  test('a v5 save gains an empty tweak list per factory and nothing else (A35)', () => {
+    const before = JSON.stringify(v5);
+    const w = migrateWorld(v5);
+    expect(w.meta).toEqual({ v: WORLD_VERSION, dataHash: v5.meta.dataHash });
+    expect(w.factories).toEqual(v5.factories.map((f) => ({ ...f, tweaks: [] })));
+    for (const key of ['groups', 'links', 'defaults', 'nodePool'] as const)
+      expect(w[key]).toEqual(v5[key]);
+    expect(JSON.stringify(v5)).toBe(before);
+    // The v6 fixture is the v5 one plus tweaks on one factory.
+    expect({ ...w, factories: w.factories.map((f) => ({ ...f, tweaks: [] })) }).toEqual({
+      ...v6,
+      factories: v6.factories.map((f) => ({ ...f, tweaks: [] })),
+    });
   });
 
   test('a current world passes through unchanged', () => {
