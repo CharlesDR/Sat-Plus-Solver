@@ -119,7 +119,7 @@ test('an old save migrates, and a data-hash mismatch warns but loads', async ({ 
   await upload(page, 'old.json', await readFile(V1, 'utf8'));
   await expect(page.getByRole('alert')).toContainText('different game data (abc123)');
   const w = (await autosave(page)) as { meta: { v: number; dataHash: string } };
-  expect(w.meta).toEqual({ v: 4, dataHash: 'abc123' });
+  expect(w.meta).toEqual({ v: 5, dataHash: 'abc123' });
   await page.getByRole('button', { name: 'Open Factory', exact: true }).click();
   await expect(page.getByRole('table', { name: 'Targets' })).toContainText('Iron Plate');
 

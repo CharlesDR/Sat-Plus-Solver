@@ -2,6 +2,8 @@ import { describe, expect, test } from 'vitest';
 import v1 from '../../../fixtures/worlds/v1-world.json';
 import v2 from '../../../fixtures/worlds/v2-world.json';
 import v3 from '../../../fixtures/worlds/v3-world.json';
+import v4 from '../../../fixtures/worlds/v4-world.json';
+import v5 from '../../../fixtures/worlds/v5-world.json';
 import { WORLD_VERSION, createWorld, factorySolveRequest } from './document';
 import { WorldMigrationError, migrateWorld } from './migrate';
 
@@ -11,7 +13,8 @@ describe('migrateWorld', () => {
     const w = migrateWorld(v1);
     expect(w.meta).toEqual({ v: WORLD_VERSION, dataHash: 'abc123' });
     expect(w.defaults).toEqual({
-      objectives: ['resources'],
+      // The old default stack moves to the new default (v5).
+      objectives: ['scarcity'],
       tolerance: 0.0001,
       alternates: false,
       wholeMachines: false,
@@ -33,7 +36,8 @@ describe('migrateWorld', () => {
     const w = migrateWorld(v2);
     expect(w.meta.v).toBe(WORLD_VERSION);
     expect(w.defaults).toEqual({
-      objectives: ['resources'],
+      // The old default stack moves to the new default (v5).
+      objectives: ['scarcity'],
       tolerance: 0.0001,
       alternates: false,
       wholeMachines: true,
@@ -74,7 +78,7 @@ describe('migrateWorld', () => {
     expect(w.factories.map(({ resources: _, ...f }) => f)).toEqual(
       v3.factories.map(({ nodeBudget: _, ...f }) => f),
     );
-    expect(w.defaults).toEqual(v3.defaults);
+    expect(w.defaults).toEqual({ ...v3.defaults, objectives: ['scarcity'] });
     expect(JSON.stringify(v3)).toBe(before);
   });
 
@@ -89,6 +93,34 @@ describe('migrateWorld', () => {
     const w = migrateWorld(doc);
     expect(w.factories[0]!.resources).toEqual({ coal: { enabled: false } });
     expect(factorySolveRequest(w, { nodes: [] }, 'factory-1').resourceLimits).toEqual({ coal: 0 });
+  });
+
+  test('a v4 world on the old default stack moves to scarcity; other stacks stay', () => {
+    const v4 = (objectives: string[]) => {
+      const w = createWorld('x') as unknown as {
+        meta: { v: number };
+        defaults: { objectives: string[] };
+        factories: { request: { objectives?: string[] } }[];
+      };
+      w.meta.v = 4;
+      w.defaults.objectives = objectives;
+      w.factories[0]!.request.objectives = ['resources'];
+      return w;
+    };
+    const moved = migrateWorld(v4(['resources']));
+    expect(moved.meta.v).toBe(WORLD_VERSION);
+    expect(moved.defaults.objectives).toEqual(['scarcity']);
+    // A factory's own choice is kept.
+    expect(moved.factories[0]!.request.objectives).toEqual(['resources']);
+    expect(migrateWorld(v4(['resources', 'machines'])).defaults.objectives).toEqual([
+      'resources',
+      'machines',
+    ]);
+    expect(migrateWorld(v4(['power'])).defaults.objectives).toEqual(['power']);
+  });
+
+  test('the v4 fixture (already on scarcity) migrates to the v5 fixture', () => {
+    expect(migrateWorld(v4)).toEqual(v5);
   });
 
   test('a current world passes through unchanged', () => {
