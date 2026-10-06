@@ -6,6 +6,7 @@ import v4 from '../../../fixtures/worlds/v4-world.json';
 import v5 from '../../../fixtures/worlds/v5-world.json';
 import v6 from '../../../fixtures/worlds/v6-world.json';
 import v7 from '../../../fixtures/worlds/v7-world.json';
+import v8 from '../../../fixtures/worlds/v8-world.json';
 import { WORLD_VERSION, createWorld, factorySolveRequest } from './document';
 import { WorldMigrationError, migrateWorld } from './migrate';
 
@@ -21,6 +22,8 @@ describe('migrateWorld', () => {
       alternates: false,
       wholeMachines: false,
       costImports: false,
+      // On, like a new world's (v8, A39).
+      avoidFluidByproducts: true,
       recipes: { 'cast-screw': false },
       maxTier: null,
     });
@@ -44,6 +47,7 @@ describe('migrateWorld', () => {
       alternates: false,
       wholeMachines: true,
       costImports: false,
+      avoidFluidByproducts: true,
       recipes: { 'cast-screw': false },
       maxTier: null,
     });
@@ -80,7 +84,11 @@ describe('migrateWorld', () => {
     expect(w.factories.map(({ resources: _, ...f }) => f)).toEqual(
       v3.factories.map(({ nodeBudget: _, ...f }) => ({ ...f, tweaks: [] })),
     );
-    expect(w.defaults).toEqual({ ...v3.defaults, objectives: ['scarcity'] });
+    expect(w.defaults).toEqual({
+      ...v3.defaults,
+      objectives: ['scarcity'],
+      avoidFluidByproducts: true,
+    });
     expect(JSON.stringify(v3)).toBe(before);
   });
 
@@ -130,13 +138,14 @@ describe('migrateWorld', () => {
     const w = migrateWorld(v5);
     expect(w.meta).toEqual({ v: WORLD_VERSION, dataHash: v5.meta.dataHash });
     expect(w.factories).toEqual(v5.factories.map((f) => ({ ...f, tweaks: [] })));
-    for (const key of ['groups', 'links', 'defaults', 'nodePool'] as const)
-      expect(w[key]).toEqual(v5[key]);
+    for (const key of ['groups', 'links', 'nodePool'] as const) expect(w[key]).toEqual(v5[key]);
+    expect(w.defaults).toEqual({ ...v5.defaults, avoidFluidByproducts: true });
     expect(JSON.stringify(v5)).toBe(before);
     // The v6 fixture is the v5 one plus tweaks on one factory.
     expect({ ...w, factories: w.factories.map((f) => ({ ...f, tweaks: [] })) }).toEqual({
       ...v6,
       meta: { ...v6.meta, v: WORLD_VERSION },
+      defaults: { ...v6.defaults, avoidFluidByproducts: true },
       factories: v6.factories.map((f) => ({ ...f, tweaks: [] })),
     });
   });
@@ -144,14 +153,44 @@ describe('migrateWorld', () => {
   test('a v6 save carries over unchanged but for its version (A36)', () => {
     const before = JSON.stringify(v6);
     const w = migrateWorld(v6);
-    expect(w).toEqual({ ...v6, meta: { ...v6.meta, v: WORLD_VERSION } });
+    expect(w).toEqual({
+      ...v6,
+      meta: { ...v6.meta, v: WORLD_VERSION },
+      defaults: { ...v6.defaults, avoidFluidByproducts: true },
+    });
     expect(JSON.stringify(v6)).toBe(before);
     // The v7 fixture is the v6 one plus manual plans on two factories.
     const strip = (x: typeof w) => ({
       ...x,
       factories: x.factories.map(({ manual: _, ...f }) => f),
     });
-    expect(strip(v7 as unknown as typeof w)).toEqual(w);
+    expect(strip(migrateWorld(v7))).toEqual(w);
+  });
+
+  test('a v7 save gains "Avoid fluid byproducts", on, in the world defaults (A39)', () => {
+    const before = JSON.stringify(v7);
+    const w = migrateWorld(v7);
+    expect(w).toEqual({
+      ...v7,
+      meta: { ...v7.meta, v: WORLD_VERSION },
+      defaults: { ...v7.defaults, avoidFluidByproducts: true },
+    });
+    expect(JSON.stringify(v7)).toBe(before);
+    expect(factorySolveRequest(w, { nodes: [] }, 'factory-1').avoidFluidByproducts).toBe(true);
+    // The v8 fixture is the migrated v7 one with the setting off in one factory.
+    expect({
+      ...v8,
+      factories: v8.factories.map((f) => ({
+        ...f,
+        request: (({
+          avoidFluidByproducts: _,
+          ...r
+        }: typeof f.request & { avoidFluidByproducts?: boolean }) => r)(f.request),
+      })),
+    }).toEqual(w);
+    expect(
+      factorySolveRequest(v8 as unknown as typeof w, { nodes: [] }, 'factory-2'),
+    ).not.toHaveProperty('avoidFluidByproducts');
   });
 
   test('a current world passes through unchanged', () => {

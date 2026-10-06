@@ -100,6 +100,16 @@ function v6ToV7(doc: Doc): Doc {
   return { ...doc, meta: { ...(doc.meta as Doc), v: 7 } };
 }
 
+/** v7 → v8 (A39): world defaults gain "Avoid fluid byproducts", on like a new world's. */
+function v7ToV8(doc: Doc): Doc {
+  const defaults = (doc.defaults ?? {}) as Doc;
+  return {
+    ...doc,
+    meta: { ...(doc.meta as Doc), v: 8 },
+    defaults: { ...defaults, avoidFluidByproducts: true },
+  };
+}
+
 const MIGRATIONS: Record<number, (doc: Doc) => Doc> = {
   1: v1ToV2,
   2: v2ToV3,
@@ -107,6 +117,7 @@ const MIGRATIONS: Record<number, (doc: Doc) => Doc> = {
   4: v4ToV5,
   5: v5ToV6,
   6: v6ToV7,
+  7: v7ToV8,
 };
 
 /** Returns `doc` upgraded to the current version; throws on a newer or malformed document. */

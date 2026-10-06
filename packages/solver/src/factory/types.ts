@@ -101,6 +101,14 @@ export interface SolveRequest {
    * budget. Must be ≥ 0.
    */
   resourceLimits?: Readonly<Record<string, number>>;
+  /**
+   * Avoid fluid byproducts (A39): no fluid may be left over as surplus except
+   * the ones that are easy to dump (`DUMPABLE_FLUIDS`: Steam, Flue Gas and
+   * Energetic Dark Matter).
+   * Every other fluid the plan makes must be consumed, delivered or not made.
+   * Default false.
+   */
+  avoidFluidByproducts?: boolean;
 }
 
 export type SolveStatus = 'ok' | 'unreachable' | 'infeasible' | 'unbounded' | 'error';
@@ -174,7 +182,9 @@ export type Relaxation =
   | { kind: 'node'; node: string; amount: number }
   | { kind: 'import'; item: string; amount: number }
   /** Raise a resource limit (A33) by `amount` per minute. */
-  | { kind: 'resource'; item: string; amount: number };
+  | { kind: 'resource'; item: string; amount: number }
+  /** Allow `amount` per minute of a fluid byproduct to be left over (A39). */
+  | { kind: 'surplus'; item: string; amount: number };
 
 export type Diagnostic =
   | {

@@ -22,6 +22,7 @@ export type { FreeLunchResult } from './checks/freeLunch';
 export {
   clampTolerance,
   DEFAULT_TOLERANCE,
+  DUMPABLE_FLUIDS,
   LEX_EPSILON,
   MAX_TOLERANCE,
   MILP_TIME_LIMIT_SECONDS,

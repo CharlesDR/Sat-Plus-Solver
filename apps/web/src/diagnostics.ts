@@ -15,6 +15,8 @@ export type Fix =
   | { kind: 'add-import'; item: string; rate: number; label: string }
   /** Turn a resource on or raise its limit (infeasible plan, A33). */
   | { kind: 'raise-resource'; item: string; amount: number; label: string }
+  /** Turn "Avoid fluid byproducts" off for this factory (infeasible plan, A39). */
+  | { kind: 'allow-fluid-byproducts'; label: string }
   | { kind: 'open-factory'; factory: string; label: string }
   | { kind: 'edit-link'; link: string; label: string }
   | { kind: 'remove-link'; link: string; label: string }
@@ -91,6 +93,13 @@ export function factoryDiagnostics(
                   ? `Turn on ${names.item(r.item)}`
                   : `Raise the ${names.item(r.item)} limit by ${amount}/min`,
             });
+          else if (r.kind === 'surplus') {
+            if (!fixes.some((f) => f.kind === 'allow-fluid-byproducts'))
+              fixes.push({
+                kind: 'allow-fluid-byproducts',
+                label: 'Allow leftover fluids in this factory',
+              });
+          }
           // A node relaxation is the map's node pool: no factory setting raises it.
         }
         break;

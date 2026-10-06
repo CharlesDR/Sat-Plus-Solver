@@ -60,6 +60,11 @@ export function createHighsBackend(loaderOptions?: HighsLoaderOptions): LpBacken
       let result: ReturnType<Highs['solve']>;
       try {
         result = h.solve(text, settings);
+        // Presolve's postsolve can leave a column just outside its bounds
+        // (−1.5e-9 on a 0 lower bound), past the solver's own 1e-9 check.
+        // Solve it again without presolve before handing it on.
+        if (outOfBounds(result, columns, model))
+          result = h.solve(text, { ...settings, presolve: 'off' });
       } catch (e) {
         instance = undefined;
         return { status: 'error', rawStatus: `HiGHS threw: ${(e as Error).message}` };
@@ -93,6 +98,28 @@ export function createHighsBackend(loaderOptions?: HighsLoaderOptions): LpBacken
       return { status, rawStatus, objective: result.ObjectiveValue, values, duals };
     },
   };
+}
+
+/** How far outside its bounds a column may come back before the LP is re-solved without presolve. */
+const BOUND_SLACK = 1e-9;
+
+/** Whether an optimal LP result has a column below its lower or above its upper bound. */
+function outOfBounds(
+  result: ReturnType<Highs['solve']>,
+  columns: Map<string, string>,
+  model: LpModel,
+): boolean {
+  if (String(result.Status) !== 'Optimal') return false;
+  const bounds = new Map(model.variables.map((v) => [v.name, v]));
+  for (const [col, name] of columns) {
+    const c = (result.Columns as Record<string, { Primal?: number } | undefined>)[col];
+    const x = c?.Primal ?? 0;
+    const v = bounds.get(name);
+    const lo = v?.lo ?? 0;
+    const hi = v?.hi ?? Infinity;
+    if (x < lo - BOUND_SLACK || x > hi + BOUND_SLACK) return true;
+  }
+  return false;
 }
 
 /** HiGHS model status codes (`constants.modelStatus`) the MILP path maps. */

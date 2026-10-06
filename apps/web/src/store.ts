@@ -26,6 +26,7 @@ export interface Settings {
   alternates: boolean;
   wholeMachines: boolean;
   costImports: boolean;
+  avoidFluidByproducts: boolean;
   maxTier: string | null;
 }
 export type SettingKey = keyof Settings;
@@ -256,6 +257,7 @@ export function effectiveSettings(
     'alternates',
     'wholeMachines',
     'costImports',
+    'avoidFluidByproducts',
     'maxTier',
   ];
   const values = {} as Record<SettingKey, unknown>;

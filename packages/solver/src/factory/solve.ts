@@ -40,6 +40,10 @@ const POLISH_SLACK = 1e-10;
 const IMPORT_SLACK_COST = 0.01;
 /** Elastic re-solve: cost of 1/min more of a limited resource (A33), in normal-node-equivalents. */
 const RESOURCE_SLACK_COST = 0.001;
+/** Elastic re-solve: cost of 1/min of a fluid byproduct left over against `avoidFluidByproducts` (A39). */
+const SURPLUS_SLACK_COST = 0.001;
+/** Fluids that are easy to dump, so `avoidFluidByproducts` still lets them be left over (A39). */
+export const DUMPABLE_FLUIDS: readonly string[] = ['energetic-dark-matter', 'flue-gas', 'steam'];
 /** Solution checks (CLAUDE.md): balance within 1e-6, variables ≥ −1e-9, nodes ≤ budget, resources ≤ limit. */
 const BALANCE_TOL = 1e-6;
 const NONNEG_TOL = 1e-9;
@@ -66,6 +70,7 @@ const surplusVar = (item: string) => `surplus:${item}`;
 const nodeSlackVar = (node: string) => `slack:node:${node}`;
 const importSlackVar = (item: string) => `slack:import:${item}`;
 const resourceSlackVar = (item: string) => `slack:resource:${item}`;
+const surplusSlackVar = (item: string) => `slack:surplus:${item}`;
 const balanceRow = (item: string) => `balance:${item}`;
 const nodeRow = (node: string) => `cap:${node}`;
 const importRow = (item: string) => `importcap:${item}`;
@@ -106,6 +111,8 @@ interface Problem {
   extracts: Map<string, { item: string; rate: number }>;
   /** `request.resourceLimits`, on the resources the kept recipes extract. */
   resourceLimits: Map<string, number>;
+  /** `avoidFluidByproducts` (A39): balance-row items that may not be left over, sorted. */
+  noSurplus: Set<string>;
   /** Per objective: cost per machine of each kept recipe (before the regularizer). */
   costs: Map<ObjectiveId, Map<string, number>>;
   /** O6: node resource → kept recipes drawing on it, and the resource's node cap. */
@@ -204,6 +211,13 @@ export async function solve(
   const items = [...itemSet].sort();
   for (const item of [...importCaps.keys()]) if (!itemSet.has(item)) importCaps.delete(item);
 
+  const fluids = new Set(model.items.filter((i) => i.form === 'fluid').map((i) => i.id));
+  const noSurplus = new Set(
+    request.avoidFluidByproducts
+      ? items.filter((i) => fluids.has(i) && !DUMPABLE_FLUIDS.includes(i))
+      : [],
+  );
+
   const nodes = new Map(model.nodes.map((n) => [n.id, n]));
   const budget = request.nodeBudget ?? 'pool';
   const nodeCaps = new Map<string, number>();
@@ -260,6 +274,7 @@ export async function solve(
     nodes,
     extracts,
     resourceLimits,
+    noSurplus,
     costs,
     resources,
     importCosts: new Map(),
@@ -999,8 +1014,14 @@ async function elastic(
     const amount = sol.values.get(importSlackVar(item)) ?? 0;
     if (amount > SLACK_TOL) relaxations.push({ kind: 'import', item, amount });
   }
+  for (const item of p.noSurplus) {
+    const amount = sol.values.get(surplusSlackVar(item)) ?? 0;
+    if (amount > SLACK_TOL) relaxations.push({ kind: 'surplus', item, amount });
+  }
   const describe = (r: Relaxation): string => {
     if (r.kind === 'import') return `${fmt(r.amount)}/min more imported ${itemName(r.item)}`;
+    if (r.kind === 'surplus')
+      return `${fmt(r.amount)}/min of ${itemName(r.item)} left over, which "Avoid fluid byproducts" forbids`;
     if (r.kind === 'resource')
       return p.resourceLimits.get(r.item) === 0
         ? `${fmt(r.amount)}/min of ${itemName(r.item)}, which is turned off`
@@ -1019,7 +1040,7 @@ async function elastic(
         severity: 'error',
         message: relaxations.length
           ? `Infeasible: needs ${relaxations.map(describe).join(' and ')}.`
-          : 'Infeasible, but no node, resource or import relaxation fixes it.',
+          : 'Infeasible, but no node, resource, import or byproduct relaxation fixes it.',
         relaxations,
       },
     ],
@@ -1106,8 +1127,16 @@ function buildLp(
   }
   for (const item of p.items) {
     const v = surplusVar(item);
-    variables.push({ name: v, lo: 0, hi: cap });
+    // A fluid that may not be left over (A39) gets no surplus; the elastic
+    // re-solve prices leaving it over instead, to report how much would be.
+    const kept = p.noSurplus.has(item);
+    variables.push({ name: v, lo: 0, hi: kept ? 0 : cap });
     balance.get(item)!.push({ var: v, coef: -1 });
+    if (kept && mode === 'elastic') {
+      variables.push({ name: surplusSlackVar(item), lo: 0 });
+      objective.push({ var: surplusSlackVar(item), coef: SURPLUS_SLACK_COST });
+      balance.get(item)!.push({ var: surplusSlackVar(item), coef: -1 });
+    }
     const ratio = p.scaled.get(item);
     if (ratio) balance.get(item)!.push({ var: OUTPUT_VAR, coef: -ratio });
     const d = p.demand.get(item) ?? 0;
@@ -1315,6 +1344,8 @@ function finish(
     const size = Math.max(1, flow.produced, flow.consumed, flow.imported, flow.demand);
     if (Math.abs(residual) > BALANCE_TOL * size)
       failures.push(`item ${item} out of balance by ${residual}`);
+    if (p.noSurplus.has(item) && flow.surplus > BALANCE_TOL * size)
+      failures.push(`fluid ${item} left over (${flow.surplus}) against avoidFluidByproducts`);
     if (flow.produced || flow.consumed || flow.imported || flow.surplus || flow.demand)
       items.push(flow);
   }
