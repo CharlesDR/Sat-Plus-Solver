@@ -14,7 +14,7 @@
  * (default 0.01; 0 turns it off). Alternates are off unless `--alternates` is given, and
  * `--enable` turns on single alternates; `--max-tier` leaves out recipes above
  * a dataset tier (tier 0-0 always stays); `--avoid-fluid-byproducts` lets no
- * fluid but Steam and Flue Gas be left over (A39, the app's default);
+ * fluid but Steam, Flue Gas and Energetic Dark Matter be left over (A39, the app's default);
  * `--compare-alternates` solves both ways and lists the alternates that help.
  * The model is data/generated/model.json, built in memory when it is missing.
  */

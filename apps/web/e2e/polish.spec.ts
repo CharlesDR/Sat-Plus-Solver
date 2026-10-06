@@ -126,11 +126,13 @@ test('avoid fluid byproducts is on, and its fix turns it off for the factory (A3
   await openFactory(page);
   const avoid = page.getByRole('checkbox', { name: 'Avoid fluid byproducts' });
   await expect(avoid).toBeChecked();
-  // Kerr Crystal leaves Energetic Dark Matter over.
-  await page.getByLabel('Per minute').fill('10');
-  await page.getByLabel('Target item').fill('Kerr Crystal');
+  // Up to tier 3-6, Steel Ingot leaves Cold Slag over.
+  await page.getByLabel('Per minute').fill('60');
+  await page.getByLabel('Target item').fill('Steel Ingot');
+  await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
+  await page.getByLabel('Max tier').selectOption('3-6');
   await expect(page.getByTestId('plan-status')).toContainText('infeasible');
-  await expect(page.getByText(/Energetic Dark Matter left over/)).toBeVisible();
+  await expect(page.getByText(/Cold Slag left over/)).toBeVisible();
   await page.getByRole('button', { name: 'Allow leftover fluids in this factory' }).click();
   await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
   await expect(avoid).not.toBeChecked();

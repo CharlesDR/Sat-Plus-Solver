@@ -85,7 +85,9 @@ export function SettingsPanel({ store, scope, catalog }: Props) {
           />
           Avoid fluid byproducts
         </label>
-        <p className="hint">No leftover fluids except Steam and Flue Gas, which can be dumped.</p>
+        <p className="hint">
+          No leftover fluids except Steam, Flue Gas and Energetic Dark Matter, which can be dumped.
+        </p>
       </SettingField>
       <SettingField {...meta('maxTier')}>
         <label>

@@ -43,7 +43,7 @@ const RESOURCE_SLACK_COST = 0.001;
 /** Elastic re-solve: cost of 1/min of a fluid byproduct left over against `avoidFluidByproducts` (A39). */
 const SURPLUS_SLACK_COST = 0.001;
 /** Fluids that are easy to dump, so `avoidFluidByproducts` still lets them be left over (A39). */
-export const DUMPABLE_FLUIDS: readonly string[] = ['flue-gas', 'steam'];
+export const DUMPABLE_FLUIDS: readonly string[] = ['energetic-dark-matter', 'flue-gas', 'steam'];
 /** Solution checks (CLAUDE.md): balance within 1e-6, variables ≥ −1e-9, nodes ≤ budget, resources ≤ limit. */
 const BALANCE_TOL = 1e-6;
 const NONNEG_TOL = 1e-9;

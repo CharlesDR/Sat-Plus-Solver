@@ -50,7 +50,7 @@ describe('solve: avoid fluid byproducts (A39)', () => {
     expect(on).toEqual(off);
   });
 
-  test('Steam and Flue Gas are the dumpable fluids', () => {
-    expect([...DUMPABLE_FLUIDS].sort()).toEqual(['flue-gas', 'steam']);
+  test('Steam, Flue Gas and Energetic Dark Matter are the dumpable fluids', () => {
+    expect([...DUMPABLE_FLUIDS].sort()).toEqual(['energetic-dark-matter', 'flue-gas', 'steam']);
   });
 });

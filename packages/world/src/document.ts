@@ -42,7 +42,7 @@ export interface WorldDefaults {
   wholeMachines: boolean;
   /** Cost imported inputs (§3.3): linked imports at the upstream plan's marginal cost. */
   costImports: boolean;
-  /** Avoid fluid byproducts (A39): no fluid but Steam and Flue Gas may be left over. Default on. */
+  /** Avoid fluid byproducts (A39): no fluid but Steam, Flue Gas and Energetic Dark Matter may be left over. Default on. */
   avoidFluidByproducts: boolean;
   /**
    * Per-recipe toggles by recipe id: `false` disables a recipe, `true` enables

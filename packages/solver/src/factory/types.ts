@@ -103,7 +103,8 @@ export interface SolveRequest {
   resourceLimits?: Readonly<Record<string, number>>;
   /**
    * Avoid fluid byproducts (A39): no fluid may be left over as surplus except
-   * the ones that are easy to dump (`DUMPABLE_FLUIDS`: Steam and Flue Gas).
+   * the ones that are easy to dump (`DUMPABLE_FLUIDS`: Steam, Flue Gas and
+   * Energetic Dark Matter).
    * Every other fluid the plan makes must be consumed, delivered or not made.
    * Default false.
    */
