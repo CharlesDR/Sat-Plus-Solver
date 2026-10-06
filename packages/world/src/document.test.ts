@@ -38,6 +38,7 @@ describe('World document', () => {
       alternates: false,
       wholeMachines: false,
       costImports: false,
+      avoidFluidByproducts: true,
       recipes: {},
       maxTier: null,
     });
@@ -73,6 +74,7 @@ describe('factorySolveRequest', () => {
       tolerance: TOLERANCE_DEFAULT,
       recipes: { alternates: false, exclude: [] },
       nodeBudget: 'pool',
+      avoidFluidByproducts: true,
     });
   });
 
@@ -96,6 +98,7 @@ describe('factorySolveRequest', () => {
         { item: 'iron-ingot', cap: Infinity },
         { item: 'screw', cap: 10 },
       ],
+      avoidFluidByproducts: true,
     });
   });
 
@@ -141,6 +144,18 @@ describe('factorySolveRequest', () => {
     });
     w.factories[0]!.request.costImports = false;
     expect(factorySolveRequest(w, model, DEFAULT_FACTORY_ID)).not.toHaveProperty('costImports');
+  });
+
+  test('avoid fluid byproducts is on by default, and a factory can turn it off (A39)', () => {
+    const w = world();
+    expect(factorySolveRequest(w, model, DEFAULT_FACTORY_ID).avoidFluidByproducts).toBe(true);
+    w.factories[0]!.request.avoidFluidByproducts = false;
+    expect(factorySolveRequest(w, model, DEFAULT_FACTORY_ID)).not.toHaveProperty(
+      'avoidFluidByproducts',
+    );
+    w.defaults.avoidFluidByproducts = false;
+    w.factories[0]!.request.avoidFluidByproducts = true;
+    expect(factorySolveRequest(w, model, DEFAULT_FACTORY_ID).avoidFluidByproducts).toBe(true);
   });
 
   test('pool edits become node caps', () => {

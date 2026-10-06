@@ -397,6 +397,8 @@ function FactoryView(props: {
       );
     else if (f.kind === 'raise-resource')
       actions.setResources(factoryId, withResourceLimit(factory.resources, f.item, f.amount));
+    else if (f.kind === 'allow-fluid-byproducts')
+      actions.setSetting(scoped, 'avoidFluidByproducts', false);
   };
   const diagnostics = outcome && (
     <DiagnosticsList

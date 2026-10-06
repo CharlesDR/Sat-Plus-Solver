@@ -560,8 +560,6 @@ details[open] > summary::before {
 }
 .main {
   padding: 16px;
-  max-width: 1800px;
-  margin: 0 auto;
 }
 .banner {
   padding: 10px 14px;
@@ -837,15 +835,16 @@ label.inline {
 }
 .nodes td,
 .nodes th {
-  padding: 4px 8px;
+  padding: 4px 6px;
   border-bottom: 1px solid var(--line);
   font-size: 14px;
 }
-.nodes td input {
-  width: 6em;
+.nodes td input[type='number'] {
+  width: 5.5em;
 }
 .nodes .num {
   text-align: right;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 .nodes .text {
@@ -853,7 +852,7 @@ label.inline {
 }
 .nodes .unit {
   display: inline-block;
-  min-width: 4.5em;
+  min-width: 3.6em;
   text-align: left;
   color: var(--muted);
 }
@@ -864,7 +863,7 @@ label.inline {
 /* ---------- Factory view: settings sidebar + plan ---------- */
 .factory {
   display: grid;
-  grid-template-columns: 360px minmax(0, 1fr);
+  grid-template-columns: 500px minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }

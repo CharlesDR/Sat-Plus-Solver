@@ -84,7 +84,7 @@ export function ResourceLimitsEditor(props: Props) {
                         type="number"
                         min="0"
                         step="any"
-                        placeholder="no limit"
+                        placeholder="any"
                         aria-label={`Limit for ${r.name}`}
                         disabled={!on}
                         value={limit?.max ?? ''}
@@ -101,7 +101,7 @@ export function ResourceLimitsEditor(props: Props) {
                     <span>unlimited</span>
                   )}
                 </td>
-                <td className="num">{max === undefined ? '' : `${formatRate(max)} ${unit}`}</td>
+                <td className="num">{max === undefined ? '' : formatRate(max)}</td>
               </tr>
             );
           })}

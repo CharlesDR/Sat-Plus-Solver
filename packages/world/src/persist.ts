@@ -128,6 +128,7 @@ function shapeProblems(w: World): string[] {
     !isBool(d.alternates) ||
     !isBool(d.wholeMachines) ||
     !isBool(d.costImports) ||
+    !isBool(d.avoidFluidByproducts) ||
     !isBoolMap(d.recipes) ||
     !isTier(d.maxTier)
   )
@@ -162,6 +163,7 @@ function isRequest(r: unknown): boolean {
     isOpt(r.alternates, isBool) &&
     isOpt(r.wholeMachines, isBool) &&
     isOpt(r.costImports, isBool) &&
+    isOpt(r.avoidFluidByproducts, isBool) &&
     isOpt(r.recipes, isBoolMap) &&
     isOpt(r.maxTier, isTier)
   );

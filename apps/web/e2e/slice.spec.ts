@@ -62,8 +62,18 @@ test('Iron Plate 60/min matches the CLI table without blocking the main thread',
 }) => {
   const cli = execFileSync(
     'pnpm',
-    // The app's default stack is scarcity-weighted (O2); the CLI's is O1.
-    ['-s', 'solve', '--target', 'Iron Plate:60', '--no-alternates', '--objective', 'scarcity'],
+    // The app's default stack is scarcity-weighted (O2) and it avoids fluid
+    // byproducts (A39); the CLI's defaults are O1 and leftovers allowed.
+    [
+      '-s',
+      'solve',
+      '--target',
+      'Iron Plate:60',
+      '--no-alternates',
+      '--objective',
+      'scarcity',
+      '--avoid-fluid-byproducts',
+    ],
     {
       cwd: ROOT,
       encoding: 'utf8',

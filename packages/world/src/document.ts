@@ -10,12 +10,12 @@
  * added the max-tier filter; v4 replaced the factory's node budget with
  * per-resource limits (A33); v5 moved worlds on the old default objective
  * stack (O1) to the new one (O2); v6 added plan tweaks (A35); v7 added
- * manual mode (A36). `migrateWorld` upgrades older documents.
+ * manual mode (A36); v8 added "Avoid fluid byproducts" (A39), on. `migrateWorld` upgrades older documents.
  */
 import type { Model } from '@sps/data';
 import type { ItemRate, ObjectiveId, RecipeFilter, SolveRequest } from '@sps/solver';
 
-export const WORLD_VERSION = 7;
+export const WORLD_VERSION = 8;
 
 /** Lexicographic tolerance bounds (CLAUDE.md): 0.01%–90%, default 0.01%. */
 export const TOLERANCE_MIN = 0.0001;
@@ -42,6 +42,8 @@ export interface WorldDefaults {
   wholeMachines: boolean;
   /** Cost imported inputs (§3.3): linked imports at the upstream plan's marginal cost. */
   costImports: boolean;
+  /** Avoid fluid byproducts (A39): no fluid but Steam and Flue Gas may be left over. Default on. */
+  avoidFluidByproducts: boolean;
   /**
    * Per-recipe toggles by recipe id: `false` disables a recipe, `true` enables
    * it (an alternate while `alternates` is off). A recipe not listed follows
@@ -60,6 +62,7 @@ export interface FactoryRequest {
   alternates?: boolean;
   wholeMachines?: boolean;
   costImports?: boolean;
+  avoidFluidByproducts?: boolean;
   /** Per-recipe toggles that win over the world's; a recipe not listed inherits. */
   recipes?: Record<string, boolean>;
   /** `null` = no limit, overriding the world's. */
@@ -175,6 +178,7 @@ export function defaultWorldDefaults(): WorldDefaults {
     alternates: false,
     wholeMachines: false,
     costImports: false,
+    avoidFluidByproducts: true,
     recipes: {},
     maxTier: null,
   };
@@ -238,6 +242,7 @@ export function factorySolveRequest(
     ...(imports.length ? { imports } : {}),
     ...((r.wholeMachines ?? d.wholeMachines) ? { wholeMachines: true } : {}),
     ...((r.costImports ?? d.costImports) ? { costImports: true } : {}),
+    ...((r.avoidFluidByproducts ?? d.avoidFluidByproducts) ? { avoidFluidByproducts: true } : {}),
   };
 }
 

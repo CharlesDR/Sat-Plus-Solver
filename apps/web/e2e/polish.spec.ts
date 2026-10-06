@@ -98,3 +98,40 @@ test('an empty factory offers to add a target', async ({ page }) => {
   await page.getByRole('button', { name: 'Add a target' }).click();
   await expect(page.getByLabel('Target item')).toBeFocused();
 });
+
+test('the page has no width cap, and the resource limits table fits the sidebar', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 2560, height: 1200 });
+  await openFactory(page);
+  const main = await page.locator('main').boundingBox();
+  expect(main!.width).toBeGreaterThan(2500);
+  await page.evaluate(() =>
+    document
+      .querySelectorAll('.sidebar details')
+      .forEach((d) => ((d as HTMLDetailsElement).open = true)),
+  );
+  const table = page.getByRole('table', { name: 'Resource limits' });
+  await expect(table).toBeVisible();
+  const [tableWidth, boxWidth] = await table.evaluate((t) => [
+    t.getBoundingClientRect().width,
+    t.parentElement!.clientWidth,
+  ]);
+  expect(tableWidth).toBeLessThanOrEqual(boxWidth);
+});
+
+test('avoid fluid byproducts is on, and its fix turns it off for the factory (A39)', async ({
+  page,
+}) => {
+  await openFactory(page);
+  const avoid = page.getByRole('checkbox', { name: 'Avoid fluid byproducts' });
+  await expect(avoid).toBeChecked();
+  // Kerr Crystal leaves Energetic Dark Matter over.
+  await page.getByLabel('Per minute').fill('10');
+  await page.getByLabel('Target item').fill('Kerr Crystal');
+  await expect(page.getByTestId('plan-status')).toContainText('infeasible');
+  await expect(page.getByText(/Energetic Dark Matter left over/)).toBeVisible();
+  await page.getByRole('button', { name: 'Allow leftover fluids in this factory' }).click();
+  await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
+  await expect(avoid).not.toBeChecked();
+});

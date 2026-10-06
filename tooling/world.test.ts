@@ -154,6 +154,8 @@ describe('full SF+ model', () => {
     );
     // The costs below are O1's; the default stack is O2.
     w.defaults.objectives = ['resources'];
+    // The turbines factory returns Water it has no use for (A39).
+    w.defaults.avoidFluidByproducts = false;
     const r = await resolveWorld(w, model, solveFactory);
     expect(r.diagnostics.filter((d) => d.severity === 'error')).toEqual([]);
     expect(r.links[0]!.requested).toBeCloseTo(20, 6);

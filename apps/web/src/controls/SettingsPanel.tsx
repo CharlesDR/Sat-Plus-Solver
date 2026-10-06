@@ -76,6 +76,17 @@ export function SettingsPanel({ store, scope, catalog }: Props) {
           Cost imported inputs
         </label>
       </SettingField>
+      <SettingField {...meta('avoidFluidByproducts')}>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={values.avoidFluidByproducts}
+            onChange={(e) => set('avoidFluidByproducts', e.target.checked)}
+          />
+          Avoid fluid byproducts
+        </label>
+        <p className="hint">No leftover fluids except Steam and Flue Gas, which can be dumped.</p>
+      </SettingField>
       <SettingField {...meta('maxTier')}>
         <label>
           Max tier

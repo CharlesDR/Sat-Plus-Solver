@@ -3,7 +3,7 @@
  *
  *   pnpm solve --target "Iron Plate:60" [--target ...] [--import "Iron Ingot:30"]
  *              [--objective resources,machines,...] [--tolerance 0.01%] [--min-branch 0.01] [--whole-machines]
- *              [--cost-imports] [--alternates] [--compare-alternates] [--exclude <recipe-id>]
+ *              [--cost-imports] [--avoid-fluid-byproducts] [--alternates] [--compare-alternates] [--exclude <recipe-id>]
  *              [--enable <recipe-id>] [--max-tier <major-minor>] [--budget "<node-id>=<count>"] [--model <model.json>] [--json]
  *
  * Items are matched by id or by name (case-insensitive). An import without a
@@ -13,7 +13,8 @@
  * (a percentage). `--min-branch` sets the prune pass's threshold in machines
  * (default 0.01; 0 turns it off). Alternates are off unless `--alternates` is given, and
  * `--enable` turns on single alternates; `--max-tier` leaves out recipes above
- * a dataset tier (tier 0-0 always stays);
+ * a dataset tier (tier 0-0 always stays); `--avoid-fluid-byproducts` lets no
+ * fluid but Steam and Flue Gas be left over (A39, the app's default);
  * `--compare-alternates` solves both ways and lists the alternates that help.
  * The model is data/generated/model.json, built in memory when it is missing.
  */
@@ -43,7 +44,7 @@ import { ROOT, runPipeline } from './build-data';
 
 export const USAGE = `Usage: pnpm solve --target "Item:rate" [--target ...] [--import "Item[:cap]"]
                   [--objective resources,machines,...] [--tolerance <percent>] [--min-branch <machines>]
-                  [--whole-machines] [--cost-imports] [--alternates] [--compare-alternates] [--exclude <recipe-id>]
+                  [--whole-machines] [--cost-imports] [--avoid-fluid-byproducts] [--alternates] [--compare-alternates] [--exclude <recipe-id>]
                   [--enable <recipe-id>] [--max-tier <major-minor>] [--budget "<node-id>=<count>"] [--model <model.json>] [--json]
 Objectives: resources (o1), scarcity (o2), machines (o3), power (o4), output (o5), types (o6).`;
 
@@ -86,6 +87,7 @@ export function parseCli(argv: string[], model: Model): CliArgs {
         tolerance: { type: 'string' },
         'min-branch': { type: 'string' },
         'whole-machines': { type: 'boolean' },
+        'avoid-fluid-byproducts': { type: 'boolean' },
         'cost-imports': { type: 'boolean' },
         alternates: { type: 'boolean' },
         'no-alternates': { type: 'boolean' },
@@ -169,6 +171,7 @@ export function parseCli(argv: string[], model: Model): CliArgs {
       ...(tolerance !== undefined ? { tolerance } : {}),
       ...(minBranch !== undefined ? { minBranch } : {}),
       ...(parsed['whole-machines'] ? { wholeMachines: true } : {}),
+      ...(parsed['avoid-fluid-byproducts'] ? { avoidFluidByproducts: true } : {}),
       ...(parsed['cost-imports'] ? { costImports: true } : {}),
       nodeBudget,
       ...(imports.length ? { imports } : {}),
