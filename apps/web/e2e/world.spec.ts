@@ -158,11 +158,12 @@ test('two factories, a pull link, ledger, groups, trace, power and drill-down', 
   await page.getByRole('button', { name: 'Clear trace' }).click();
   await expect(canvas(page).locator('.dimmed')).toHaveCount(0);
 
-  // Power panel: the total is the sum of the factory rows.
+  // Power panel: the total is the sum of the factory rows. Each cell rounds
+  // on its own, so compare the unrounded draws.
   await tab(page, 'Power');
   const power = page.getByRole('table', { name: 'Power by factory' });
   const draw = async (key: string) =>
-    Number(await power.locator(`tr[data-power="${key}"] td`).nth(1).textContent());
+    Number(await power.locator(`tr[data-power="${key}"]`).getAttribute('data-draw'));
   const parts = await Promise.all(
     ['factory:factory-1', 'factory:factory-2', 'factory:factory-main'].map(draw),
   );
