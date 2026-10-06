@@ -18,7 +18,7 @@ import type { FactoryResult, FactoryStatus, GroupResult, LedgerRow, LinkResult }
 export interface WorldGraphInput {
   factories: readonly Pick<
     FactoryResult,
-    'id' | 'name' | 'groupId' | 'status' | 'ledger' | 'power' | 'nodes' | 'machines'
+    'id' | 'name' | 'groupId' | 'status' | 'ledger' | 'power' | 'nodes' | 'machines' | 'manual'
   >[];
   groups: readonly Pick<
     GroupResult,
@@ -57,6 +57,8 @@ export interface WorldNode {
   collapsed?: boolean;
   /** Factories and collapsed groups (the worst of its factories). */
   status?: FactoryStatus;
+  /** Factories in manual mode (A36). */
+  manual?: true;
   power?: PowerSummary;
   /** Nodes used, summed over node classes. */
   nodesUsed?: number;
@@ -206,6 +208,7 @@ export function worldGraph(input: WorldGraphInput, options: WorldGraphOptions = 
       label: f.name,
       ...(parent ? { parent } : {}),
       status: f.status,
+      ...(f.manual ? { manual: true as const } : {}),
       power: { ...f.power },
       nodesUsed: sumNodes(f.nodes),
       machines: f.machines,

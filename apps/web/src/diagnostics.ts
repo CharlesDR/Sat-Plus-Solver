@@ -146,6 +146,14 @@ export function worldDiagnostics(ds: readonly WorldDiagnostic[], names: Names): 
         ]);
       case 'import-cost-unsettled':
         return view('Linked import costs did not settle');
+      case 'manual-short':
+        return view(`${names.factory(d.factory)} (manual) is unbalanced`, [
+          {
+            kind: 'open-factory',
+            factory: d.factory,
+            label: `Open ${names.factory(d.factory)}`,
+          },
+        ]);
     }
   });
 }

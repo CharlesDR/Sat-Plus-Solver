@@ -23,6 +23,8 @@ import type { Catalog, FocusPlan, SolveProgress, WorldAction } from './solver/pr
 import type { Scope, WorldStore } from './store';
 import { SolvingNote } from './SolvingNote';
 import { SummaryTable } from './SummaryTable';
+import { ManualPanel, ModeSwitch } from './manual/ManualPanel';
+import { planToFreeze } from './manual/manual';
 import { TweakPanel } from './tweaks/TweakPanel';
 import type { Baseline } from './tweaks/tweaks';
 import { useWorldPlan, type WorldPlanState } from './useWorldPlan';
@@ -221,8 +223,10 @@ function FactoryView(props: {
   const w = props.plan;
   const summary =
     w.kind === 'done' ? w.outcome.world : w.kind === 'solving' ? w.previous?.world : undefined;
+  const manual = factory?.manual?.enabled === true;
   const idle =
     !!factory &&
+    !manual &&
     factory.request.targets.length === 0 &&
     !world.links.some((l) => l.from === factoryId);
   const previous = focused(
@@ -258,7 +262,7 @@ function FactoryView(props: {
       },
     [mine],
   );
-  // Ctrl+Z (Cmd+Z) undoes the last plan tweak, except while typing in a field.
+  // Ctrl+Z (Cmd+Z) undoes the last manual edit, or plan tweak, except while typing in a field.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() !== 'z' || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey)
@@ -266,7 +270,10 @@ function FactoryView(props: {
       const el = e.target as HTMLElement | null;
       if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
       e.preventDefault();
-      store.getState().undoTweak(factoryId);
+      const s = store.getState();
+      const f = s.world.factories.find((x) => x.id === factoryId);
+      if (f?.manual?.enabled) s.undoManual(factoryId);
+      else s.undoTweak(factoryId);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -292,8 +299,19 @@ function FactoryView(props: {
     />
   );
 
+  const toManual = (on: boolean) => {
+    setSelection(undefined);
+    if (on) actions.enterManual(factoryId, planToFreeze(outcome?.graph));
+    else actions.leaveManual(factoryId);
+  };
+
   return (
-    <div className="factory">
+    <div className={manual ? 'factory manual' : 'factory'}>
+      <ModeSwitch
+        manual={manual}
+        blocked={plan.kind === 'solving' ? 'Wait for the plan to finish solving.' : undefined}
+        onChange={toManual}
+      />
       <section className="controls" aria-label="Factory controls">
         <div className="row">
           <Field label="Factory">
@@ -308,88 +326,117 @@ function FactoryView(props: {
             )}
           </Field>
         </div>
-        <TargetsEditor
-          catalog={catalog.targets}
-          targets={factory.request.targets}
-          onChange={(t) => actions.setTargets(factoryId, t)}
-        />
-        <div className="scope" role="radiogroup" aria-label="Settings apply to">
-          <span>Settings apply to</span>
-          <label className="check">
-            <input
-              type="radio"
-              name="scope"
-              checked={scopeKind === 'factory'}
-              onChange={() => setScopeKind('factory')}
-            />
-            This factory
-          </label>
-          <label className="check">
-            <input
-              type="radio"
-              name="scope"
-              checked={scopeKind === 'world'}
-              onChange={() => setScopeKind('world')}
-            />
-            World defaults (all factories)
-          </label>
-        </div>
-        <SettingsPanel store={store} scope={scope} catalog={catalog} />
-        <details>
-          <summary>Share this factory</summary>
-          <p>Shares this factory alone: its links become targets and imports.</p>
-          <ShareControls
-            world={() =>
-              extractFactory(
-                store.getState().world,
-                factoryId,
-                Object.fromEntries(summary?.links.map((l) => [l.id, l.requested]) ?? []),
-              )
-            }
-            name={factory.name}
-            what="this factory"
-            disabled={
-              !summary && world.links.some((l) => l.from === factoryId && l.mode.kind === 'pull')
-            }
+        {manual && (
+          <p className="hint">
+            These settings are frozen in manual mode. Switch back to Solver to change them.
+          </p>
+        )}
+        <fieldset className="plain" disabled={manual}>
+          <TargetsEditor
+            catalog={catalog.targets}
+            targets={factory.request.targets}
+            onChange={(t) => actions.setTargets(factoryId, t)}
           />
-        </details>
-        <details>
-          <summary>Recipes</summary>
-          <RecipeToggles store={store} scope={scope} recipes={catalog.recipes} />
-        </details>
-        <details>
-          <summary>Unassigned imports ({factory.unassignedImports.length})</summary>
-          <ImportsEditor
-            catalog={catalog.items}
-            imports={factory.unassignedImports}
-            onChange={(i) => actions.setUnassignedImports(factoryId, i)}
-          />
-        </details>
-        <details>
-          <summary>Resources ({limitsLabel(factory.resources)})</summary>
-          <ResourceLimitsEditor
-            world={world}
-            factory={factory}
-            resources={catalog.resources}
-            usage={usage}
-            onChange={(r) => actions.setResources(factoryId, r)}
-            {...(summary
-              ? {
-                  onAllocateRemaining: () =>
-                    actions.replaceWorld(
-                      allocateRemaining(
-                        world,
-                        rawResourcesOf(catalog.resources, world.nodePool),
-                        summary,
-                        factoryId,
+          <div className="scope" role="radiogroup" aria-label="Settings apply to">
+            <span>Settings apply to</span>
+            <label className="check">
+              <input
+                type="radio"
+                name="scope"
+                checked={scopeKind === 'factory'}
+                onChange={() => setScopeKind('factory')}
+              />
+              This factory
+            </label>
+            <label className="check">
+              <input
+                type="radio"
+                name="scope"
+                checked={scopeKind === 'world'}
+                onChange={() => setScopeKind('world')}
+              />
+              World defaults (all factories)
+            </label>
+          </div>
+          <SettingsPanel store={store} scope={scope} catalog={catalog} />
+          <details>
+            <summary>Share this factory</summary>
+            <p>Shares this factory alone: its links become targets and imports.</p>
+            <ShareControls
+              world={() =>
+                extractFactory(
+                  store.getState().world,
+                  factoryId,
+                  Object.fromEntries(summary?.links.map((l) => [l.id, l.requested]) ?? []),
+                )
+              }
+              name={factory.name}
+              what="this factory"
+              disabled={
+                !summary && world.links.some((l) => l.from === factoryId && l.mode.kind === 'pull')
+              }
+            />
+          </details>
+          <details>
+            <summary>Recipes</summary>
+            <RecipeToggles store={store} scope={scope} recipes={catalog.recipes} />
+          </details>
+          <details>
+            <summary>Unassigned imports ({factory.unassignedImports.length})</summary>
+            <ImportsEditor
+              catalog={catalog.items}
+              imports={factory.unassignedImports}
+              onChange={(i) => actions.setUnassignedImports(factoryId, i)}
+            />
+          </details>
+          <details>
+            <summary>Resources ({limitsLabel(factory.resources)})</summary>
+            <ResourceLimitsEditor
+              world={world}
+              factory={factory}
+              resources={catalog.resources}
+              usage={usage}
+              onChange={(r) => actions.setResources(factoryId, r)}
+              {...(summary
+                ? {
+                    onAllocateRemaining: () =>
+                      actions.replaceWorld(
+                        allocateRemaining(
+                          world,
+                          rawResourcesOf(catalog.resources, world.nodePool),
+                          summary,
+                          factoryId,
+                        ),
                       ),
-                    ),
-                }
-              : {})}
-          />
-        </details>
+                  }
+                : {})}
+            />
+          </details>
+        </fieldset>
       </section>
-      {outcome && (
+      {manual && factory.manual && (
+        <ManualPanel
+          factory={factory}
+          recipes={catalog.recipes}
+          node={selectedNode}
+          missing={outcome?.manual?.missing.length ?? 0}
+          onCount={(recipe, machines) => {
+            actions.setManualCount(factoryId, recipe, machines);
+            if (machines === 0) setSelection(undefined);
+          }}
+          onAdd={(recipe) => {
+            actions.setManualCount(factoryId, recipe, 1);
+            setSelection({ id: recipeNodeId(recipe), from: 'table' });
+          }}
+          onUndo={() => actions.undoManual(factoryId)}
+          onRevert={() => actions.revertManual(factoryId)}
+          onDiscard={() => {
+            setSelection(undefined);
+            actions.discardManual(factoryId);
+          }}
+        />
+      )}
+      {outcome && !manual && (
         <TweakPanel
           world={world}
           factory={factory}
@@ -438,7 +485,13 @@ function PlanView(props: {
           onSelect={(id) => onSelect(id, 'graph')}
         />
       </ErrorBoundary>
-      <SummaryTable plan={o.plan} selection={selection} onSelect={(id) => onSelect(id, 'table')} />
+      <SummaryTable
+        plan={o.plan}
+        manual={o.manual !== undefined}
+        missing={o.manual?.missing}
+        selection={selection}
+        onSelect={(id) => onSelect(id, 'table')}
+      />
     </>
   );
   switch (plan.kind) {
@@ -460,7 +513,9 @@ function PlanView(props: {
     case 'done':
       return (
         <div aria-busy="false" data-testid="plan">
-          <p className="timing">Solved in {Math.round(plan.outcome.ms)} ms.</p>
+          <p className="timing">
+            {plan.outcome.manual ? 'Computed' : 'Solved'} in {Math.round(plan.outcome.ms)} ms.
+          </p>
           {solved(plan.outcome)}
         </div>
       );

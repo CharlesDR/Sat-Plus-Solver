@@ -11,6 +11,7 @@ export {
   byproductNodeId,
   factoryGraph,
   importNodeId,
+  missingNodeId,
   recipeNodeId,
   targetNodeId,
 } from './factory';

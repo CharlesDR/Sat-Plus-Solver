@@ -1,4 +1,10 @@
-import { byproductNodeId, importNodeId, recipeNodeId, targetNodeId } from '@sps/graph';
+import {
+  byproductNodeId,
+  importNodeId,
+  missingNodeId,
+  recipeNodeId,
+  targetNodeId,
+} from '@sps/graph';
 import { formatRate as fmt, recipeTable, type PlanSummary, type SummaryFlow } from '@sps/solver';
 import { useEffect, useRef, type ReactNode } from 'react';
 import type { Selection } from './selection';
@@ -10,13 +16,29 @@ interface Pick {
 }
 
 /** The plan summary, laid out like the `pnpm solve` table (same sections and numbers). */
-export function SummaryTable({ plan, ...pick }: { plan: PlanSummary } & Pick) {
+export function SummaryTable({
+  plan,
+  missing = [],
+  manual = false,
+  ...pick
+}: {
+  plan: PlanSummary;
+  /** Manual mode (A36): the plan is hand-edited arithmetic, with these inputs missing. */
+  manual?: boolean;
+  missing?: SummaryFlow[] | undefined;
+} & Pick) {
   const p = plan.power;
   return (
     <section className="summary" aria-label="Plan summary">
       <p data-testid="plan-status">
-        Status: {plan.status} · Objective: {plan.objective}
-        {plan.objectiveValue !== undefined && ` = ${fmt(plan.objectiveValue)}`}
+        {manual ? (
+          <>Status: manual plan, not solver-checked</>
+        ) : (
+          <>
+            Status: {plan.status} · Objective: {plan.objective}
+            {plan.objectiveValue !== undefined && ` = ${fmt(plan.objectiveValue)}`}
+          </>
+        )}
       </p>
       {plan.status === 'ok' && (
         <>
@@ -28,6 +50,7 @@ export function SummaryTable({ plan, ...pick }: { plan: PlanSummary } & Pick) {
             {...pick}
           />
           <Flows title="Targets" rows={plan.targets} id={targetNodeId} {...pick} />
+          <Flows title="Missing inputs" rows={missing} id={missingNodeId} {...pick} />
           <Flows title="Imports" rows={plan.imports} id={importNodeId} {...pick} />
           <Flows
             title="Surplus and byproducts"

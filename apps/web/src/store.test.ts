@@ -233,4 +233,28 @@ describe('world editing (M8)', () => {
     s().revertTweaks(F);
     expect(s().world.factories[0]).toEqual(before.factories[0]);
   });
+
+  test('manual mode: enter, edit, undo, revert, leave and discard (A36)', () => {
+    const store = twoFactories();
+    const s = () => store.getState();
+    const manual = () => s().world.factories[0]!.manual;
+    const before = s().world.factories[0];
+    s().enterManual(F, [{ recipe: 'iron-plate', machines: 3 }]);
+    s().setManualCount(F, 'iron-plate', 4);
+    s().setManualCount(F, 'screw', 1);
+    expect(manual()!.edits).toHaveLength(2);
+    s().undoManual(F);
+    expect(manual()!.edits).toEqual([{ recipe: 'iron-plate', machines: 4 }]);
+    s().revertManual(F);
+    expect(manual()).toEqual({
+      enabled: true,
+      frozen: [{ recipe: 'iron-plate', machines: 3 }],
+      edits: [],
+    });
+    s().leaveManual(F);
+    expect(manual()!.enabled).toBe(false);
+    s().discardManual(F);
+    expect(s().world.factories[0]).toEqual(before);
+    expect(s().world.factories[1]!.manual).toBeUndefined();
+  });
 });

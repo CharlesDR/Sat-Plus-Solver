@@ -5,6 +5,7 @@ import v3 from '../../../fixtures/worlds/v3-world.json';
 import v4 from '../../../fixtures/worlds/v4-world.json';
 import v5 from '../../../fixtures/worlds/v5-world.json';
 import v6 from '../../../fixtures/worlds/v6-world.json';
+import v7 from '../../../fixtures/worlds/v7-world.json';
 import { WORLD_VERSION, createWorld, factorySolveRequest } from './document';
 import { WorldMigrationError, migrateWorld } from './migrate';
 
@@ -135,8 +136,22 @@ describe('migrateWorld', () => {
     // The v6 fixture is the v5 one plus tweaks on one factory.
     expect({ ...w, factories: w.factories.map((f) => ({ ...f, tweaks: [] })) }).toEqual({
       ...v6,
+      meta: { ...v6.meta, v: WORLD_VERSION },
       factories: v6.factories.map((f) => ({ ...f, tweaks: [] })),
     });
+  });
+
+  test('a v6 save carries over unchanged but for its version (A36)', () => {
+    const before = JSON.stringify(v6);
+    const w = migrateWorld(v6);
+    expect(w).toEqual({ ...v6, meta: { ...v6.meta, v: WORLD_VERSION } });
+    expect(JSON.stringify(v6)).toBe(before);
+    // The v7 fixture is the v6 one plus manual plans on two factories.
+    const strip = (x: typeof w) => ({
+      ...x,
+      factories: x.factories.map(({ manual: _, ...f }) => f),
+    });
+    expect(strip(v7 as unknown as typeof w)).toEqual(w);
   });
 
   test('a current world passes through unchanged', () => {

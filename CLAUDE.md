@@ -37,7 +37,7 @@ A client-side, two-layer production planner for the Satisfactory Plus (SF+) mod.
 
 ### Solver correctness
 
-- Every solve result is checked before it is returned: item balance within 1e-6, all variables ≥ −1e-9, node usage ≤ budget. A failed check is an error, not a warning.
+- Every solve result is checked before it is returned: item balance within 1e-6, all variables ≥ −1e-9, node usage ≤ budget. A failed check is an error, not a warning. A factory in manual mode (A36) is not solved, so this does not apply to it; its plan is labelled "not solver-checked".
 - Handle every HiGHS status (`Optimal`, `Infeasible`, `Unbounded`, time limit, numerical errors) explicitly, with the user-facing diagnostics in ARCHITECTURE §3.5.
 - Lexicographic tolerance input is clamped to **0.01%–90%, default 0.01%**.
 - Results must be deterministic: identical input gives identical output, including tie-breaking and graph layout.

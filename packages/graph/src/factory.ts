@@ -14,10 +14,11 @@
  */
 import type { ItemRate, RecipeUsage, SolveResult } from '@sps/solver';
 
-export type FlowNodeKind = 'recipe' | 'resource' | 'import' | 'target' | 'byproduct';
+/** `missing`: what a manual plan (A36) needs beyond its imports. */
+export type FlowNodeKind = 'recipe' | 'resource' | 'import' | 'missing' | 'target' | 'byproduct';
 
 export interface FlowNode {
-  /** `recipe:<id>`, `import:<item>`, `target:<item>` or `byproduct:<item>`. */
+  /** `recipe:<id>`, `import:<item>`, `missing:<item>`, `target:<item>` or `byproduct:<item>`. */
   id: string;
   kind: FlowNodeKind;
   /** Recipe name, or the item name for import/target/byproduct nodes. */
@@ -33,7 +34,7 @@ export interface FlowNode {
   boilerLoad?: number;
   /** Node class drawn on (resource nodes). */
   node?: string;
-  /** Import/target/byproduct nodes: the item and its rate. */
+  /** Import/missing/target/byproduct nodes: the item and its rate. */
   item?: string;
   rate?: number;
   /** What flows in and out per minute, merged per item and sorted by item. */
@@ -73,10 +74,11 @@ export type FlowchartInput = Pick<
 
 const KIND_ORDER: Record<FlowNodeKind, number> = {
   import: 0,
-  resource: 1,
-  recipe: 2,
-  target: 3,
-  byproduct: 4,
+  missing: 1,
+  resource: 2,
+  recipe: 3,
+  target: 4,
+  byproduct: 5,
 };
 
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
@@ -90,11 +92,20 @@ function merge(flows: readonly ItemRate[]): ItemRate[] {
 
 export const recipeNodeId = (recipe: string) => `recipe:${recipe}`;
 export const importNodeId = (item: string) => `import:${item}`;
+export const missingNodeId = (item: string) => `missing:${item}`;
 export const targetNodeId = (item: string) => `target:${item}`;
 export const byproductNodeId = (item: string) => `byproduct:${item}`;
 
-/** Builds the flowchart of a solved plan. A plan that is not `ok` gives an empty graph. */
-export function factoryGraph(result: FlowchartInput, labels: GraphLabels = {}): FactoryGraph {
+/**
+ * Builds the flowchart of a solved plan. A plan that is not `ok` gives an
+ * empty graph. `missing` (a manual plan's shortfall, A36) is taken out of the
+ * imports and drawn as its own nodes.
+ */
+export function factoryGraph(
+  result: FlowchartInput,
+  labels: GraphLabels = {},
+  missing: readonly ItemRate[] = [],
+): FactoryGraph {
   if (result.status !== 'ok') return { nodes: [], edges: [] };
   const itemName = (id: string) => labels.item?.(id) ?? id;
   const nodes: FlowNode[] = [];
@@ -113,8 +124,15 @@ export function factoryGraph(result: FlowchartInput, labels: GraphLabels = {}): 
     outputs: merge(r.outputs),
   });
   for (const r of result.recipes) nodes.push(recipeNode(r));
-  for (const f of merge(result.imports))
+  const lacking = new Map(merge(missing).map((m) => [m.item, m.rate]));
+  // What is left of an import once its missing part is drawn apart; a rounding sliver is dropped.
+  const imported = merge(result.imports)
+    .map((f) => ({ item: f.item, rate: f.rate - (lacking.get(f.item) ?? 0) }))
+    .filter((f) => f.rate > 1e-9 * Math.max(1, f.rate + (lacking.get(f.item) ?? 0)));
+  for (const f of imported)
     nodes.push(endpoint('import', importNodeId(f.item), f, itemName(f.item)));
+  for (const [item, rate] of lacking)
+    nodes.push(endpoint('missing', missingNodeId(item), { item, rate }, itemName(item)));
   for (const f of merge(result.items.map((i) => ({ item: i.item, rate: i.demand }))))
     nodes.push(endpoint('target', targetNodeId(f.item), f, itemName(f.item)));
   for (const f of merge(result.surplus))
@@ -194,7 +212,7 @@ function endpoint(kind: FlowNodeKind, id: string, f: ItemRate, label: string): F
     label,
     item: f.item,
     rate: f.rate,
-    inputs: kind === 'import' ? [] : flow,
-    outputs: kind === 'import' ? flow : [],
+    inputs: kind === 'import' || kind === 'missing' ? [] : flow,
+    outputs: kind === 'import' || kind === 'missing' ? flow : [],
   };
 }
