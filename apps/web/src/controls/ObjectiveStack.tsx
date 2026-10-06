@@ -1,4 +1,4 @@
-import { OBJECTIVE_IDS, type ObjectiveId } from '@sps/solver';
+import type { ObjectiveId } from '@sps/solver';
 import { useId } from 'react';
 
 export const OBJECTIVE_LABELS: Record<ObjectiveId, string> = {
@@ -9,6 +9,16 @@ export const OBJECTIVE_LABELS: Record<ObjectiveId, string> = {
   output: 'Maximize output (O5)',
   resourceTypes: 'Resource types (O6)',
 };
+
+/** The order the "Add objective" list offers them in: the default, scarcity, first. */
+export const OBJECTIVE_ORDER: readonly ObjectiveId[] = [
+  'scarcity',
+  'resources',
+  'machines',
+  'power',
+  'output',
+  'resourceTypes',
+];
 
 /** Stack rules the solver enforces, applied before an edit is made. */
 export function canAdd(stack: readonly ObjectiveId[], o: ObjectiveId): boolean {
@@ -39,7 +49,7 @@ interface Props {
 /** The lexicographic objective stack: highest priority first, no repeats, `output` only first. */
 export function ObjectiveStack({ stack, onChange }: Props) {
   const addId = useId();
-  const left = OBJECTIVE_IDS.filter((o) => canAdd(stack, o));
+  const left = OBJECTIVE_ORDER.filter((o) => canAdd(stack, o));
   return (
     <div className="objectives">
       <ol aria-label="Objective stack">

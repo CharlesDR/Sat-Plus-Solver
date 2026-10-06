@@ -1,10 +1,16 @@
 import { describe, expect, test } from 'vitest';
-import { addObjective, moveObjective } from './ObjectiveStack';
+import { OBJECTIVE_IDS } from '@sps/solver';
+import { addObjective, moveObjective, OBJECTIVE_ORDER } from './ObjectiveStack';
 import { asPercent } from './ToleranceInput';
 import type { CatalogResource } from '../solver/protocol';
 import { limitsLabel, mapMax, rawResourcesOf, setEnabled, setMax } from './resourceLimits';
 
 describe('objective stack edits', () => {
+  test('the list offers every objective once, scarcity first', () => {
+    expect(OBJECTIVE_ORDER[0]).toBe('scarcity');
+    expect([...OBJECTIVE_ORDER].sort()).toEqual([...OBJECTIVE_IDS].sort());
+  });
+
   test('adds at the bottom, output on top, no repeats', () => {
     expect(addObjective(['resources'], 'machines')).toEqual(['resources', 'machines']);
     expect(addObjective(['resources'], 'output')).toEqual(['output', 'resources']);

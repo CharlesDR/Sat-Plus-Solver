@@ -72,7 +72,29 @@ function v3ToV4(doc: Doc): Doc {
   return { ...doc, meta: { ...(doc.meta as Doc), v: 4 }, factories };
 }
 
-const MIGRATIONS: Record<number, (doc: Doc) => Doc> = { 1: v1ToV2, 2: v2ToV3, 3: v3ToV4 };
+/**
+ * v4 → v5: a world still on the old default objective stack (O1 alone)
+ * moves to the new default, scarcity-weighted resources (O2), so its new
+ * factories start on O2. Any other world stack and every factory override
+ * stay as they are.
+ */
+function v4ToV5(doc: Doc): Doc {
+  const defaults = (doc.defaults ?? {}) as Doc;
+  const stack = defaults.objectives;
+  const old = Array.isArray(stack) && stack.length === 1 && stack[0] === 'resources';
+  return {
+    ...doc,
+    meta: { ...(doc.meta as Doc), v: 5 },
+    defaults: old ? { ...defaults, objectives: ['scarcity'] } : defaults,
+  };
+}
+
+const MIGRATIONS: Record<number, (doc: Doc) => Doc> = {
+  1: v1ToV2,
+  2: v2ToV3,
+  3: v3ToV4,
+  4: v4ToV5,
+};
 
 /** Returns `doc` upgraded to the current version; throws on a newer or malformed document. */
 export function migrateWorld(doc: unknown): World {
