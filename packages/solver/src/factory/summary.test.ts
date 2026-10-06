@@ -12,6 +12,13 @@ test('formatRate: 3 decimals, 3 significant digits below 0.001, no negative zero
   expect(formatRate(Infinity)).toBe('Infinity');
 });
 
+test('formatRate: commas between thousands', () => {
+  expect(formatRate(999.9999)).toBe('1,000');
+  expect(formatRate(1555.5556)).toBe('1,555.556');
+  expect(formatRate(-1234567.25)).toBe('-1,234,567.25');
+  expect(formatRate(123)).toBe('123');
+});
+
 const plan = (recipes: PlanSummary['recipes']): PlanSummary => ({
   status: 'ok',
   objective: 'resources',

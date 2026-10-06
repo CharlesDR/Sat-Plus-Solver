@@ -45,5 +45,5 @@ export type { RawResource } from './factory/resources';
 export { compareAlternates } from './factory/alternates';
 export type { AlternatesReport } from './factory/alternates';
 export type * from './factory/types';
-export { summarizePlan, formatRate, recipeTable } from './factory/summary';
+export { summarizePlan, formatRate, groupThousands, recipeTable } from './factory/summary';
 export type { PlanSummary, SummaryFlow, SummaryNode, SummaryRecipe } from './factory/summary';

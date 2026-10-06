@@ -110,10 +110,20 @@ export function recipeTable(plan: PlanSummary): { head: string[]; rows: string[]
   };
 }
 
-/** Number format of the plan table: 3 decimals, 3 significant digits below 0.001. */
+/**
+ * Number format of the plan table: 3 decimals, 3 significant digits below
+ * 0.001, and commas between thousands (1,555.556).
+ */
 export function formatRate(n: number): string {
   if (!Number.isFinite(n)) return String(n);
   if (n !== 0 && Math.abs(n) < 0.001) return n.toPrecision(3);
   const r = Math.round(n * 1000) / 1000;
-  return Object.is(r, -0) ? '0' : String(r);
+  return Object.is(r, -0) ? '0' : groupThousands(String(r));
+}
+
+/** Commas between thousands in a plain decimal string ("-1234.5" → "-1,234.5"). */
+export function groupThousands(s: string): string {
+  const [whole = '', frac] = s.split('.');
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return frac === undefined ? grouped : `${grouped}.${frac}`;
 }
