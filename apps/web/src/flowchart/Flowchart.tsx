@@ -40,6 +40,7 @@ const KIND_LABEL = {
   recipe: 'Recipe',
   resource: 'Resource node',
   import: 'Import',
+  missing: 'Missing input',
   target: 'Target',
   byproduct: 'Byproduct',
 } as const;

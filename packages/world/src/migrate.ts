@@ -95,12 +95,18 @@ function v5ToV6(doc: Doc): Doc {
   return { ...doc, meta: { ...(doc.meta as Doc), v: 6 }, factories };
 }
 
+/** v6 → v7 (A36): factories may carry a manual plan; none do yet. */
+function v6ToV7(doc: Doc): Doc {
+  return { ...doc, meta: { ...(doc.meta as Doc), v: 7 } };
+}
+
 const MIGRATIONS: Record<number, (doc: Doc) => Doc> = {
   1: v1ToV2,
   2: v2ToV3,
   3: v3ToV4,
   4: v4ToV5,
   5: v5ToV6,
+  6: v6ToV7,
 };
 
 /** Returns `doc` upgraded to the current version; throws on a newer or malformed document. */

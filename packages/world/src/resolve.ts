@@ -17,8 +17,9 @@ import {
   type SolveResult,
 } from '@sps/solver';
 import { analyze } from './analytics';
-import { factorySolveRequest, type Link, type World } from './document';
+import { factorySolveRequest, type Link, type ManualEntry, type World } from './document';
 import { createSolveCache, solveKey, type SolveCache } from './hash';
+import { manualEntries, manualOutcome, type ManualOutcome } from './manual';
 import type { SolveFactory, WorldDiagnostic, WorldResult } from './types';
 
 /** §4.3 step 3: most sweeps of a pull cycle before it is reported. */
@@ -58,6 +59,8 @@ export interface Solved {
   request: SolveRequest;
   key: string;
   result: SolveResult;
+  /** Manual mode (A36): the plan's arithmetic, not a solve. */
+  manual?: ManualOutcome;
 }
 
 /** The state a resolution pass leaves behind; `analyze` turns it into a `WorldResult`. */
@@ -67,6 +70,8 @@ export interface Pass {
   asked: Map<string, number>;
   /** Per link: what its consumer's plan drew through it on the consumer's last solve. */
   used: Map<string, number>;
+  /** Per link out of a manual factory (A36): what it actually ships, at most what was asked. */
+  delivered: Map<string, number>;
   diagnostics: WorldDiagnostic[];
 }
 
@@ -77,6 +82,8 @@ interface Context {
   out: Map<string, Link[]>;
   in: Map<string, Link[]>;
   base: Map<string, SolveRequest>;
+  /** Factories in manual mode (A36): their plans, which are not solved. */
+  manual: Map<string, ManualEntry[]>;
   /** Producer → items and objectives its linked consumers are costed under. */
   needs: Map<string, { items: Set<string>; objectives: Set<ObjectiveId> }>;
   run: (request: SolveRequest) => Promise<{ key: string; result: Solved['result'] }>;
@@ -143,6 +150,9 @@ export async function resolveWorld(
     out: group(links, (l) => l.from),
     in: group(links, (l) => l.to),
     base: new Map(factories.map((f) => [f.id, factorySolveRequest(world, model, f.id)])),
+    manual: new Map(
+      factories.flatMap((f) => (f.manual?.enabled ? [[f.id, manualEntries(f.manual)]] : [])),
+    ),
     needs: new Map(),
     async run(request) {
       const { key, canonical } = solveKey(model.meta.dataHash, request);
@@ -209,7 +219,13 @@ async function resolvePass(
   ctx: Context,
   linked: ReadonlyMap<string, ReadonlyMap<string, ImportCost>>,
 ): Promise<Pass> {
-  const pass: Pass = { solved: new Map(), asked: new Map(), used: new Map(), diagnostics: [] };
+  const pass: Pass = {
+    solved: new Map(),
+    asked: new Map(),
+    used: new Map(),
+    delivered: new Map(),
+    diagnostics: [],
+  };
   const pull = new Map<string, number>();
 
   const solveOne = async (id: string) => {
@@ -218,6 +234,20 @@ async function resolvePass(
     for (const l of ctx.out.get(id) ?? []) {
       const r = l.mode.kind === 'fixed' ? l.mode.rate : (pull.get(l.id) ?? 0);
       pass.asked.set(l.id, r >= MIN_RATE ? r : 0);
+    }
+    const entries = ctx.manual.get(id);
+    if (entries) {
+      // Manual mode (A36): arithmetic on the frozen counts; links get what is left after targets.
+      const manual = manualOutcome(ctx.model, entries, request);
+      pass.solved.set(id, { request, key: 'manual', result: manual.result, manual });
+      const left = new Map(manual.forLinks);
+      for (const l of ctx.out.get(id) ?? []) {
+        const give = Math.min(pass.asked.get(l.id) ?? 0, left.get(l.item) ?? 0);
+        pass.delivered.set(l.id, give);
+        left.set(l.item, (left.get(l.item) ?? 0) - give);
+      }
+      attribute(ctx.in.get(id) ?? [], manual.result, pass.used, pull);
+      return;
     }
     const { key, result } = await ctx.run(request);
     pass.solved.set(id, { request, key, result });

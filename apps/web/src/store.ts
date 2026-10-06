@@ -11,6 +11,7 @@ import {
   type Factory,
   type FactoryRequest,
   type LinkSpec,
+  type ManualEntry,
   type Tweak,
   type UnassignedImport,
   type World,
@@ -79,6 +80,18 @@ export interface WorldState {
   removeTweak(factoryId: string, index: number): void;
   /** Drops every tweak: back to the pure solver plan. */
   revertTweaks(factoryId: string): void;
+
+  // Manual mode (A36): the edit list is its undo history.
+  /** Freezes `plan` (the current solved plan), or restores a stored manual plan. */
+  enterManual(factoryId: string, plan: readonly ManualEntry[]): void;
+  /** Back to the solver; the manual plan is kept. */
+  leaveManual(factoryId: string): void;
+  discardManual(factoryId: string): void;
+  /** Sets a recipe group's machine count; 0 removes it. */
+  setManualCount(factoryId: string, recipe: string, machines: number): void;
+  undoManual(factoryId: string): void;
+  /** Back to the plan as frozen. */
+  revertManual(factoryId: string): void;
   /** Replaces the document with an edited copy ("allocate remaining", "size power plant"). */
   replaceWorld(world: World): void;
 }
@@ -204,6 +217,13 @@ export function createWorldStore(initial: World = createWorld()) {
       undoTweak: (factoryId) => apply((w) => edit.undoTweak(w, factoryId)),
       removeTweak: (factoryId, index) => apply((w) => edit.removeTweak(w, factoryId, index)),
       revertTweaks: (factoryId) => apply((w) => edit.revertTweaks(w, factoryId)),
+      enterManual: (factoryId, plan) => apply((w) => edit.enterManual(w, factoryId, plan)),
+      leaveManual: (factoryId) => apply((w) => edit.leaveManual(w, factoryId)),
+      discardManual: (factoryId) => apply((w) => edit.discardManual(w, factoryId)),
+      setManualCount: (factoryId, recipe, machines) =>
+        apply((w) => edit.setManualCount(w, factoryId, recipe, machines)),
+      undoManual: (factoryId) => apply((w) => edit.undoManual(w, factoryId)),
+      revertManual: (factoryId) => apply((w) => edit.revertManual(w, factoryId)),
       replaceWorld: (world) => set({ world }),
     };
   });

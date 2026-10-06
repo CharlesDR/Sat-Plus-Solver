@@ -102,7 +102,8 @@ function shapeProblems(w: World): string[] {
       isNum(f.priority) &&
       isStr(f.notes) &&
       Array.isArray(f.tweaks) &&
-      f.tweaks.every(isTweak),
+      f.tweaks.every(isTweak) &&
+      isOpt(f.manual, isManual),
   );
   list(
     'groups',
@@ -141,6 +142,14 @@ function isTweak(t: unknown): boolean {
   if (t.kind === 'swap') return isStr(t.from) && isStr(t.to);
   if (t.kind === 'import') return isStr(t.item);
   return false;
+}
+
+const isEntries = (v: unknown, min: number) =>
+  Array.isArray(v) &&
+  v.every((e) => isObj(e) && isStr(e.recipe) && isNum(e.machines) && e.machines >= min);
+
+function isManual(m: unknown): boolean {
+  return isObj(m) && isBool(m.enabled) && isEntries(m.frozen, 0) && isEntries(m.edits, 0);
 }
 
 function isRequest(r: unknown): boolean {

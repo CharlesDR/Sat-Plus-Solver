@@ -19,7 +19,7 @@ References like §4.3 point into `ARCHITECTURE.md`.
 | M10 | Hardening and release       | Perf, diagnostics UX, E2E, Pages deploy                                                                      | M9         |
 | M11 | Backlog (after v1)          | Joint world optimization, SF+ golden cases, multiple power grids, transport calculators, per-group overclock | M10        |
 | M12 | Plan tweaks                 | Ban, swap or import a recipe group from the flowchart; tweak list with Undo and Revert all (A35)             | M10        |
-| M13 | Manual mode (proposed)      | Per-factory switch that freezes the plan for hand editing; awaiting decisions, not started                   | M12        |
+| M13 | Manual mode                 | Per-factory Solver / Manual switch: freeze the plan and edit machine counts by hand, no re-solve (A36)       | M12        |
 
 ---
 
@@ -120,9 +120,13 @@ References like §4.3 point into `ARCHITECTURE.md`.
 - Tweaks are kept per factory, in order, in the `World` document (v6, A35), so they save and share. The list is the undo history: **Undo** (also Ctrl+Z) drops the last tweak, **Revert all** drops them all and returns to the pure solver plan, and each tweak can be removed on its own. There is no cap on the history.
 - **Acceptance:** A ban, a swap and an import each change the plan as described and survive save → load. Undo walks back 100+ tweaks one at a time, and Revert all gives a plan identical to the untweaked solve. A v5 save migrates with no tweaks. A swap to a recipe above the max tier is offered as blocked.
 
-### M13 — Manual mode (proposed)
+### M13 — Manual mode
 
-- A highly visible per-factory **Solver | Manual** switch freezes the plan for hand editing without re-solving. The plan, its approaches and the decisions it needs are in the project's manual-mode plan; this milestone is not started until those decisions are made.
+- A large **Solver | Manual** switch at the top of the factory view. Switching to Manual freezes the current solved plan as recipe groups with fractional machine counts (A36). The factory is no longer solved; its flows are plain arithmetic on those counts and are labelled "not solver-checked". The view gets an amber frame and banner, the factory's controls are frozen, and its world-canvas node is marked Manual.
+- Editing: select a group (flowchart or table) to set its machine count or remove it; add any recipe from a searchable palette. Belts are wired automatically, as in the solved flowchart. What the plan needs beyond its import caps shows as red **Missing** nodes and a "Missing inputs" table; leftovers are surplus.
+- In the world: what the plan makes goes to its targets first, then its outgoing links, which run short when it makes too little. Incoming links supply up to what they carry (a pull link carries what is needed). An unbalanced plan is allowed and reported.
+- **Undo** (also Ctrl+Z) and **Revert all** (back to the plan as frozen) work as for tweaks, with no cap on the history. Switching back to Solver keeps the manual plan for next time; **Discard manual plan** throws it away.
+- **Acceptance:** Freezing a solved plan changes no flow, power or node figure (within 1e-6). After an edit, every Missing or surplus value matches hand arithmetic. A manual producer's links run short when it makes too little. Undo walks back 100+ edits. Save, share and reload keep manual mode and its plan. A v6 save migrates unchanged.
 
 ---
 
