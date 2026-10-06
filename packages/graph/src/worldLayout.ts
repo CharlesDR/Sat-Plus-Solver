@@ -79,7 +79,7 @@ function badges(n: WorldNode): string[] {
 export function worldNodeLines(n: WorldNode): string[] {
   switch (n.kind) {
     case 'factory':
-      return [n.label, `Status: ${n.status ?? 'ok'}`, ...badges(n)];
+      return [n.label, `Status: ${n.status ?? 'ok'}${n.manual ? ' · Manual' : ''}`, ...badges(n)];
     case 'group':
       if (!n.collapsed) return [n.label];
       return [n.label, `Group of ${n.members ?? 0} · ${n.status ?? 'empty'}`, ...badges(n)];

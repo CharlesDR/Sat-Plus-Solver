@@ -94,6 +94,7 @@ const ELK_OPTIONS = {
 
 const LAYER: Partial<Record<FlowNodeKind, string>> = {
   import: 'FIRST',
+  missing: 'FIRST',
   target: 'LAST',
   byproduct: 'LAST',
 };
@@ -115,6 +116,8 @@ export function nodeLines(n: FlowNode): string[] {
     }
     case 'import':
       return [`Import: ${n.label}`, `${rateText(n.rate ?? 0)}/min`];
+    case 'missing':
+      return [`Missing: ${n.label}`, `${rateText(n.rate ?? 0)}/min`];
     case 'target':
       return [`Target: ${n.label}`, `${rateText(n.rate ?? 0)}/min`];
     case 'byproduct':

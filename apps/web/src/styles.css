@@ -666,3 +666,101 @@ section.diagnostics li p {
   border-color: var(--accent);
   color: var(--accent);
 }
+/* Manual mode (A36): the switch sits on top of the factory view, and the whole view turns amber. */
+:root {
+  --manual: #b45309;
+  --manual-bg: #fff7ed;
+  --flow-missing: #fee2e2;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --manual: #f59e0b;
+    --manual-bg: #2b1d0e;
+    --flow-missing: #4a1d1d;
+  }
+}
+fieldset.plain {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.mode-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+}
+.mode-bar.manual {
+  border-color: var(--manual);
+  background: var(--manual-bg);
+}
+.mode-switch {
+  display: inline-flex;
+  border: 2px solid var(--accent);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.mode-switch button {
+  border: 0;
+  border-radius: 0;
+  padding: 8px 22px;
+  font-size: 16px;
+  font-weight: 600;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+}
+.mode-switch button[aria-checked='true'] {
+  background: var(--accent);
+  /* The page background reads on the accent in both themes. */
+  color: var(--bg);
+}
+.mode-bar.manual .mode-switch {
+  border-color: var(--manual);
+}
+.mode-bar.manual .mode-switch button[aria-checked='true'] {
+  background: var(--manual);
+}
+.mode-switch button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.mode-note {
+  margin: 0;
+  flex: 1 1 240px;
+}
+.factory.manual {
+  outline: 3px solid var(--manual);
+  outline-offset: 8px;
+  border-radius: 4px;
+}
+.manual-panel {
+  margin: 16px 0 0;
+  display: grid;
+  gap: 8px;
+}
+.manual-panel .node-actions {
+  border-color: var(--manual);
+}
+.manual-panel input[type='number'] {
+  width: 8em;
+}
+.palette input[type='search'] {
+  min-width: 18em;
+}
+.flow-node.missing {
+  background: var(--flow-missing);
+  border-color: var(--error);
+}
+button.danger {
+  border-color: var(--error);
+  color: var(--error);
+}
+.world-node.manual {
+  border: 2px solid var(--manual);
+}

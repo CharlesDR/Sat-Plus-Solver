@@ -5,7 +5,7 @@ import { describe, expect, test } from 'vitest';
 import vanillaMini from '../../../fixtures/vanilla-mini/model.json';
 import mini from '../../../fixtures/worlds/mini-world.json';
 import v1 from '../../../fixtures/worlds/v1-world.json';
-import v6 from '../../../fixtures/worlds/v6-world.json';
+import v7 from '../../../fixtures/worlds/v7-world.json';
 import { WORLD_VERSION, createWorld, type World } from './document';
 import { migrateWorld } from './migrate';
 import { WorldLoadError, extractFactory, loadWorld, parseWorld, serializeWorld } from './persist';
@@ -68,6 +68,11 @@ const worldArb: fc.Arbitrary<World> = (() => {
         ),
         { maxLength: 3 },
       ),
+      manual: fc.record({
+        enabled: fc.boolean(),
+        frozen: fc.array(fc.record({ recipe: id, machines: rate }), { maxLength: 3 }),
+        edits: fc.array(fc.record({ recipe: id, machines: rate }), { maxLength: 3 }),
+      }),
     },
     {
       requiredKeys: [
@@ -147,9 +152,9 @@ describe('World → JSON → World', () => {
   });
 
   test('is deep-equal for the current-version fixture, and the fixture is current', () => {
-    expect(v6.meta.v).toBe(WORLD_VERSION);
-    const w = parseWorld(JSON.stringify(v6));
-    expect(w).toStrictEqual(v6);
+    expect(v7.meta.v).toBe(WORLD_VERSION);
+    const w = parseWorld(JSON.stringify(v7));
+    expect(w).toStrictEqual(v7);
     expect(parseWorld(serializeWorld(w, true))).toStrictEqual(w);
   });
 
@@ -185,6 +190,12 @@ describe('parseWorld rejects what it cannot read', () => {
     expect(
       bad({ ...w, factories: [{ ...f, request: { targets: [{ item: 'x', rate: '5' }] } }] }),
     ).toThrow(/factories\[0\] is malformed/);
+    // A bad tweak or manual plan (A35, A36).
+    expect(bad({ ...w, factories: [{ ...f, tweaks: [{ kind: 'nuke' }] }] })).toThrow(
+      /factories\[0\] is malformed/,
+    );
+    const manual = { enabled: true, frozen: [{ recipe: 'x', machines: -1 }], edits: [] };
+    expect(bad({ ...w, factories: [{ ...f, manual }] })).toThrow(/factories\[0\] is malformed/);
   });
   test('dangling references still load (resolution reports them)', () => {
     const w = buildWorld([{ id: 'a', group: 'nowhere' }], [pull('l', 'a', 'ghost', 'iron-plate')]);

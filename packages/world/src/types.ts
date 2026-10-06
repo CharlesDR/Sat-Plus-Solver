@@ -65,9 +65,15 @@ export interface FactoryResult extends ScopeTotals {
   status: FactoryStatus;
   /** The effective request: defaults, overrides, link demand and link imports. */
   request: SolveRequest;
-  /** Memoization key of `request` (§4.3 step 5). */
+  /** Memoization key of `request` (§4.3 step 5); `manual` in manual mode. */
   key: string;
+  /** In manual mode (A36), the plan's arithmetic as a result: not solver-checked. */
   result: SolveResult;
+  /**
+   * Manual mode (A36): what the plan needs beyond its import caps, and what
+   * each target gets (a target can come up short), both sorted by item.
+   */
+  manual?: { missing: ItemRate[]; targets: ItemRate[] };
 }
 
 export interface LinkResult {
@@ -78,7 +84,10 @@ export interface LinkResult {
   mode: 'fixed' | 'pull';
   /** What the producer was asked for: the fixed rate, or the resolved pull rate. */
   requested: number;
-  /** What the producer ships: `requested` when it solved, else 0. */
+  /**
+   * What the producer ships: `requested` when it solved, else 0. A manual
+   * factory (A36) ships what its plan has left after its targets.
+   */
   delivered: number;
   /** What the consumer's plan draws through this link. */
   used: number;
@@ -136,7 +145,15 @@ export type WorldDiagnostic =
       iterations: number;
     })
   | (Diag & { code: 'node-over-allocated'; node: string; used: number; pool: number })
-  | (Diag & { code: 'import-cost-unsettled'; factories: string[] });
+  | (Diag & { code: 'import-cost-unsettled'; factories: string[] })
+  | (Diag & {
+      code: 'manual-short';
+      factory: string;
+      /** Inputs needed beyond the import caps. */
+      missing: ItemRate[];
+      /** Targets the plan doesn't fully make: what each is short by. */
+      targets: ItemRate[];
+    });
 
 export interface WorldStats {
   /** Calls to `solveFactory` during this resolve (cache misses). */

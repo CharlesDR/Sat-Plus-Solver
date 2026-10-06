@@ -18,6 +18,7 @@ import {
   DEFAULT_PIPE_CAPACITIES,
   resolveWorld,
   sizePowerPlant,
+  type FactoryResult,
   type ResolveOptions,
   type SolveFactory,
   type World,
@@ -101,17 +102,42 @@ export function createSolverService(model: Model, backend: LpBackend): SolverSer
         cache.delete(key);
       }
       const f = focus !== undefined ? result.factories.find((x) => x.id === focus) : undefined;
-      const plan: FocusPlan | undefined = f && {
-        factoryId: f.id,
-        plan: summarizePlan(model, f.result),
-        graph: factoryGraph(f.result, labels),
-      };
+      const plan: FocusPlan | undefined = f && focusPlan(model, labels, f);
       return {
         world: summarizeWorld(result),
         ...(plan ? { focus: plan } : {}),
         ...(edited ? { edited } : {}),
         ...(previews ? { previews } : {}),
       };
+    },
+  };
+}
+
+/**
+ * The focused factory's plan and flowchart. A manual plan's missing inputs
+ * (A36) are listed apart from its imports, as the flowchart draws them.
+ */
+export function focusPlan(model: Model, labels: GraphLabels, f: FactoryResult): FocusPlan {
+  const plan = summarizePlan(model, f.result);
+  const graph = factoryGraph(f.result, labels, f.manual?.missing);
+  if (!f.manual) return { factoryId: f.id, plan, graph };
+  const lacking = new Map(f.manual.missing.map((m) => [m.item, m.rate]));
+  const name = new Map(plan.imports.map((i) => [i.item, i.name]));
+  return {
+    factoryId: f.id,
+    plan: {
+      ...plan,
+      imports: plan.imports
+        .map((i) => ({ ...i, rate: i.rate - (lacking.get(i.item) ?? 0) }))
+        .filter((i) => i.rate > 1e-9 * Math.max(1, i.rate + (lacking.get(i.item) ?? 0))),
+    },
+    graph,
+    manual: {
+      missing: f.manual.missing.map((m) => ({
+        item: m.item,
+        name: name.get(m.item) ?? m.item,
+        rate: m.rate,
+      })),
     },
   };
 }

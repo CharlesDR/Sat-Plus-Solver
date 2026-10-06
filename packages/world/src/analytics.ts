@@ -54,7 +54,7 @@ export function analyze(
   // Links: what was asked, shipped and drawn.
   const linkResults: LinkResult[] = links.map((l) => {
     const requested = pass.asked.get(l.id) ?? 0;
-    const delivered = ok(l.from) ? requested : 0;
+    const delivered = pass.delivered.get(l.id) ?? (ok(l.from) ? requested : 0);
     const carriers = carrierCount(model, l, requested, options.pipeCapacities);
     return {
       id: l.id,
@@ -80,7 +80,9 @@ export function analyze(
         link: l.id,
         item: l.item,
         deficit: l.short,
-        message: `Link ${l.id} (${name(l.item)}, ${l.from} → ${l.to}) is short by ${round(l.short)}/min: ${l.from} is ${status}.`,
+        message: pass.solved.get(l.from)?.manual
+          ? `Link ${l.id} (${name(l.item)}, ${l.from} → ${l.to}) is short by ${round(l.short)}/min: ${l.from} is in manual mode and makes too little.`
+          : `Link ${l.id} (${name(l.item)}, ${l.from} → ${l.to}) is short by ${round(l.short)}/min: ${l.from} is ${status}.`,
       });
     }
 
@@ -90,7 +92,8 @@ export function analyze(
     .sort((a, b) => byKey(a.id, b.id))
     .map((f) => {
       const solved = pass.solved.get(f.id)!;
-      const { result, request } = solved;
+      const { result, request, manual } = solved;
+      const manualTarget = new Map(manual?.targets.map((t) => [t.item, t.rate]));
       const rows = new Map<string, Row>();
       const row = (item: string) => {
         let r = rows.get(item);
@@ -106,7 +109,9 @@ export function analyze(
           r.produced = flow.produced;
           r.consumed = flow.consumed;
           r.surplus = flow.surplus;
-          r.target = Math.max(0, flow.demand - (linkDemand.get(flow.item) ?? 0));
+          r.target = manual
+            ? (manualTarget.get(flow.item) ?? 0)
+            : Math.max(0, flow.demand - (linkDemand.get(flow.item) ?? 0));
           const viaLinks = incoming
             .filter((l) => l.item === flow.item)
             .reduce((s, l) => s + l.used, 0);
@@ -133,10 +138,41 @@ export function analyze(
           status: result.status,
           message: `${f.name} (${f.id}) is ${result.status}: ${result.diagnostics.map((d) => d.message).join(' ') || 'no plan.'}`,
         });
+      if (manual) {
+        const want = new Map(request.targets.map((t) => [t.item, 0]));
+        for (const t of request.targets) want.set(t.item, want.get(t.item)! + t.rate);
+        const short = [...want]
+          .map(([item, rate]) => ({ item, rate: rate - (manualTarget.get(item) ?? 0) }))
+          .filter((t) => t.rate > FLOW_TOL)
+          .sort((a, b) => byKey(a.item, b.item));
+        if (manual.missing.length || short.length)
+          diagnostics.push({
+            code: 'manual-short',
+            severity: 'warning',
+            factory: f.id,
+            missing: manual.missing.map((m) => ({ ...m })),
+            targets: short,
+            message:
+              `${f.name} (${f.id}) is in manual mode and unbalanced:` +
+              [
+                ...manual.missing.map((m) => ` needs ${round(m.rate)}/min more ${name(m.item)}`),
+                ...short.map((t) => ` makes ${round(t.rate)}/min too little ${name(t.item)}`),
+              ].join(';') +
+              '.',
+          });
+      }
       return {
         id: f.id,
         name: f.name,
         ...(f.groupId !== undefined ? { groupId: f.groupId } : {}),
+        ...(manual
+          ? {
+              manual: {
+                missing: manual.missing.map((m) => ({ ...m })),
+                targets: manual.targets.map((t) => ({ ...t })),
+              },
+            }
+          : {}),
         status,
         request,
         key: solved.key,
@@ -379,6 +415,7 @@ const ORDER: Record<WorldDiagnostic['code'], number> = {
   'link-short': 4,
   'node-over-allocated': 5,
   'import-cost-unsettled': 6,
+  'manual-short': 7,
 };
 
 function sortDiagnostics(ds: WorldDiagnostic[]): WorldDiagnostic[] {

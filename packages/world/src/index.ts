@@ -20,3 +20,14 @@ export {
 export { createSolveCache, hashString, solveKey, stableStringify, type SolveCache } from './hash';
 export { allocateRemaining, sizePowerPlant, SIZE_POWER_ITERATIONS } from './helpers';
 export type * from './types';
+export {
+  discardManual,
+  enterManual,
+  leaveManual,
+  manualEntries,
+  manualOutcome,
+  revertManual,
+  setManualCount,
+  undoManual,
+  type ManualOutcome,
+} from './manual';

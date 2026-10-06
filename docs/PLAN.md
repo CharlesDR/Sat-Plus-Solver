@@ -19,8 +19,8 @@ References like §4.3 point into `ARCHITECTURE.md`.
 | M10 | Hardening and release       | Perf, diagnostics UX, E2E, Pages deploy                                                                          | M9         |
 | M11 | Backlog (after v1)          | Joint world optimization, SF+ golden cases, multiple power grids, transport calculators, per-group overclock     | M10        |
 | M12 | Plan tweaks                 | Ban, swap or import a recipe group from the flowchart; tweak list with Undo and Revert all (A35)                 | M10        |
-| M13 | Manual mode (proposed)      | Per-factory switch that freezes the plan for hand editing; awaiting decisions, not started                       | M12        |
-| M14 | Modeler files (.sfmd)       | Import a Satisfactory Modeler save as factories; export a factory or world as a `.sfmd` that Modeler opens (A36) | M13        |
+| M13 | Manual mode                 | Per-factory Solver / Manual switch: freeze the plan and edit machine counts by hand, no re-solve (A36)           | M12        |
+| M14 | Modeler files (.sfmd)       | Import a Satisfactory Modeler save as factories; export a factory or world as a `.sfmd` that Modeler opens (A37) | M13        |
 
 ---
 
@@ -121,16 +121,20 @@ References like §4.3 point into `ARCHITECTURE.md`.
 - Tweaks are kept per factory, in order, in the `World` document (v6, A35), so they save and share. The list is the undo history: **Undo** (also Ctrl+Z) drops the last tweak, **Revert all** drops them all and returns to the pure solver plan, and each tweak can be removed on its own. There is no cap on the history.
 - **Acceptance:** A ban, a swap and an import each change the plan as described and survive save → load. Undo walks back 100+ tweaks one at a time, and Revert all gives a plan identical to the untweaked solve. A v5 save migrates with no tweaks. A swap to a recipe above the max tier is offered as blocked.
 
-### M13 — Manual mode (proposed)
+### M13 — Manual mode
 
-- A highly visible per-factory **Solver | Manual** switch freezes the plan for hand editing without re-solving. The plan, its approaches and the decisions it needs are in the project's manual-mode plan; this milestone is not started until those decisions are made.
+- A large **Solver | Manual** switch at the top of the factory view. Switching to Manual freezes the current solved plan as recipe groups with fractional machine counts (A36). The factory is no longer solved; its flows are plain arithmetic on those counts and are labelled "not solver-checked". The view gets an amber frame and banner, the factory's controls are frozen, and its world-canvas node is marked Manual.
+- Editing: select a group (flowchart or table) to set its machine count or remove it; add any recipe from a searchable palette. Belts are wired automatically, as in the solved flowchart. What the plan needs beyond its import caps shows as red **Missing** nodes and a "Missing inputs" table; leftovers are surplus.
+- In the world: what the plan makes goes to its targets first, then its outgoing links, which run short when it makes too little. Incoming links supply up to what they carry (a pull link carries what is needed). An unbalanced plan is allowed and reported.
+- **Undo** (also Ctrl+Z) and **Revert all** (back to the plan as frozen) work as for tweaks, with no cap on the history. Switching back to Solver keeps the manual plan for next time; **Discard manual plan** throws it away.
+- **Acceptance:** Freezing a solved plan changes no flow, power or node figure (within 1e-6). After an edit, every Missing or surplus value matches hand arithmetic. A manual producer's links run short when it makes too little. Undo walks back 100+ edits. Save, share and reload keep manual mode and its plan. A v6 save migrates unchanged.
 
 ### M14 — Modeler files (.sfmd)
 
-- Starts after M13 (manual mode) is done. Satisfactory Modeler stays a separate program: we read and write its save format only, and never ship its code, icons or data (A36).
-- **Export.** "Export to Modeler" on a factory writes one `.sfmd` file with the solver set to `Manual`. Each recipe group becomes one Modeler node named by its recipe, with its machine count as an exact fraction in `Max`, its position from the flowchart layout, and an input connection for each flow in the plan. Raw resources become extractor nodes; imports and links become Modeler's own input points. Exporting the world writes one Outpost per factory, wired along the world's links.
-- **Import.** "Import from Modeler" reads a `.sfmd` and makes one factory per top-level Outpost (or one factory when the save has none). Recipe nodes and their counts become a manual-mode plan (M13), so the plan is kept exactly as built; switching that factory to Solver re-solves it with its net outputs as targets. Splitters, mergers, storage, sinks and Dimensional Depots are read as flows, not machines. Every node we can't map (an unknown name, a part or recipe missing from our data, a Modeler-only setting) is listed in an import report. Nothing is dropped silently.
-- **Acceptance:** Exporting a solved factory and importing the file back gives the same recipes and machine counts, exactly. A sample `.sfmd` fixture imports with the expected factories, counts and report entries. An exported multi-factory world opens in Modeler with every node and connection in place (checked by Charles in Modeler, since it is a closed Windows app). A malformed file shows an error and leaves the world unchanged.
+- Satisfactory Modeler stays a separate program: we read and write its save format only, and never ship its code, icons or data (A37).
+- **Export.** "Export to Modeler" on a factory writes one `.sfmd` file with Modeler's calculator set to `Manual`. It works for solved and manual factories alike. Each recipe group becomes one Modeler node named by its recipe, with its machine count as an exact fraction in `Max`, its position from the flowchart layout, and an input connection for each belt in our flowchart. Raw resources become extractor nodes; imports and links become Modeler's own input points. Exporting the world writes one Outpost per factory, wired along the world's links.
+- **Import.** "Import from Modeler" reads a `.sfmd` and makes one factory per top-level Outpost (or one factory when the save has none). Each factory starts in manual mode (M13, §4.7): its recipe nodes and `Max` counts become the frozen plan, so it is kept exactly as built, and its net outputs become its targets, so switching it to Solver re-solves for the same products. Our belts are wired automatically (A24), so Modeler's own wiring, splitters, mergers, storage, sinks and Dimensional Depots are not kept as nodes. A node with no `Max` (unlimited in Modeler) has no count we can freeze. Every node we can't map (an unknown name, a part or recipe missing from our data, a node without a count, a Modeler-only setting such as clock speed or Somersloops) is listed in an import report. Nothing is dropped silently.
+- **Acceptance:** Exporting a solved or manual factory and importing the file back gives the same recipes and machine counts, exactly. A sample `.sfmd` fixture imports with the expected factories, counts and report entries. An exported multi-factory world opens in Modeler with every node and connection in place (checked by Charles in Modeler, since it is a closed Windows app). A malformed file shows an error and leaves the world unchanged.
 
 ---
 

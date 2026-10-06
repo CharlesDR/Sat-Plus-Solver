@@ -66,7 +66,7 @@ const WorldNodeView = memo(function WorldNodeView({ data }: NodeProps<CanvasNode
   const factory = n.kind === 'factory';
   return (
     <div
-      className={cls('world-node', n.kind, n.status, n.direction, data.mark)}
+      className={cls('world-node', n.kind, n.status, n.direction, n.manual && 'manual', data.mark)}
       onDoubleClick={factory ? () => actions.openFactory(n.ref) : undefined}
     >
       <Handle type="target" position={Position.Left} isConnectable={factory} />

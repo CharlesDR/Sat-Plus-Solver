@@ -9,13 +9,13 @@
  * v3 (M6) replaced the recipe exclusion lists with per-recipe toggles and
  * added the max-tier filter; v4 replaced the factory's node budget with
  * per-resource limits (A33); v5 moved worlds on the old default objective
- * stack (O1) to the new one (O2); v6 added plan tweaks (A35). `migrateWorld`
- * upgrades older documents.
+ * stack (O1) to the new one (O2); v6 added plan tweaks (A35); v7 added
+ * manual mode (A36). `migrateWorld` upgrades older documents.
  */
 import type { Model } from '@sps/data';
 import type { ItemRate, ObjectiveId, RecipeFilter, SolveRequest } from '@sps/solver';
 
-export const WORLD_VERSION = 6;
+export const WORLD_VERSION = 7;
 
 /** Lexicographic tolerance bounds (CLAUDE.md): 0.01%–90%, default 0.01%. */
 export const TOLERANCE_MIN = 0.0001;
@@ -102,6 +102,31 @@ export interface Factory {
    * undo history: undo drops the last, "revert all" empties it.
    */
   tweaks: Tweak[];
+  /**
+   * Manual mode (A36): a frozen plan edited by hand. While `enabled`, the
+   * factory is not solved; its flows are the plan's arithmetic. Kept when
+   * switched off, so switching on again restores it; missing = never frozen.
+   */
+  manual?: ManualPlan;
+}
+
+/** One recipe group of a manual plan: fractional machines at the recipe's clock. */
+export interface ManualEntry {
+  recipe: string;
+  /** > 0. Heaters (A17): boiler throughput; heaters built = ⌈machines⌉. */
+  machines: number;
+}
+
+/**
+ * A manual plan (A36): the plan as frozen, and the hand edits on top of it,
+ * oldest first. An edit sets one recipe's machine count (0 removes the
+ * group). The edit list is the undo history, as with tweaks.
+ */
+export interface ManualPlan {
+  enabled: boolean;
+  /** Sorted by recipe. */
+  frozen: ManualEntry[];
+  edits: ManualEntry[];
 }
 
 /**

@@ -1,7 +1,7 @@
 /** Messages between the main thread and the solver worker. */
 import type { BeltCapacity, NodePurity } from '@sps/data';
 import type { FactoryGraph } from '@sps/graph';
-import type { Diagnostic, PlanSummary } from '@sps/solver';
+import type { Diagnostic, PlanSummary, SummaryFlow } from '@sps/solver';
 import type { FactoryResult, World, WorldResult } from '@sps/world';
 
 /** An item the target picker offers. */
@@ -87,6 +87,8 @@ export interface FocusPlan {
   factoryId: string;
   plan: PlanSummary;
   graph: FactoryGraph;
+  /** Manual mode (A36): inputs the plan needs beyond its imports (not in `plan.imports`). */
+  manual?: { missing: SummaryFlow[] };
 }
 
 /**
