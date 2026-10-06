@@ -66,6 +66,13 @@ export interface SolveRequest {
   /** Whole machines (§3.4): adds integer machine counts, making the solve a MILP. */
   wholeMachines?: boolean;
   /**
+   * Smallest branch worth keeping, in machines (§3.3, A34): after the stack is
+   * solved, recipes running below this are banned and the plan re-solved
+   * within the same tolerance, when it can do without them. 0 turns it off.
+   * Default MIN_BRANCH (0.01, 1% of a machine).
+   */
+  minBranch?: number;
+  /**
    * Cost imported inputs (§3.3): each import carries the cost of making 1/min
    * of it in a standalone plan under this stack, from the map pool.
    */
@@ -204,6 +211,8 @@ export interface SolveStats {
   recipes: number;
   columns: number;
   rows: number;
+  /** Recipes the prune pass removed (A34), sorted; absent when none were. */
+  pruned?: string[];
 }
 
 /** One solved stage of the lexicographic stack. */

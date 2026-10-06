@@ -319,7 +319,14 @@ export function PowerPanel(props: {
   const [plant, setPlant] = useState('');
   const chosen = world.factories.some((f) => f.id === plant) ? plant : world.factories[0]?.id;
   const row = (r: PowerRow, total = false) => (
-    <tr key={r.key} data-power={r.key} className={total ? 'total' : ''}>
+    // data-draw carries the unrounded draw, so the total can be checked
+    // against its rows without the cells' rounding.
+    <tr
+      key={r.key}
+      data-power={r.key}
+      data-draw={r.power.consumptionMW}
+      className={total ? 'total' : ''}
+    >
       <td className="text">{r.label}</td>
       {powerCells(r.power)}
     </tr>

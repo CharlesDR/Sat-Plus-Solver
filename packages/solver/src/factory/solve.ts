@@ -51,6 +51,10 @@ export const MAX_TOLERANCE = 0.9;
 export const DEFAULT_TOLERANCE = MIN_TOLERANCE;
 /** Absolute floor ε of the lexicographic constraint, so an optimum of 0 still gets some room. */
 export const LEX_EPSILON = 1e-6;
+/** Default smallest branch kept, in machines (A34): 1% of a machine. */
+export const MIN_BRANCH = 0.01;
+/** Most LP solves the prune pass may spend on one plan (A34). */
+const MAX_PRUNE_ATTEMPTS = 24;
 /** Default time limit of a MILP stage, in seconds (§3.4). */
 export const MILP_TIME_LIMIT_SECONDS = 5;
 /** Elastic slack below this is solver noise, not a relaxation. */
@@ -84,6 +88,8 @@ interface Problem {
   stack: ObjectiveId[];
   tolerance: number;
   whole: boolean;
+  /** `request.minBranch`, in machines (A34). */
+  minBranch: number;
   recipes: Recipe[];
   /** Balance-row items, sorted. */
   items: string[];
@@ -244,6 +250,7 @@ export async function solve(
     stack,
     tolerance: request.tolerance ?? DEFAULT_TOLERANCE,
     whole: request.wholeMachines ?? false,
+    minBranch: request.minBranch ?? MIN_BRANCH,
     recipes,
     items,
     demand,
@@ -476,7 +483,7 @@ async function solveStack(
     const run = async (tol: number) => {
       const lp = buildLp(p, 'normal', objective, lexLocks(p, optima, tol));
       if (k === 0) stats = { ...stats, columns: lp.variables.length, rows: lp.constraints.length };
-      const terms = objectiveTerms(p, objective);
+      const terms = scaledTerms(p, objective);
       if (!lp.variables.some((v) => v.integer))
         return tidy(lp, await backend.solve(lp, options), terms, 0, backend, options);
       const milpOptions: LpOptions = {
@@ -541,6 +548,9 @@ async function solveStack(
     });
     sol = s;
   }
+  const pruned = await pruneBranches(p, sol!, optima, tolerance, backend, options);
+  sol = pruned.sol;
+  if (pruned.banned.length) stats = { ...stats, pruned: pruned.banned };
   const result = finish(p, sol!, stats, diagnostics);
   if (result.status !== 'ok') return result;
   result.stages = optima.map((o): StageResult => ({
@@ -550,6 +560,91 @@ async function solveStack(
   result.objectiveValue = result.stages[0]!.value;
   if (p.marginal) result.marginalCosts = await marginalCosts(p, result, sol!, backend, options);
   return result;
+}
+
+/**
+ * The prune pass (§3.3, A34). An LP spends every bit of room the stack leaves
+ * it: a later stage uses the earlier stages' tolerance, and ties come back as
+ * arbitrary vertices, so a plan can carry slivers of other routes (a miner at
+ * 0.000002 machines) that buy nothing worth building. The pass re-solves the
+ * last stage on the plan's own recipes minus those running below `minBranch`
+ * machines, under the same lexicographic locks (every stage within tolerance
+ * of its optimum), and tidies it like any stage. Keeping to the plan's own
+ * recipes stops the re-solve from spending the same room on new slivers.
+ * Dropping all of them together is tried first, on the plan's own recipes and
+ * then on every recipe not yet dropped (a sliver may stand in for a route the
+ * plan doesn't run yet), then each alone in id order;
+ * a drop that makes the plan infeasible is undone, so a branch the plan needs
+ * stays. Integer variables are fixed at the plan's values (a dropped recipe's
+ * count at 0), so every re-solve is an LP. Deterministic: candidates go in id
+ * order.
+ */
+async function pruneBranches(
+  p: Problem,
+  sol: LpSolution,
+  optima: readonly { objective: ObjectiveId; optimum: number }[],
+  tolerance: number,
+  backend: LpBackend,
+  options: LpOptions,
+): Promise<{ sol: LpSolution; banned: string[] }> {
+  if (!(p.minBranch > 0) || !usable(sol)) return { sol, banned: [] };
+  const last = p.stack[p.stack.length - 1]!;
+  const terms = scaledTerms(p, last);
+  const locks = lexLocks(p, optima, tolerance);
+  const banned = new Set<string>();
+  const needed = new Set<string>();
+  let attempts = 0;
+  const run = (plan: LpSolution, id: string) => plan.values!.get(recipeVar(id)) ?? 0;
+  /** Re-solves with only `keep` allowed to run, or undefined when it fails. */
+  const attempt = async (plan: LpSolution, keep: ReadonlySet<string>) => {
+    attempts++;
+    const lp = buildLp(p, 'normal', last, locks);
+    const off = new Set(
+      p.recipes.filter((r) => !keep.has(r.id)).flatMap((r) => [recipeVar(r.id), machinesVar(r.id)]),
+    );
+    const variables = lp.variables.map(({ integer, ...v }) => {
+      if (off.has(v.name)) return { ...v, lo: 0, hi: 0 };
+      if (!integer) return v;
+      const n = Math.round(plan.values!.get(v.name) ?? 0);
+      return { ...v, lo: n, hi: n };
+    });
+    const fixed = { ...lp, variables };
+    const s = await backend.solve(fixed, options);
+    if (s.status !== 'optimal' || !s.values) return undefined;
+    const tidied = await tidy(fixed, s, terms, 0, backend, options);
+    return { ...sol, values: tidied.values! };
+  };
+  while (attempts < MAX_PRUNE_ATTEMPTS) {
+    const support = p.recipes.map((r) => r.id).filter((id) => run(sol, id) > 0);
+    const small = support.filter((id) => run(sol, id) < p.minBranch && !needed.has(id));
+    if (!small.length) break;
+    const without = (drop: readonly string[]) =>
+      new Set(support.filter((id) => !drop.includes(id)));
+    const all =
+      (await attempt(sol, without(small))) ??
+      (await attempt(
+        sol,
+        new Set(p.recipes.map((r) => r.id).filter((id) => !banned.has(id) && !small.includes(id))),
+      ));
+    if (all) {
+      for (const id of small) banned.add(id);
+      sol = all;
+      continue;
+    }
+    for (const id of small) {
+      if (attempts >= MAX_PRUNE_ATTEMPTS) break;
+      const one = await attempt(sol, without([id]));
+      if (!one) {
+        needed.add(id);
+        continue;
+      }
+      banned.add(id);
+      sol = one;
+      // The plan changed: the next round recomputes its slivers.
+      break;
+    }
+  }
+  return { sol, banned: [...banned].sort() };
 }
 
 /**
@@ -690,12 +785,36 @@ function lexLocks(
 ): LpConstraint[] {
   return optima.map(({ objective, optimum }) => {
     const f = objective === 'output' ? -optimum : optimum;
+    const scale = objectiveScale(p, objective);
     return {
       name: lexRow(objective),
-      terms: objectiveTerms(p, objective),
-      hi: f + tolerance * Math.max(Math.abs(f), LEX_EPSILON),
+      terms: scaledTerms(p, objective, scale),
+      hi: scale * (f + tolerance * Math.max(Math.abs(f), LEX_EPSILON)),
     };
   });
+}
+
+/**
+ * Factor that brings an objective's largest cost coefficient to 1 (A34).
+ * HiGHS's tolerances are absolute, so an objective whose costs are all tiny
+ * (O2's usage / map total is about 1e-5 per machine) would leave its
+ * optimality and lock rows inside solver noise, and the plan would pick up
+ * slivers of other routes. Scaling changes no optimum, only the units the LP
+ * works in; stage values and duals stay in natural units.
+ */
+function objectiveScale(p: Problem, objective: ObjectiveId): number {
+  let max = 0;
+  for (const t of objectiveTerms(p, objective)) max = Math.max(max, Math.abs(t.coef));
+  return max > 0 ? 1 / max : 1;
+}
+
+/** `objectiveTerms`, scaled by `objectiveScale` for the LP (A34). */
+function scaledTerms(
+  p: Problem,
+  objective: ObjectiveId,
+  scale = objectiveScale(p, objective),
+): LpTerm[] {
+  return objectiveTerms(p, objective).map((t) => ({ ...t, coef: t.coef * scale }));
 }
 
 /** An objective as min-form LP terms, without the regularizer (§3.3). */
@@ -966,7 +1085,7 @@ function buildLp(
     }
   }
   if (p.scaled.size) variables.push({ name: OUTPUT_VAR, lo: 0, hi: cap });
-  if (mode !== 'elastic') objective.push(...objectiveTerms(p, stage));
+  if (mode !== 'elastic') objective.push(...scaledTerms(p, stage));
 
   for (const [item, cap_i] of p.importCaps) {
     const v = importVar(item);
@@ -1266,6 +1385,11 @@ function validate(
         `Tolerance must be between ${pct(MIN_TOLERANCE)} and ${pct(MAX_TOLERANCE)} (got ${Number.isFinite(t) ? pct(t) : t}).`,
       );
   }
+  if (
+    request.minBranch !== undefined &&
+    (!Number.isFinite(request.minBranch) || request.minBranch < 0)
+  )
+    return bad(`Minimum branch must be 0 or more machines (got ${request.minBranch}).`);
   for (const t of [...request.targets, ...(request.demand ?? [])]) {
     if (!known.has(t.item)) return bad(`Unknown item "${t.item}".`);
     if (!Number.isFinite(t.rate) || t.rate < 0)

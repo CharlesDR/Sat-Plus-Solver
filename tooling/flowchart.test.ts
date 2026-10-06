@@ -91,6 +91,8 @@ describe('factory flowchart on the SF+ model', () => {
     const g = await graphOf({
       targets: [{ item: 'ballistic-warp-drive', rate: 1 }],
       recipes: { alternates: true },
+      // A layout benchmark: keep the plan's full size, slivers included (A34).
+      minBranch: 0,
     });
     expect(g.nodes.length).toBeGreaterThanOrEqual(150);
     expectConserved(g);
