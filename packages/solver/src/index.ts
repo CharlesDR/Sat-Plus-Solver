@@ -25,6 +25,7 @@ export {
   LEX_EPSILON,
   MAX_TOLERANCE,
   MILP_TIME_LIMIT_SECONDS,
+  MIN_BRANCH,
   MIN_RATE,
   MIN_TOLERANCE,
   objectiveStack,

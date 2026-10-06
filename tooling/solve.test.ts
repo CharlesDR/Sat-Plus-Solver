@@ -73,6 +73,14 @@ describe('pnpm solve: arguments', () => {
     expect(parseCli(['-t', 'Cable:30', '-o', 'o4'], mini).request.objective).toBe('power');
   });
 
+  test('--min-branch sets the prune threshold in machines', () => {
+    expect(parseCli(['-t', 'Cable:30', '--min-branch', '0.05'], mini).request.minBranch).toBe(0.05);
+    expect(parseCli(['-t', 'Cable:30'], mini).request.minBranch).toBeUndefined();
+    expect(() => parseCli(['-t', 'Cable:30', '--min-branch=-1'], mini)).toThrow(
+      '--min-branch: "-1" is not a rate ≥ 0.',
+    );
+  });
+
   test('--no-alternates, --exclude and --budget', () => {
     const { request } = parseCli(
       [
