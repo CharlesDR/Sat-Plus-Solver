@@ -27,9 +27,22 @@ export interface NodeText {
   details: string[];
 }
 
-export type PlacedNode = FlowNode & Box & { text: NodeText };
+/**
+ * A node as drawn: a hexagon with vertices left and right (A40). `slant` is
+ * how far the slanted sides reach in from the box's left and right edges; the
+ * text sits between them.
+ */
+export type PlacedNode = FlowNode & Box & { text: NodeText; slant: number };
+
+/**
+ * Where an edge meets a node's hexagon (A40): `in` is the left vertex, `out`
+ * the right one (the main product, or an import's item), `by1` the lower
+ * right vertex and `by2` the upper right one (byproducts, alternately).
+ */
+export type Port = 'in' | 'out' | 'by1' | 'by2';
 
 export interface PlacedEdge extends FlowEdge {
+  sourcePort: Port;
   /** The routed polyline, start to end (orthogonal segments). */
   points: ElkPoint[];
   /** `text` may hold line breaks (`\n`), one per wrapped line. */
@@ -77,8 +90,12 @@ const PADDING_Y = 4;
 /** The node's 1px border, inside its box. */
 const BORDER = 1;
 const MIN_NODE_WIDTH = 80;
+/** Slanted sides at 60° to the flat top and bottom: they reach in tan 30° × height / 2. */
+const SLANT = Math.tan(Math.PI / 6) / 2;
+/** Shortest hexagon, so short nodes keep clear vertices for their edges. */
+const MIN_NODE_HEIGHT = 44;
 /** Wrap widths, in characters, of node text and edge labels. */
-const NODE_CHARS = 14;
+const NODE_CHARS = 18;
 const LABEL_CHARS = 10;
 
 const ELK_OPTIONS = {
@@ -171,6 +188,36 @@ function labelLines(text: string): string[] {
 
 const longest = (lines: readonly string[]) => Math.max(0, ...lines.map((l) => l.length));
 
+/**
+ * Which vertex of its source an edge leaves from (A40): the main product from
+ * the right vertex, a recipe's other outputs alternately from the lower and
+ * upper right vertices, in item order.
+ */
+export function sourcePorts(graph: FactoryGraph): Map<string, Port> {
+  const nodes = new Map(graph.nodes.map((n) => [n.id, n]));
+  const out = new Map<string, Port>();
+  for (const e of graph.edges) {
+    const n = nodes.get(e.source);
+    if (!n || n.main === undefined || e.item === n.main) {
+      out.set(e.id, 'out');
+      continue;
+    }
+    const by = n.outputs.filter((f) => f.item !== n.main).findIndex((f) => f.item === e.item);
+    out.set(e.id, by % 2 === 0 ? 'by1' : 'by2');
+  }
+  return out;
+}
+
+/** Port positions on a w × h node box, and the side ELK routes them from. */
+function portSpots(w: number, h: number, slant: number) {
+  return {
+    in: { x: 0, y: h / 2, side: 'WEST' },
+    out: { x: w, y: h / 2, side: 'EAST' },
+    by1: { x: w - slant, y: h, side: 'SOUTH' },
+    by2: { x: w - slant, y: 0, side: 'NORTH' },
+  } as const;
+}
+
 /** Lays the flowchart out left to right: imports first, targets and byproducts last. */
 export async function layoutFactoryGraph(
   graph: FactoryGraph,
@@ -183,6 +230,8 @@ export async function layoutFactoryGraph(
   const edgeLabel = options.edgeLabel ?? defaultEdgeLabel;
   const nodeTexts = new Map(graph.nodes.map((n) => [n.id, nodeText(lines(n))]));
   const labels = new Map(graph.edges.map((e) => [e.id, labelLines(edgeLabel(e))]));
+  const ports = sourcePorts(graph);
+  const slants = new Map<string, number>();
   const input: ElkNode = {
     id: 'root',
     layoutOptions: ELK_OPTIONS,
@@ -193,21 +242,42 @@ export async function layoutFactoryGraph(
         longest(title) * FLOW_TITLE_CHAR_WIDTH,
         longest(details) * FLOW_CHAR_WIDTH,
       );
+      const height = Math.max(
+        MIN_NODE_HEIGHT,
+        Math.max((title.length + details.length) * FLOW_LINE_HEIGHT, icon) +
+          2 * (PADDING_Y + BORDER),
+      );
+      const slant = Math.round(height * SLANT);
+      slants.set(n.id, slant);
+      const width = Math.max(
+        MIN_NODE_WIDTH,
+        textWidth + iconSpace + 2 * (PADDING_X + BORDER) + 2 * slant,
+      );
+      const spots = portSpots(width, height, slant);
       return {
         id: n.id,
-        width: Math.max(MIN_NODE_WIDTH, textWidth + iconSpace + 2 * (PADDING_X + BORDER)),
-        height:
-          Math.max((title.length + details.length) * FLOW_LINE_HEIGHT, icon) +
-          2 * (PADDING_Y + BORDER),
-        ...(layer ? { layoutOptions: { 'elk.layered.layering.layerConstraint': layer } } : {}),
+        width,
+        height,
+        layoutOptions: {
+          'elk.portConstraints': 'FIXED_POS',
+          ...(layer ? { 'elk.layered.layering.layerConstraint': layer } : {}),
+        },
+        ports: (Object.keys(spots) as Port[]).map((p) => ({
+          id: `${n.id}#${p}`,
+          x: spots[p].x,
+          y: spots[p].y,
+          width: 0,
+          height: 0,
+          layoutOptions: { 'elk.port.side': spots[p].side },
+        })),
       };
     }),
     edges: graph.edges.map((e): ElkExtendedEdge => {
       const l = labels.get(e.id)!;
       return {
         id: e.id,
-        sources: [e.source],
-        targets: [e.target],
+        sources: [`${e.source}#${ports.get(e.id)!}`],
+        targets: [`${e.target}#in`],
         labels: [
           {
             text: l.join('\n'),
@@ -231,12 +301,18 @@ export async function layoutFactoryGraph(
   return {
     width: out.width ?? 0,
     height: out.height ?? 0,
-    nodes: graph.nodes.map((n) => ({ ...n, ...box(placed.get(n.id)), text: nodeTexts.get(n.id)! })),
+    nodes: graph.nodes.map((n) => ({
+      ...n,
+      ...box(placed.get(n.id)),
+      text: nodeTexts.get(n.id)!,
+      slant: slants.get(n.id)!,
+    })),
     edges: graph.edges.map((e) => {
       const r = routed.get(e.id);
       const label: ElkLabel | undefined = r?.labels?.[0];
       return {
         ...e,
+        sourcePort: ports.get(e.id)!,
         points: (r?.sections ?? []).flatMap((s) => [
           s.startPoint,
           ...(s.bendPoints ?? []),

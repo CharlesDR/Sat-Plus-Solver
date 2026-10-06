@@ -1352,51 +1352,80 @@ section.diagnostics li p {
 }
 .flow-node {
   --kind: var(--kind-recipe);
+  --fill: var(--flow-recipe);
+  --edge: var(--line-strong);
+  position: relative;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 6px;
   width: 100%;
   height: 100%;
-  padding: 4px 6px;
-  border: 1px solid var(--line-strong);
-  border-left: 3px solid var(--kind);
-  border-radius: 6px;
+  padding-block: 4px;
   color: var(--fg);
-  background: var(--flow-recipe);
   font-size: 14px;
   line-height: 17px;
-  overflow: hidden;
   cursor: pointer;
-  box-shadow: var(--shadow-sm);
-  transition: box-shadow 0.12s;
 }
-.flow-node:hover {
-  box-shadow: var(--shadow-md);
+/* The hexagon (A40) is drawn behind the content; the box itself has no frame. */
+.flow-hex {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+/* A flat offset copy instead of a blurred drop-shadow: filters are costly to paint. */
+.flow-hex-shadow {
+  fill: rgb(0 0 0 / 0.1);
+  transform: translateY(1.5px);
+}
+.flow-hex-body {
+  fill: var(--fill);
+  stroke: var(--edge);
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+.flow-hex-kind {
+  fill: none;
+  stroke: var(--kind);
+  stroke-width: 3;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+/* Above the hexagon; the handles stay absolutely placed by React Flow. */
+.flow-node > .flow-icon,
+.flow-node > .flow-text {
+  position: relative;
+}
+.flow-node:hover .flow-hex-shadow {
+  fill: rgb(0 0 0 / 0.18);
+  transform: translateY(3px);
 }
 .flow-node.resource {
   --kind: var(--kind-resource);
-  background: var(--flow-resource);
+  --fill: var(--flow-resource);
 }
 .flow-node.import {
   --kind: var(--kind-import);
-  background: var(--flow-import);
+  --fill: var(--flow-import);
 }
 .flow-node.target {
   --kind: var(--kind-target);
-  background: color-mix(in srgb, var(--kind-target) 9%, var(--flow-target));
+  --fill: color-mix(in srgb, var(--kind-target) 9%, var(--flow-target));
 }
 .flow-node.byproduct {
   --kind: var(--kind-byproduct);
-  background: var(--flow-byproduct);
+  --fill: var(--flow-byproduct);
 }
 .flow-node.missing {
   --kind: var(--error);
-  background: var(--flow-missing);
-  border-color: var(--error);
+  --fill: var(--flow-missing);
+  --edge: var(--error);
 }
 .react-flow__node.selected .flow-node {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent);
+  --edge: var(--accent);
+}
+.react-flow__node.selected .flow-hex-body {
+  stroke-width: 2.5;
 }
 .flow-node .react-flow__handle {
   opacity: 0;

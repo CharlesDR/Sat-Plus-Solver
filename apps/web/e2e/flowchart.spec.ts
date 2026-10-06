@@ -4,7 +4,7 @@
  */
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
-import { openFactory } from './helpers';
+import { clickFlowNode, openFactory } from './helpers';
 
 const node = (page: Page, id: string) =>
   page.getByTestId('flowchart').locator(`.react-flow__node[data-id="${id}"]`);
@@ -28,7 +28,7 @@ test('Iron Plate 60/min: flowchart nodes, edge rates and two-way selection', asy
   await expect(chart.getByText('60 Iron Plate', { exact: true })).toBeVisible();
 
   // Flowchart → table.
-  await node(page, 'recipe:iron-plate').click();
+  await clickFlowNode(page, 'recipe:iron-plate');
   await expect(node(page, 'recipe:iron-plate')).toHaveClass(/selected/);
   await expect(row(page, 'recipe:iron-plate')).toHaveAttribute('aria-selected', 'true');
 

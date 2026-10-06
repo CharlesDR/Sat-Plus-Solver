@@ -32,6 +32,7 @@ export {
   nodeText,
   overlaps,
   rateText,
+  sourcePorts,
   wrapText,
 } from './layout';
 export type {
@@ -42,6 +43,7 @@ export type {
   NodeText,
   PlacedEdge,
   PlacedNode,
+  Port,
 } from './layout';
 export { factoryNodeId, groupNodeId, worldGraph } from './world';
 export type {
