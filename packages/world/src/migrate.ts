@@ -110,6 +110,11 @@ function v7ToV8(doc: Doc): Doc {
   };
 }
 
+/** v8 → v9 (A44): factories may carry a build mark; none do yet. */
+function v8ToV9(doc: Doc): Doc {
+  return { ...doc, meta: { ...(doc.meta as Doc), v: 9 } };
+}
+
 const MIGRATIONS: Record<number, (doc: Doc) => Doc> = {
   1: v1ToV2,
   2: v2ToV3,
@@ -118,6 +123,7 @@ const MIGRATIONS: Record<number, (doc: Doc) => Doc> = {
   5: v5ToV6,
   6: v6ToV7,
   7: v7ToV8,
+  8: v8ToV9,
 };
 
 /** Returns `doc` upgraded to the current version; throws on a newer or malformed document. */

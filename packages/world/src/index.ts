@@ -31,3 +31,15 @@ export {
   undoManual,
   type ManualOutcome,
 } from './manual';
+export {
+  BUILD_FLAG_LABELS,
+  buildFingerprint,
+  checkBuild,
+  clearBuilt,
+  markAllBuilt,
+  markBuilt,
+  planEntries,
+  restoreBuild,
+  type BuildNow,
+  type BuildSource,
+} from './built';

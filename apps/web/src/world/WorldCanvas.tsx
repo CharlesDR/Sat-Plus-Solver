@@ -5,6 +5,7 @@
  * right handle to another factory's left handle starts a link. Item trace
  * dims everything that doesn't touch the traced item.
  */
+import { BUILD_STATE } from '../build/build';
 import {
   layoutWorldGraph,
   worldNodeLines,
@@ -76,6 +77,13 @@ const WorldNodeView = memo(function WorldNodeView({ data }: NodeProps<CanvasNode
       <div className="flow-title" title={title}>
         {title}
       </div>
+      {n.build && (
+        <div className="flow-detail">
+          <span className={`status-chip ${BUILD_STATE[n.build].tone}`}>
+            {BUILD_STATE[n.build].label}
+          </span>
+        </div>
+      )}
       {rest.map((l) =>
         l.startsWith(STATUS) ? (
           <div key={l} className="flow-detail">

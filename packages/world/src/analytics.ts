@@ -5,7 +5,8 @@
  */
 import type { Model } from '@sps/data';
 import type { PowerSummary } from '@sps/solver';
-import type { Link, World } from './document';
+import { BUILD_FLAG_LABELS, checkBuild, planEntries } from './built';
+import { tweakedImports, type Link, type World } from './document';
 import type { Pass } from './resolve';
 import type {
   FactoryResult,
@@ -161,6 +162,41 @@ export function analyze(
               '.',
           });
       }
+      const plan = planEntries(result);
+      let build: FactoryResult['build'];
+      if (f.built) {
+        // The built plan's import caps (§4.8): a pull producer adapts unless it failed or is manual.
+        const caps = new Map<string, number>();
+        const cap = (item: string, c: number) => caps.set(item, (caps.get(item) ?? 0) + c);
+        for (const i of tweakedImports(f)) cap(i.item, i.cap ?? Infinity);
+        for (const l of incoming)
+          cap(
+            l.item,
+            l.mode === 'pull' && ok(l.from) && !pass.solved.get(l.from)?.manual
+              ? Infinity
+              : l.delivered,
+          );
+        build = checkBuild(model, world, f, f.built, {
+          request,
+          plan,
+          planned: result.status === 'ok',
+          imports: [...caps].sort(([a], [b]) => byKey(a, b)).map(([item, c]) => ({ item, cap: c })),
+        });
+        if (build.state === 'differs' || build.state === 'broken')
+          diagnostics.push({
+            code: 'build-drift',
+            severity: 'warning',
+            factory: f.id,
+            state: build.state,
+            message:
+              `${f.name} (${f.id}) ${build.state === 'broken' ? "can't run as built" : 'differs from its build'}: ` +
+              build.flags
+                .filter((x) => x.severity !== 'info')
+                .map((x) => BUILD_FLAG_LABELS[x.kind].toLowerCase())
+                .join(', ') +
+              '.',
+          });
+      }
       return {
         id: f.id,
         name: f.name,
@@ -176,6 +212,8 @@ export function analyze(
         status,
         request,
         key: solved.key,
+        plan,
+        ...(build ? { build } : {}),
         result,
         ledger: toLedger(rows),
         power: result.status === 'ok' ? { ...result.power } : { ...ZERO_POWER },
@@ -416,6 +454,7 @@ const ORDER: Record<WorldDiagnostic['code'], number> = {
   'node-over-allocated': 5,
   'import-cost-unsettled': 6,
   'manual-short': 7,
+  'build-drift': 8,
 };
 
 function sortDiagnostics(ds: WorldDiagnostic[]): WorldDiagnostic[] {

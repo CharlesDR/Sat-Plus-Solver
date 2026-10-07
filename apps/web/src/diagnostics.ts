@@ -163,6 +163,13 @@ export function worldDiagnostics(ds: readonly WorldDiagnostic[], names: Names): 
             label: `Open ${names.factory(d.factory)}`,
           },
         ]);
+      case 'build-drift':
+        return view(
+          d.state === 'broken'
+            ? `${names.factory(d.factory)} can't run as built`
+            : `${names.factory(d.factory)} differs from its build`,
+          [{ kind: 'open-factory', factory: d.factory, label: `Open ${names.factory(d.factory)}` }],
+        );
     }
   });
 }
