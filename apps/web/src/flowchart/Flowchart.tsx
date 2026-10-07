@@ -5,6 +5,7 @@
  */
 import {
   nodeLines,
+  type Bundle,
   type FactoryGraph,
   type FactoryLayout,
   type LayoutEngine,
@@ -37,8 +38,12 @@ import { ICON_SIZE, useLayout } from './useLayout';
 
 type FlowNodeData = { node: PlacedNode; icon: string | undefined };
 type FlowchartNode = Node<FlowNodeData, 'flow'>;
-/** `weight` is the edge's rate relative to the largest in the plan, 0–1. */
-type FlowEdgeData = { edge: PlacedEdge; active: boolean; weight: number };
+/**
+ * `weight` is the edge's rate relative to the largest in the plan, 0–1.
+ * `trunk`: the bundle this edge is the first branch of, whose trunk label
+ * and split point it draws (A46).
+ */
+type FlowEdgeData = { edge: PlacedEdge; active: boolean; weight: number; trunk?: Bundle };
 type FlowchartEdge = Edge<FlowEdgeData, 'routed'>;
 
 const KIND_LABEL = {
@@ -51,9 +56,10 @@ const KIND_LABEL = {
 } as const;
 
 /**
- * A node is a hexagon with vertices left and right (A40): inputs meet the left
- * vertex, the main product leaves the right one, and byproducts leave the
- * lower and upper right vertices. The left sides carry the kind's colour.
+ * A node is a hexagon with vertices left and right (A40). Each item has its
+ * own port on the slanted sides, the main product at the right vertex
+ * (A46); the left sides carry the kind's colour. Raw inputs sit in the band
+ * along the top, their lines dropping into the chart.
  */
 const FlowNodeView = memo(function FlowNodeView({ data }: NodeProps<FlowchartNode>) {
   const { title, details } = data.node.text;
@@ -113,14 +119,34 @@ const RoutedEdge = memo(function RoutedEdge({ id, data, markerEnd }: EdgeProps<F
         >
           {label.text}
         </div>
+        {data.trunk && (
+          <div
+            className={data.active ? 'flow-edge-label trunk active' : 'flow-edge-label trunk'}
+            style={{
+              transform: `translate(${data.trunk.label.x}px, ${data.trunk.label.y}px)`,
+              width: data.trunk.label.width,
+              height: data.trunk.label.height,
+            }}
+          >
+            {data.trunk.label.text}
+          </div>
+        )}
       </EdgeLabelRenderer>
+      {data.trunk && (
+        <circle
+          className={data.active ? 'flow-split active' : 'flow-split'}
+          cx={data.trunk.split.x}
+          cy={data.trunk.split.y}
+          r={3}
+        />
+      )}
     </>
   );
 });
 
 const nodeTypes = { flow: FlowNodeView };
-/** The Fit button shows the whole plan, however small its text gets. */
-const FIT = { padding: 0.02, maxZoom: 1.5 };
+/** The Fit button shows the whole plan, however small its text gets, up to MAX_ZOOM. */
+const FIT = { padding: 0.02 };
 /**
  * The plan opens at the width of the canvas, but never so far out that its
  * 14 px text drops below 12 px on screen, and never past 1.5×. A plan too big
@@ -223,22 +249,29 @@ function Canvas(props: {
       })),
     [layout, selected, recipes],
   );
-  const edges = useMemo<FlowchartEdge[]>(
-    () =>
-      layout.edges.map((e) => {
-        const active = e.source === selected || e.target === selected;
-        return {
-          id: e.id,
-          type: 'routed',
-          source: e.source,
-          target: e.target,
-          selectable: false,
-          zIndex: active ? 1 : 0,
-          data: { edge: e, active, weight: maxRate > 0 ? e.rate / maxRate : 0 },
-        };
-      }),
-    [layout, selected, maxRate],
-  );
+  const edges = useMemo<FlowchartEdge[]>(() => {
+    const trunks = new Map(layout.bundles.map((b) => [`${b.source}\n${b.item}`, b]));
+    return layout.edges.map((e) => {
+      const key = `${e.source}\n${e.item}`;
+      const trunk = trunks.get(key);
+      trunks.delete(key);
+      const active = e.source === selected || e.target === selected;
+      return {
+        id: e.id,
+        type: 'routed',
+        source: e.source,
+        target: e.target,
+        selectable: false,
+        zIndex: active ? 1 : 0,
+        data: {
+          edge: e,
+          active,
+          weight: maxRate > 0 ? e.rate / maxRate : 0,
+          ...(trunk ? { trunk } : {}),
+        },
+      };
+    });
+  }, [layout, selected, maxRate]);
   return (
     <div
       ref={box}
@@ -263,7 +296,7 @@ function Canvas(props: {
         >
           <Background gap={20} size={1} />
           <Controls showInteractive={false} showFitView={false}>
-            <FitButton />
+            <FitButton layout={layout} />
           </Controls>
           <Follow layout={layout} box={box} selection={selection} />
         </ReactFlow>
@@ -272,12 +305,19 @@ function Canvas(props: {
   );
 }
 
-/** Shows the whole plan, whatever the zoom. */
-function FitButton() {
+/**
+ * Shows the whole plan, whatever the zoom: the whole drawing, so labels
+ * beside the outermost nodes stay in view.
+ */
+function FitButton({ layout }: { layout: FactoryLayout }) {
   const flow = useReactFlow();
   return (
     <ControlButton
-      onClick={() => void flow.fitView(FIT)}
+      onClick={() =>
+        void flow
+          .fitBounds({ x: 0, y: 0, width: layout.width, height: layout.height }, FIT)
+          .then(() => (flow.getZoom() > MAX_ZOOM ? flow.zoomTo(MAX_ZOOM) : undefined))
+      }
       title="Fit the whole plan"
       aria-label="Fit the whole plan"
     >

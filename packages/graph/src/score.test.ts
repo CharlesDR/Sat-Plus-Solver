@@ -38,6 +38,7 @@ describe('layoutScore (A43)', () => {
           [120, 92],
         ),
       ],
+      bundles: [],
     };
     expect(layoutScore(layout)).toEqual({
       crossings: 1,
@@ -72,8 +73,49 @@ describe('layoutScore (A43)', () => {
           [80, 80],
         ),
       ],
+      bundles: [],
     };
     expect(layoutScore(layout).crossings).toBe(0);
+  });
+
+  test('a stretch two lines share is drawn, and counted, once (A46)', () => {
+    // Two branches of one bundle: a shared trunk to (50, 50), then one goes
+    // up and one down. A vertical line crosses the trunk.
+    const branch = (id: string, y: number) =>
+      edge(
+        id,
+        [
+          [0, 50],
+          [50, 50],
+          [50, y],
+          [100, y],
+        ],
+        [0, 0],
+      );
+    const layout: FactoryLayout = {
+      width: 100,
+      height: 100,
+      nodes: [],
+      edges: [
+        branch('up', 0),
+        branch('down', 100),
+        edge(
+          'v',
+          [
+            [25, 0],
+            [25, 100],
+          ],
+          [80, 80],
+        ),
+      ],
+      bundles: [],
+    };
+    const s = layoutScore(layout);
+    expect(s.crossings).toBe(1);
+    // The trunk once, each branch's two legs, and the vertical line.
+    expect(s.edgeLength).toBe(50 + 2 * (50 + 50) + 100);
+    // Each branch turns twice; the trunk's end is a different corner for each.
+    expect(s.bends).toBe(4);
   });
 
   test('gap is the distance between box edges, 0 when they touch', () => {
