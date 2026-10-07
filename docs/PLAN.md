@@ -4,23 +4,25 @@ Every milestone is merged on its own and leaves `main` green: lint, typecheck, t
 Order: data → factory solver → an early end-to-end slice → full objectives → **world core (pure logic)** → factory UI → world UI → sharing → hardening.
 References like §4.3 point into `ARCHITECTURE.md`.
 
-| #   | Milestone                   | Ships                                                                                                            | Depends on |
-| --- | --------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------- |
-| M0  | Scaffold and CI             | Empty workspaces, toolchain, CI                                                                                  | —          |
-| M1  | Data pipeline               | `model.json` + validation report                                                                                 | M0         |
-| M2  | Factory solver core + CLI   | `pnpm solve` prints a plan table                                                                                 | M1         |
-| M3  | **Vertical slice (web)**    | Page: one target → summary table. The store is already a one-factory `World`.                                    | M2         |
-| M4  | Full objectives + power     | 6 objectives, lexicographic stack, tolerance, MILP, import costing, `MW` pseudo-item                             | M2         |
-| M5  | **World core** (pure) + CLI | `world` package: links, resolution, node pool, ledgers, groups; `pnpm world`                                     | M4         |
-| M6  | Factory controls            | Factory view: targets, toggles, tier filter, resource limits, imports, objective stack                           | M3, M4     |
-| M7  | Factory flowchart           | Interactive factory graph synced with the table                                                                  | M6         |
-| M8  | **World UI**                | Outer canvas, groups, link editor, ledgers, power, nodes, item trace, drill-down                                 | M5, M7     |
-| M9  | Saves and sharing           | Local save slots, JSON export/import, URL share, versioning                                                      | M8         |
-| M10 | Hardening and release       | Perf, diagnostics UX, E2E, Pages deploy                                                                          | M9         |
-| M11 | Backlog (after v1)          | Joint world optimization, SF+ golden cases, multiple power grids, transport calculators, per-group overclock     | M10        |
-| M12 | Plan tweaks                 | Ban, swap or import a recipe group from the flowchart; tweak list with Undo and Revert all (A35)                 | M10        |
-| M13 | Manual mode                 | Per-factory Solver / Manual switch: freeze the plan and edit machine counts by hand, no re-solve (A36)           | M12        |
-| M14 | Modeler files (.sfmd)       | Import a Satisfactory Modeler save as factories; export a factory or world as a `.sfmd` that Modeler opens (A37) | M13        |
+| #   | Milestone                   | Ships                                                                                                            | Depends on               |
+| --- | --------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| M0  | Scaffold and CI             | Empty workspaces, toolchain, CI                                                                                  | —                        |
+| M1  | Data pipeline               | `model.json` + validation report                                                                                 | M0                       |
+| M2  | Factory solver core + CLI   | `pnpm solve` prints a plan table                                                                                 | M1                       |
+| M3  | **Vertical slice (web)**    | Page: one target → summary table. The store is already a one-factory `World`.                                    | M2                       |
+| M4  | Full objectives + power     | 6 objectives, lexicographic stack, tolerance, MILP, import costing, `MW` pseudo-item                             | M2                       |
+| M5  | **World core** (pure) + CLI | `world` package: links, resolution, node pool, ledgers, groups; `pnpm world`                                     | M4                       |
+| M6  | Factory controls            | Factory view: targets, toggles, tier filter, resource limits, imports, objective stack                           | M3, M4                   |
+| M7  | Factory flowchart           | Interactive factory graph synced with the table                                                                  | M6                       |
+| M8  | **World UI**                | Outer canvas, groups, link editor, ledgers, power, nodes, item trace, drill-down                                 | M5, M7                   |
+| M9  | Saves and sharing           | Local save slots, JSON export/import, URL share, versioning                                                      | M8                       |
+| M10 | Hardening and release       | Perf, diagnostics UX, E2E, Pages deploy                                                                          | M9                       |
+| M11 | Backlog (after v1)          | Joint world optimization, SF+ golden cases, multiple power grids, transport calculators, per-group overclock     | M10                      |
+| M12 | Plan tweaks                 | Ban, swap or import a recipe group from the flowchart; tweak list with Undo and Revert all (A35)                 | M10                      |
+| M13 | Manual mode                 | Per-factory Solver / Manual switch: freeze the plan and edit machine counts by hand, no re-solve (A36)           | M12                      |
+| M14 | Modeler files (.sfmd)       | Import a Satisfactory Modeler save as factories; export a factory or world as a `.sfmd` that Modeler opens (A37) | M13                      |
+| M15 | In-game build flags         | Mark a factory as built; flag it when its plan, inputs, demand, limits or data move away from the build (A44)    | M13                      |
+| M16 | Nested factories            | Factories inside factories, wired to their parent, drawn as boxes on the parent flowchart (A45)                  | M15, view path (A41–A43) |
 
 ---
 
@@ -135,6 +137,20 @@ References like §4.3 point into `ARCHITECTURE.md`.
 - **Export.** "Export to Modeler" on a factory writes one `.sfmd` file with Modeler's calculator set to `Manual`. It works for solved and manual factories alike. Each recipe group becomes one Modeler node named by its recipe, with its machine count as an exact fraction in `Max`, its position from the flowchart layout, and an input connection for each belt in our flowchart. Raw resources become extractor nodes; imports and links become Modeler's own input points. Exporting the world writes one Outpost per factory, wired along the world's links.
 - **Import.** "Import from Modeler" reads a `.sfmd` and makes one factory per top-level Outpost (or one factory when the save has none). Each factory starts in manual mode (M13, §4.7): its recipe nodes and `Max` counts become the frozen plan, so it is kept exactly as built, and its net outputs become its targets, so switching it to Solver re-solves for the same products. Our belts are wired automatically (A24), so Modeler's own wiring, splitters, mergers, storage, sinks and Dimensional Depots are not kept as nodes. A node with no `Max` (unlimited in Modeler) has no count we can freeze. Every node we can't map (an unknown name, a part or recipe missing from our data, a node without a count, a Modeler-only setting such as clock speed or Somersloops) is listed in an import report. Nothing is dropped silently.
 - **Acceptance:** Exporting a solved or manual factory and importing the file back gives the same recipes and machine counts, exactly. A sample `.sfmd` fixture imports with the expected factories, counts and report entries. An exported multi-factory world opens in Modeler with every node and connection in place (checked by Charles in Modeler, since it is a closed Windows app). A malformed file shows an error and leaves the world unchanged.
+
+### M15 — In-game build flags
+
+- **Mark as built** in the plan toolbar stores the factory's current plan and boundary flows as its build (§4.8, A44, World v9). **Mark every factory as built** in the world view marks every factory with a plan at once.
+- Every resolution checks each marked factory: can the built plan still run (inputs, demand, resource limits, recipes), and does today's plan match it. Each deficit is its own flag: **Can't get enough inputs**, **Needs expansion**, **Over a resource limit**, **Recipe no longer exists**, **Plan changed**, **Can be reduced**, **Game data changed**, with the items or recipes and rates involved, and the likely cause (own settings, world defaults, links, game data).
+- The factory view shows the build state and the flags in a banner, with **Restore build** (manual mode with the built plan), **Re-mark as built** and **Clear mark**. The world canvas shows a build badge on each marked factory, and the summary counts factories off their build.
+- **Acceptance:** Marking a solved or manual factory and re-resolving gives "matches" with no flags. Raising a target past the build gives Needs expansion with the exact shortfall; lowering a fixed import link gives Can't get enough inputs; lowering a resource limit gives Over a resource limit; banning a built recipe gives Plan changed with built and new counts; halving the target gives Can be reduced only. Whole-machine factories compare whole buildings. Restore build reproduces the built flows within 1e-6. A v8 save migrates with no marks, and marks survive save → load.
+
+### M16 — Nested factories
+
+- `Factory.parentId` (World v10, A45): a factory can sit inside another, to any depth, never in a cycle. Groups stay as folders.
+- Adding a child creates pull links from the child to the parent for each of the child's targets; they can be edited like any link. The parent may also draw on a child's surplus without a link the user made. A child's links to factories outside its parent are drawn through the parent's boundary.
+- The parent's flowchart draws each child as one box, with its flows as edges to and from the parent's recipes. Double-click opens the child, the breadcrumb shows the path, and Esc steps back one level (view path, A41–A43). The world canvas draws a parent with children as a frame, or as one node with boundary flows when collapsed. Parent totals show "this factory" and "with sub-factories". Build flags (M15) roll up to the worst in the subtree.
+- **Acceptance:** A child's output reaches its parent through the automatic links and the ledgers conserve. Esc from a grandchild returns to the child, then the parent, then the world. A parent cycle is rejected as an edit. A v9 save migrates with no parents. A collapsed parent shows only flows crossing its subtree.
 
 ---
 
