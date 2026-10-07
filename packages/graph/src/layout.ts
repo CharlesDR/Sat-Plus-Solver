@@ -250,22 +250,64 @@ export function isRaw(n: FlowNode): boolean {
 }
 
 /**
- * The nodes drawn in the band (A46): the raw inputs that take nothing from
- * the chart, so every line between the band and the chart drops down. A
- * miner fed with Water from the band stays in it; one fed with an acid made
- * in the chart is drawn in the chart.
+ * The nodes drawn in the band (A46): the raw inputs whose lines feed recipes
+ * at more than one stage of the chart, such as Water used early for ore
+ * and again late for radiators. A raw input that feeds one stage only, such
+ * as an ore going into three smelters, is laid out in the chart like any
+ * node. A raw input that takes something from the chart is drawn in the
+ * chart too, so every line between the band and the chart drops down: a
+ * miner fed with an acid made in the chart stays out of the band.
  */
 export function bandNodes(graph: FactoryGraph): Set<string> {
   const band = new Set(graph.nodes.filter(isRaw).map((n) => n.id));
-  for (let changed = true; changed;) {
-    changed = false;
-    for (const e of graph.edges)
-      if (band.has(e.target) && !band.has(e.source)) {
-        band.delete(e.target);
-        changed = true;
-      }
+  const settle = () => {
+    for (let changed = true; changed;) {
+      changed = false;
+      for (const e of graph.edges)
+        if (band.has(e.target) && !band.has(e.source)) {
+          band.delete(e.target);
+          changed = true;
+        }
+    }
+  };
+  settle();
+  const stage = stages(graph, band);
+  for (const id of [...band]) {
+    const used = new Set(
+      graph.edges
+        .filter((e) => e.source === id && !band.has(e.target))
+        .map((e) => stage.get(e.target)),
+    );
+    if (used.size < 2) band.delete(id);
   }
+  settle();
   return band;
+}
+
+/**
+ * Each chart node's stage: the longest run of chart lines leading into it,
+ * lines from the band not counted. A line closing a loop is skipped.
+ */
+function stages(graph: FactoryGraph, band: ReadonlySet<string>): Map<string, number> {
+  const from = new Map<string, string[]>();
+  for (const e of graph.edges)
+    if (e.source !== e.target && !band.has(e.source))
+      from.set(e.target, [...(from.get(e.target) ?? []), e.source]);
+  const stage = new Map<string, number>();
+  const open = new Set<string>();
+  const visit = (id: string): number => {
+    const known = stage.get(id);
+    if (known !== undefined) return known;
+    if (open.has(id)) return 0;
+    open.add(id);
+    let s = 0;
+    for (const source of from.get(id) ?? []) s = Math.max(s, visit(source) + 1);
+    open.delete(id);
+    stage.set(id, s);
+    return s;
+  };
+  for (const n of graph.nodes) visit(n.id);
+  return stage;
 }
 
 /** How many outputs sit above and below the main product at most. */

@@ -98,16 +98,16 @@ describe('layoutFactoryGraph', () => {
     expect(overlaps(iconed)).toEqual([]);
   });
 
-  test('raw inputs in a band on top, the rest left to right, with routed edges and labels', async () => {
+  test('left to right, with routed edges and labels; a raw input used at one stage sits in the chart', async () => {
     const l = await layoutFactoryGraph(graph, new ELK());
     const [imp, rec, tgt] = l.nodes;
-    expect(imp!.band).toBe(true);
-    expect(imp!.y + imp!.height).toBeLessThan(rec!.y);
+    // The import feeds one stage, so it is not in the band (A46).
+    expect(imp!.band).toBe(false);
+    expect(imp!.x + imp!.width).toBeLessThan(rec!.x);
     expect(rec!.x + rec!.width).toBeLessThan(tgt!.x);
     for (const e of l.edges) {
       expect(e.points.length).toBeGreaterThanOrEqual(2);
-      // A line from the band shows its rate; the band node names the item (A46).
-      expect(e.label.text).toBe(e.source === 'import:ore' ? '60.0' : `60.0 ${e.itemName}`);
+      expect(e.label.text).toBe(`60.0 ${e.itemName}`);
       expect(e.label.width).toBeGreaterThan(0);
     }
     expect(overlaps(l)).toEqual([]);
@@ -194,7 +194,11 @@ describe('layoutFactoryGraph', () => {
   });
 
   test('a raw input drops a straight line beside the column of each recipe it feeds (A46)', async () => {
-    const consumer = (id: string, rate: number): FlowNode => ({
+    const consumer = (
+      id: string,
+      rate: number,
+      extra: { item: string; rate: number }[] = [],
+    ): FlowNode => ({
       id: `recipe:${id}`,
       kind: 'recipe',
       label: id,
@@ -203,7 +207,7 @@ describe('layoutFactoryGraph', () => {
       machines: 1,
       machinesCeil: 1,
       main: id,
-      inputs: [{ item: 'ore', rate }],
+      inputs: [{ item: 'ore', rate }, ...extra],
       outputs: [{ item: id, rate }],
     });
     const target = (id: string, rate: number): FlowNode => ({
@@ -218,21 +222,23 @@ describe('layoutFactoryGraph', () => {
     const g: FactoryGraph = {
       nodes: [
         graph.nodes[0]!,
+        // Ore feeds two stages: recipe a, and recipe b, which takes a's output.
         consumer('a', 20),
-        consumer('b', 40),
-        target('a', 20),
+        consumer('b', 40, [{ item: 'a', rate: 20 }]),
         target('b', 40),
       ],
       edges: [
         edge('import:ore', 'recipe:a', 'ore', 20),
         edge('import:ore', 'recipe:b', 'ore', 40),
-        edge('recipe:a', 'target:a', 'a', 20),
+        edge('recipe:a', 'recipe:b', 'a', 20),
         edge('recipe:b', 'target:b', 'b', 40),
       ],
     };
     const l = await layoutFactoryGraph(g, new ELK());
     const node = (id: string) => l.nodes.find((n) => n.id === id)!;
     const imp = node('import:ore');
+    expect(imp.band).toBe(true);
+    for (const n of l.nodes) if (!n.band) expect(imp.y + imp.height).toBeLessThan(n.y);
     for (const id of ['recipe:a', 'recipe:b']) {
       const e = l.edges.find((x) => x.target === id)!;
       const t = node(id);
@@ -323,14 +329,51 @@ describe('layoutFactoryGraph', () => {
         n('miner-wet', 'resource', ['water']),
         n('acid', 'recipe', ['water']),
         n('miner-acid', 'resource', ['acid']),
+        n('smelter', 'recipe', ['ore', 'water', 'acid-ore']),
       ],
       edges: [
         edge('water', 'miner-wet', 'water', 1),
         edge('water', 'acid', 'water', 1),
+        edge('water', 'smelter', 'water', 1),
+        edge('miner-wet', 'acid', 'ore', 1),
+        edge('miner-wet', 'smelter', 'ore', 1),
         edge('acid', 'miner-acid', 'acid', 1),
+        edge('miner-acid', 'smelter', 'acid-ore', 1),
       ],
     };
     expect([...bandNodes(g)].sort()).toEqual(['miner-wet', 'water']);
+  });
+
+  test('bandNodes: only raw inputs used at more than one stage go in the band (A46)', () => {
+    const n = (id: string, kind: FlowNode['kind'], inputs: string[]): FlowNode => ({
+      id,
+      kind,
+      label: id,
+      inputs: inputs.map((item) => ({ item, rate: 1 })),
+      outputs: [],
+    });
+    // Ore feeds two smelters side by side; Water feeds a smelter and, two
+    // stages on, the radiator.
+    const g: FactoryGraph = {
+      nodes: [
+        n('ore', 'resource', []),
+        n('water', 'recipe', []),
+        n('smelt-a', 'recipe', ['ore', 'water']),
+        n('smelt-b', 'recipe', ['ore']),
+        n('plate', 'recipe', ['ingot']),
+        n('radiator', 'recipe', ['plate', 'water']),
+      ],
+      edges: [
+        edge('ore', 'smelt-a', 'ore', 1),
+        edge('ore', 'smelt-b', 'ore', 1),
+        edge('water', 'smelt-a', 'water', 1),
+        edge('water', 'radiator', 'water', 1),
+        edge('smelt-a', 'plate', 'ingot', 1),
+        edge('smelt-b', 'plate', 'ingot', 1),
+        edge('plate', 'radiator', 'plate', 1),
+      ],
+    };
+    expect([...bandNodes(g)]).toEqual(['water']);
   });
 
   test('orthogonal: a route with a slanted segment is redrawn square', () => {
@@ -371,8 +414,8 @@ describe('layoutFactoryGraph', () => {
     const label = l.edges[1]!.label;
     expect(label.text).toBe('60.0\nReinforced\nIron Plate');
     expect(label.height).toBeGreaterThan(l.edges[0]!.label.height * 2);
-    // A line from the band is labelled with its rate, beside the node (A46).
-    expect(l.edges[0]!.label.text).toBe('60.0');
+    // The import feeds one stage, so it sits in the chart and its line names the item (A46).
+    expect(l.edges[0]!.label.text).toBe('60.0 Ore');
     expect(overlaps(l)).toEqual([]);
   });
 
