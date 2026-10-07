@@ -1,23 +1,5 @@
 import { expect, test } from 'vitest';
-import { formatRate, recipeTable, type PlanSummary } from './summary';
-
-test('formatRate: 3 decimals, 3 significant digits below 0.001, no negative zero', () => {
-  expect(formatRate(60)).toBe('60');
-  expect(formatRate(13.33333)).toBe('13.333');
-  expect(formatRate(0.000626123)).toBe('0.000626');
-  expect(formatRate(0)).toBe('0');
-  expect(formatRate(-0.0000001)).toBe('-1.00e-7');
-  expect(formatRate(-0.0004)).toBe('-0.000400');
-  expect(formatRate(-0.0)).toBe('0');
-  expect(formatRate(Infinity)).toBe('Infinity');
-});
-
-test('formatRate: commas between thousands', () => {
-  expect(formatRate(999.9999)).toBe('1,000');
-  expect(formatRate(1555.5556)).toBe('1,555.556');
-  expect(formatRate(-1234567.25)).toBe('-1,234,567.25');
-  expect(formatRate(123)).toBe('123');
-});
+import { recipeTable, type PlanSummary } from './summary';
 
 const plan = (recipes: PlanSummary['recipes']): PlanSummary => ({
   status: 'ok',
@@ -43,8 +25,12 @@ const smelter = {
 test('recipeTable: no Boiler column without heaters', () => {
   expect(recipeTable(plan([smelter]))).toEqual({
     head: ['Recipe', 'Machine', 'Count', 'Build', 'MW'],
-    rows: [['Iron Ingot', 'Smelter', '2.5', '3', '10']],
+    rows: [['Iron Ingot', 'Smelter', '2.5', '3', '10.0']],
   });
+});
+
+test('recipeTable: a count the decimals cannot show exactly carries its fraction (A41)', () => {
+  expect(recipeTable(plan([{ ...smelter, machines: 7 / 3 }])).rows[0]![2]).toBe('2.3334 (2 1/3)');
 });
 
 test('recipeTable: heaters show whole machines and their boiler load (A17)', () => {
@@ -60,8 +46,8 @@ test('recipeTable: heaters show whole machines and their boiler load (A17)', () 
   expect(recipeTable(plan([smelter, heater]))).toEqual({
     head: ['Recipe', 'Machine', 'Count', 'Build', 'Boiler', 'MW'],
     rows: [
-      ['Iron Ingot', 'Smelter', '2.5', '3', '', '10'],
-      ['Solid Fuel Heater Mk.1 (Coal)', 'Solid Fuel Heater Mk.1 (MP)', '8', '8', '93.75%', '0'],
+      ['Iron Ingot', 'Smelter', '2.5', '3', '', '10.0'],
+      ['Solid Fuel Heater Mk.1 (Coal)', 'Solid Fuel Heater Mk.1 (MP)', '8.0', '8', '93.75%', '0.0'],
     ],
   });
 });

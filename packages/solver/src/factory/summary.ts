@@ -1,9 +1,10 @@
 /**
  * Display-ready plan summary: the rows of the plan table shared by the CLI
  * (`pnpm solve`) and the web summary table, so both show the same numbers.
- * Names are resolved against the model; numbers stay numeric (use `formatRate`).
+ * Names are resolved against the model; numbers stay numeric (use `formatRate` or `formatExact`).
  */
 import type { Model } from '@sps/data';
+import { formatExact, formatRate, groupThousands } from './numbers';
 import type { Diagnostic, ObjectiveId, PowerSummary, SolveResult, SolveStatus } from './types';
 
 export interface SummaryRecipe {
@@ -102,28 +103,10 @@ export function recipeTable(plan: PlanSummary): { head: string[]; rows: string[]
     rows: plan.recipes.map((r) => [
       r.name,
       r.machine,
-      formatRate(r.machines),
-      String(r.machinesCeil),
+      formatExact(r.machines),
+      groupThousands(String(r.machinesCeil)),
       ...(heaters ? [r.boilerLoad === undefined ? '' : `${formatRate(r.boilerLoad * 100)}%`] : []),
       formatRate(r.powerMW),
     ]),
   };
-}
-
-/**
- * Number format of the plan table: 3 decimals, 3 significant digits below
- * 0.001, and commas between thousands (1,555.556).
- */
-export function formatRate(n: number): string {
-  if (!Number.isFinite(n)) return String(n);
-  if (n !== 0 && Math.abs(n) < 0.001) return n.toPrecision(3);
-  const r = Math.round(n * 1000) / 1000;
-  return Object.is(r, -0) ? '0' : groupThousands(String(r));
-}
-
-/** Commas between thousands in a plain decimal string ("-1234.5" → "-1,234.5"). */
-export function groupThousands(s: string): string {
-  const [whole = '', frac] = s.split('.');
-  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return frac === undefined ? grouped : `${grouped}.${frac}`;
 }

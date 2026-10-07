@@ -24,8 +24,8 @@ test('Iron Plate 60/min: flowchart nodes, edge rates and two-way selection', asy
   for (const id of await rows.evaluateAll((trs) => trs.map((tr) => tr.getAttribute('data-node')!)))
     await expect(node(page, id)).toHaveCount(1);
   await expect(node(page, 'target:iron-plate')).toContainText('Target: Iron Plate');
-  await expect(node(page, 'target:iron-plate')).toContainText('60/min');
-  await expect(chart.getByText('60 Iron Plate', { exact: true })).toBeVisible();
+  await expect(node(page, 'target:iron-plate')).toContainText('60.0/min');
+  await expect(chart.getByText('60.0 Iron Plate', { exact: true })).toBeVisible();
 
   // Flowchart → table.
   await clickFlowNode(page, 'recipe:iron-plate');

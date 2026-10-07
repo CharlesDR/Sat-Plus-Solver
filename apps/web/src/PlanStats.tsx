@@ -2,7 +2,7 @@
  * The plan's headline numbers in one strip above the flowchart: status,
  * power, machines, nodes and the objective. The tables below keep the detail.
  */
-import { formatRate as fmt, type PlanSummary } from '@sps/solver';
+import { formatRate as fmt, groupThousands, type PlanSummary } from '@sps/solver';
 import type { ReactNode } from 'react';
 import { StatusChip } from './ui/StatusChip';
 
@@ -40,7 +40,7 @@ export function PlanStats(props: { plan: PlanSummary; manual: boolean; timing: s
         {fmt(p.netMW)} MW
       </Stat>
       <Stat label="Machines" detail={`${fmt(running)} running`}>
-        {fmt(built)}
+        {groupThousands(String(built))}
       </Stat>
       {nodes > 0 && <Stat label="Nodes">{fmt(nodes)}</Stat>}
       {!manual && plan.objectiveValue !== undefined && (

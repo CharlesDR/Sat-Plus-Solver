@@ -1,0 +1,29 @@
+{
+  "minGapFloor": 6,
+  "plans": {
+    "plastic-20": {
+      "nodes": 40,
+      "crossings": 74,
+      "bends": 150,
+      "edgeLength": 89340.8,
+      "area": 10188146.5,
+      "minGap": 8
+    },
+    "reinforced-iron-plate-5": {
+      "nodes": 20,
+      "crossings": 22,
+      "bends": 56,
+      "edgeLength": 20532.8,
+      "area": 2291915,
+      "minGap": 8
+    },
+    "ballistic-warp-drive-1": {
+      "nodes": 151,
+      "crossings": 3069,
+      "bends": 1039,
+      "edgeLength": 1049136.2,
+      "area": 104530935,
+      "minGap": 8
+    }
+  }
+}
