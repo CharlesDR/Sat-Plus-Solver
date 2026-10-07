@@ -6,15 +6,14 @@
  * their text, never measured, and ELK runs with a fixed seed, so identical
  * graphs always get identical coordinates.
  *
- * Ports and routing (A46): raw inputs (imports, missing inputs, resource
- * nodes and recipes with no inputs, such as Water) sit in a band along the
- * top, and their lines drop into the chart below. Every other node has one
- * port per item it takes or makes, on the slanted sides of its hexagon, with
- * the main product at the right vertex. ELK lays the chart out twice: once
- * free to order each node's ports, to learn the order with the fewest
- * crossings, then with the ports fixed at their places on the hexagon.
+ * Ports and labels (A46, A48): every node has one port per item it takes,
+ * on the left slanted sides of its hexagon, and one per item it makes, on
+ * the right edge of its output tray, the main product in the middle. Each
+ * line's label (icon and rate) sits just before the port it enters. ELK lays
+ * the chart out twice: once free to order each node's ports, to learn the
+ * order with the fewest crossings, then with the ports fixed in that order.
  */
-import type { ElkExtendedEdge, ElkLabel, ElkNode, ElkPoint, ElkPort } from 'elkjs/lib/elk-api';
+import type { ElkExtendedEdge, ElkNode, ElkPoint, ElkPort } from 'elkjs/lib/elk-api';
 import type { FactoryGraph, FlowEdge, FlowNode, FlowNodeKind } from './factory';
 
 /** What `layoutFactoryGraph` needs from ELK (the `ELK` instance's `layout`). */
@@ -43,25 +42,41 @@ export interface NodePort {
   y: number;
 }
 
+/** One row of a node's output tray (A48): an item it makes, centred on its port. */
+export interface TrayRow {
+  item: string;
+  rate: number;
+  /** The row's centre, relative to the node's box. */
+  y: number;
+}
+
 /**
- * A node as drawn: a hexagon with vertices left and right (A40). `slant` is
- * how far the slanted sides reach in from the box's left and right edges; the
- * text sits between them. `band`: a raw input, drawn in the band along the
- * top (A46).
+ * A node as drawn: a hexagon with vertices left and right (A40), and right
+ * of it the output tray (A48), `tray` wide, one row per item the node makes.
+ * `slant` is how far the hexagon's slanted sides reach in from its left and
+ * right edges; the text sits between them. `stages`: a raw input feeding
+ * recipes at that many stages of the plan (2 or more), drawn marked (A47).
  */
 export type PlacedNode = FlowNode &
-  Box & { text: NodeText; slant: number; band: boolean; ports: NodePort[] };
+  Box & {
+    text: NodeText;
+    slant: number;
+    tray: number;
+    rows: TrayRow[];
+    ports: NodePort[];
+    stages?: number;
+  };
 
 export interface PlacedEdge extends FlowEdge {
   /** The routed polyline, start to end (orthogonal segments). */
   points: ElkPoint[];
-  /** `text` may hold line breaks (`\n`), one per wrapped line. */
+  /** Just before the port the line enters, above the line (A48). */
   label: Box & { text: string };
 }
 
 /**
  * One output that feeds several consumers (A46): the lines share a trunk
- * labelled with the total, and each branch is labelled with its rate only.
+ * labelled with the total, and each branch is labelled with its rate.
  */
 export interface Bundle {
   source: string;
@@ -69,6 +84,7 @@ export interface Bundle {
   rate: number;
   /** Where the trunk splits into branches. */
   split: ElkPoint;
+  /** Just before the split point, above the trunk. */
   label: Box & { text: string };
 }
 
@@ -81,23 +97,26 @@ export interface FactoryLayout {
 }
 
 export interface LayoutOptions {
-  /**
-   * Edge label text. `branch`: the edge is one branch of a bundle, whose
-   * trunk names the item. Default: the rate, and the item name unless a
-   * branch.
-   */
-  edgeLabel?: (e: FlowEdge, branch: boolean) => string;
-  /** Text lines of a node, used to size it. Default: `nodeLines`. */
+  /** Node text lines, used to size it. Default: `nodeLines`. */
   nodeLines?: (n: FlowNode) => string[];
   /**
    * Side of a square icon drawn left of each node's text, in px. Default 0
    * (no icon). Nodes grow by the icon and its gap, and are at least as tall.
    */
   iconSize?: number;
+  /**
+   * Side of the item icon drawn before the rate in every line label and tray
+   * row (A48), in px. Default 0 (no icon).
+   */
+  labelIconSize?: number;
 }
 
 /** Space between a node's icon and its text. */
 export const ICON_GAP = 6;
+/** Space between a label's item icon and its rate. */
+export const LABEL_ICON_GAP = 3;
+/** Padding either side of a tray row's icon and rate. */
+export const TRAY_PAD = 4;
 
 /** Estimated text metrics of the world graph's 12px UI font. */
 export const CHAR_WIDTH = 7;
@@ -107,8 +126,8 @@ export const LINE_HEIGHT = 16;
  * Estimated text metrics of the factory flowchart's 14px font, wide enough
  * for DejaVu Sans (among the widest system UI fonts); titles are semibold.
  * The flowchart is zoomed to fit, so what makes its text readable is how
- * much of the drawing is text: nodes and labels wrap into narrow columns
- * and the spacing around them is tight.
+ * much of the drawing is text: nodes wrap into narrow columns and the
+ * spacing around them is tight.
  */
 const FLOW_CHAR_WIDTH = 8.5;
 const FLOW_TITLE_CHAR_WIDTH = 9.5;
@@ -122,34 +141,33 @@ const MIN_NODE_WIDTH = 80;
 const SLANT = Math.tan(Math.PI / 6) / 2;
 /** Shortest hexagon, so short nodes keep clear vertices for their edges. */
 const MIN_NODE_HEIGHT = 44;
-/** Closest two ports on one side of a node, px; nodes grow to keep it. */
-const PORT_GAP = 10;
-/** Wrap widths, in characters, of node text and edge labels. */
+/** Wrap width, in characters, of node text. */
 const NODE_CHARS = 18;
-const LABEL_CHARS = 10;
-/** The drawing's margin, and the gaps around the raw-input band. */
+/** The drawing's margin. */
 const PAD = 8;
-const BAND_GAP = 12;
-/** Space between two parallel lines routed outside ELK. */
-const LANE = 6;
+/** A label's clearance from the node it sits beside (A43's gap floor is 6). */
+const LABEL_CLEAR = 6;
+/** Gap between a label and the line under it. */
+const LABEL_LIFT = 2;
+/** One row of labels before a node's inputs, with the clearance between rows. */
+const LABEL_ROW = FLOW_LINE_HEIGHT + LABEL_CLEAR;
 
 const ELK_OPTIONS = {
   'elk.algorithm': 'layered',
   'elk.direction': 'RIGHT',
   'elk.randomSeed': '1',
   'elk.edgeRouting': 'ORTHOGONAL',
-  'elk.edgeLabels.placement': 'CENTER',
   'elk.spacing.nodeNode': '12',
   'elk.spacing.edgeNode': '8',
   'elk.spacing.edgeEdge': '4',
-  'elk.spacing.edgeLabel': '2',
   'elk.layered.spacing.nodeNodeBetweenLayers': '12',
   'elk.layered.spacing.edgeNodeBetweenLayers': '6',
   // Network-simplex placement takes minutes on a 150-node plan; Brandes–Köpf
   // and a lighter crossing sweep keep it well under the 2 s budget (PLAN M7).
+  // Without labels in the chart (A48), a sweep of 5 costs little more than 3
+  // and cuts crossings on every scored plan.
   'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
-  'elk.layered.thoroughness': '3',
-  // Lines from the raw-input band enter through the top edge.
+  'elk.layered.thoroughness': '5',
   'elk.portConstraints': 'FIXED_SIDE',
   'elk.padding': `[top=${PAD},left=${PAD},bottom=${PAD},right=${PAD}]`,
 };
@@ -198,9 +216,6 @@ export function nodeLines(n: FlowNode): string[] {
   }
 }
 
-const defaultEdgeLabel = (e: FlowEdge, branch: boolean) =>
-  branch ? rateText(e.rate) : `${rateText(e.rate)} ${e.itemName}`;
-
 /**
  * Greedy word wrap to lines of at most `max` characters; a longer word keeps
  * a line of its own.
@@ -226,19 +241,12 @@ export function nodeText(lines: readonly string[]): NodeText {
   };
 }
 
-/** An edge label on one line when it fits, else the rate above the wrapped item name. */
-function labelLines(text: string): string[] {
-  if (text.length <= LABEL_CHARS) return [text];
-  const [rate = '', ...name] = text.split(' ');
-  return [rate, ...wrapText(name.join(' '), LABEL_CHARS)];
-}
-
 const longest = (lines: readonly string[]) => Math.max(0, ...lines.map((l) => l.length));
 
 /**
- * A raw input (A46): what the plan starts from, drawn in the band along the
- * top. Imports, missing inputs, resource nodes (miners and wells, even when
- * they take a fluid) and recipes that take nothing, such as Water.
+ * A raw input: what the plan starts from. Imports, missing inputs, resource
+ * nodes (miners and wells, even when they take a fluid) and recipes that
+ * take nothing, such as Water.
  */
 export function isRaw(n: FlowNode): boolean {
   return (
@@ -250,48 +258,34 @@ export function isRaw(n: FlowNode): boolean {
 }
 
 /**
- * The nodes drawn in the band (A46): the raw inputs whose lines feed recipes
- * at more than one stage of the chart, such as Water used early for ore
- * and again late for radiators. A raw input that feeds one stage only, such
- * as an ore going into three smelters, is laid out in the chart like any
- * node. A raw input that takes something from the chart is drawn in the
- * chart too, so every line between the band and the chart drops down: a
- * miner fed with an acid made in the chart stays out of the band.
+ * The raw inputs used at more than one stage of the plan (A47), such as
+ * Water used early for ore and again late for radiators, each with how many
+ * stages it feeds. A raw input feeding one stage only, such as an ore going
+ * into three smelters side by side, is left out.
  */
-export function bandNodes(graph: FactoryGraph): Set<string> {
-  const band = new Set(graph.nodes.filter(isRaw).map((n) => n.id));
-  const settle = () => {
-    for (let changed = true; changed;) {
-      changed = false;
-      for (const e of graph.edges)
-        if (band.has(e.target) && !band.has(e.source)) {
-          band.delete(e.target);
-          changed = true;
-        }
-    }
-  };
-  settle();
-  const stage = stages(graph, band);
-  for (const id of [...band]) {
+export function multiStageInputs(graph: FactoryGraph): Map<string, number> {
+  const raw = new Set(graph.nodes.filter(isRaw).map((n) => n.id));
+  const stage = stages(graph, raw);
+  const out = new Map<string, number>();
+  for (const id of raw) {
     const used = new Set(
       graph.edges
-        .filter((e) => e.source === id && !band.has(e.target))
+        .filter((e) => e.source === id && !raw.has(e.target))
         .map((e) => stage.get(e.target)),
     );
-    if (used.size < 2) band.delete(id);
+    if (used.size > 1) out.set(id, used.size);
   }
-  settle();
-  return band;
+  return out;
 }
 
 /**
- * Each chart node's stage: the longest run of chart lines leading into it,
- * lines from the band not counted. A line closing a loop is skipped.
+ * Each node's stage: the longest run of lines leading into it, lines from
+ * raw inputs not counted. A line closing a loop is skipped.
  */
-function stages(graph: FactoryGraph, band: ReadonlySet<string>): Map<string, number> {
+function stages(graph: FactoryGraph, raw: ReadonlySet<string>): Map<string, number> {
   const from = new Map<string, string[]>();
   for (const e of graph.edges)
-    if (e.source !== e.target && !band.has(e.source))
+    if (e.source !== e.target && !raw.has(e.source))
       from.set(e.target, [...(from.get(e.target) ?? []), e.source]);
   const stage = new Map<string, number>();
   const open = new Set<string>();
@@ -310,42 +304,8 @@ function stages(graph: FactoryGraph, band: ReadonlySet<string>): Map<string, num
   return stage;
 }
 
-/** How many outputs sit above and below the main product at most. */
-const sideCount = (n: FlowNode) => {
-  const others = n.outputs.length - (n.main !== undefined ? 1 : 0);
-  return n.main !== undefined ? Math.ceil(others / 2) : 0;
-};
-
-/** How far in from the box's edge the slanted side is at height `y`. */
+/** How far in from the hexagon's edge its slanted side is at height `y`. */
 const reach = (h: number, slant: number, y: number) => (slant * Math.abs(y - h / 2)) / (h / 2);
-
-/**
- * A node's ports in the order ELK keeps them (A46), clockwise: outputs down
- * the right side, then inputs up the left side. With a main product, unused
- * pad ports even out the outputs above and below it, so ELK's even spacing
- * puts it at the right vertex.
- */
-function portOrder(
-  id: string,
-  ins: readonly string[],
-  outs: readonly string[],
-  main: string | undefined,
-): { id: string; side: 'EAST' | 'WEST' }[] {
-  const at = main === undefined ? -1 : outs.indexOf(main);
-  const above = at < 0 ? 0 : at;
-  const below = at < 0 ? 0 : outs.length - at - 1;
-  const pad = (n: number, from: number) =>
-    Array.from({ length: Math.max(0, n) }, (_, k) => ({
-      id: `${id}#pad:${from + k}`,
-      side: 'EAST' as const,
-    }));
-  return [
-    ...pad(below - above, 0),
-    ...outs.map((item) => ({ id: outPort(id, item), side: 'EAST' as const })),
-    ...pad(above - below, Math.max(0, below - above)),
-    ...[...ins].reverse().map((item) => ({ id: inPort(id, item), side: 'WEST' as const })),
-  ];
-}
 
 /**
  * Puts the main product in the middle of ELK's order of a node's outputs:
@@ -367,29 +327,22 @@ const inPort = (node: string, item: string) => `${node}#in:${item}`;
 const outPort = (node: string, item: string) => `${node}#out:${item}`;
 /** The point where a bundle's trunk splits (A46). */
 const splitNode = (node: string, item: string) => `split:${node}:${item}`;
-/** Side of a split point's node, px. */
-const SPLIT = 2;
-/** A line label's clearance from the node it sits beside (A43's gap floor is 6). */
-const LABEL_CLEAR = 6;
-/** One row of one-line labels, with the clearance between rows. */
-const LABEL_ROW = FLOW_LINE_HEIGHT + LABEL_CLEAR;
 
 type Sized = {
   node: FlowNode;
   text: NodeText;
+  /** The hexagon's size; the tray sits right of it, `pad` room left of it. */
   width: number;
   height: number;
   slant: number;
-  /** Room left of the hexagon for the labels of lines dropping in (A46). */
+  tray: number;
+  /** Room left of the hexagon for the labels of lines coming in. */
   pad: number;
 };
 type Label = { text: string; width: number; height: number };
-type Column = { left: number; right: number; ids: string[] };
+type Order = { ins: string[]; outs: string[] };
 
-/**
- * Lays the flowchart out left to right below a band of raw inputs: targets
- * and byproducts last.
- */
+/** Lays the flowchart out left to right: targets and byproducts last. */
 export async function layoutFactoryGraph(
   graph: FactoryGraph,
   engine: LayoutEngine,
@@ -398,48 +351,55 @@ export async function layoutFactoryGraph(
   const lines = options.nodeLines ?? nodeLines;
   const icon = options.iconSize ?? 0;
   const iconSpace = icon > 0 ? icon + ICON_GAP : 0;
-  const edgeLabel = options.edgeLabel ?? defaultEdgeLabel;
+  const labelIcon = options.labelIconSize ?? 0;
+  const labelIconSpace = labelIcon > 0 ? labelIcon + LABEL_ICON_GAP : 0;
+  const multi = multiStageInputs(graph);
+  /** A tray row's height: its icon or its text, and a little air. */
+  const trayRow = Math.max(FLOW_LINE_HEIGHT, labelIcon) + 4;
 
-  const raw = bandNodes(graph);
-  // Lines in the chart (ELK routes them), lines dropping from the band into
-  // the chart, and lines between two raw inputs, over the top of the band.
-  // No line runs from the chart up into the band.
-  const inner = graph.edges.filter((e) => !raw.has(e.source) && !raw.has(e.target));
-  const drops = graph.edges.filter((e) => raw.has(e.source) && !raw.has(e.target));
-  const over = graph.edges.filter((e) => raw.has(e.source) && raw.has(e.target));
-
-  // An output feeding two or more lines in the chart is a bundle.
+  // An output feeding two or more lines is a bundle.
   const fanOut = new Map<string, FlowEdge[]>();
-  for (const e of inner) {
+  for (const e of graph.edges) {
     const key = `${e.source}\n${e.item}`;
     fanOut.set(key, [...(fanOut.get(key) ?? []), e]);
   }
   const bundled = new Map([...fanOut].filter(([, list]) => list.length > 1));
   const isBranch = (e: FlowEdge) => bundled.has(`${e.source}\n${e.item}`);
-  const sizeOf = (text: string[]): Label => ({
-    text: text.join('\n'),
-    width: longest(text) * FLOW_CHAR_WIDTH,
-    height: text.length * FLOW_LINE_HEIGHT,
-  });
-  // A line dropping from the band is a branch of the band node, which names
-  // the item: its label is the rate, on one line beside the recipe.
-  const labels = new Map<string, Label>(
-    graph.edges.map((e) => {
-      const text = edgeLabel(e, isBranch(e) || drops.includes(e));
-      return [e.id, sizeOf(inner.includes(e) || over.includes(e) ? labelLines(text) : [text])];
-    }),
-  );
-  // Each bundle's trunk runs from its output to a split point, a tiny node
-  // of its own, where the branches leave.
+  const labelOf = (rate: number): Label => {
+    const text = rateText(rate);
+    return {
+      text,
+      width: labelIconSpace + text.length * FLOW_CHAR_WIDTH,
+      height: Math.max(FLOW_LINE_HEIGHT, labelIcon),
+    };
+  };
+  const labels = new Map<string, Label>(graph.edges.map((e) => [e.id, labelOf(e.rate)]));
+  // Each bundle's trunk runs from its output to a split point, a node of its
+  // own wide enough for the trunk's label, where the branches leave.
   const trunks = [...bundled.values()].map((list) => {
     const first = list[0]!;
     const rate = list.reduce((s, e) => s + e.rate, 0);
-    const split = splitNode(first.source, first.item);
-    return { first, rate, split, label: sizeOf(labelLines(edgeLabel({ ...first, rate }, false))) };
+    const label = labelOf(rate);
+    return {
+      first,
+      rate,
+      split: splitNode(first.source, first.item),
+      label,
+      width: label.width + LABEL_CLEAR,
+      height: 2 * (label.height + LABEL_LIFT) + 2,
+    };
   });
   const splitOf = (e: FlowEdge) => (isBranch(e) ? splitNode(e.source, e.item) : undefined);
 
-  const dropsInto = (id: string) => drops.filter((e) => e.target === id);
+  // How many lines enter each input port: their labels stack above it.
+  const into = new Map<string, FlowEdge[]>();
+  for (const e of graph.edges) {
+    const key = inPort(e.target, e.item);
+    into.set(key, [...(into.get(key) ?? []), e]);
+  }
+  const rowsBefore = (n: FlowNode, item: string) =>
+    Math.max(1, into.get(inPort(n.id, item))?.length ?? 0);
+
   const sized = new Map<string, Sized>();
   for (const n of graph.nodes) {
     const text = nodeText(lines(n));
@@ -447,19 +407,15 @@ export async function layoutFactoryGraph(
       longest(text.title) * FLOW_TITLE_CHAR_WIDTH,
       longest(text.details) * FLOW_CHAR_WIDTH,
     );
-    const into = dropsInto(n.id);
-    // Ports at least PORT_GAP apart; a line dropping in has its label above
-    // its port, so those ports are a label row apart.
-    const ports = raw.has(n.id)
-      ? 0
-      : Math.max(
-          (into.length ? LABEL_ROW : PORT_GAP) *
-            (n.inputs.length + 1 + into.length - new Set(into.map((e) => e.item)).size),
-          2 * PORT_GAP * (sideCount(n) + 1),
-        );
+    // Room for each input's label rows, and for the tray's rows with the
+    // main product in the middle.
+    const inRows = n.inputs.reduce((s, f) => s + rowsBefore(n, f.item), 0);
+    const side = n.main !== undefined ? Math.ceil((n.outputs.length - 1) / 2) : 0;
+    const outRows = n.main !== undefined ? 2 * side + 1 : n.outputs.length;
     const height = Math.max(
       MIN_NODE_HEIGHT,
-      ports,
+      inRows * LABEL_ROW,
+      outRows * trayRow,
       Math.max((text.title.length + text.details.length) * FLOW_LINE_HEIGHT, icon) +
         2 * (PADDING_Y + BORDER),
     );
@@ -468,285 +424,227 @@ export async function layoutFactoryGraph(
       MIN_NODE_WIDTH,
       textWidth + iconSpace + 2 * (PADDING_X + BORDER) + 2 * slant,
     );
-    const pad = into.length
-      ? Math.max(...into.map((e) => labels.get(e.id)!.width)) + LABEL_CLEAR + 2
+    const tray = n.outputs.length
+      ? 2 * TRAY_PAD +
+        labelIconSpace +
+        longest(n.outputs.map((f) => rateText(f.rate))) * FLOW_CHAR_WIDTH
       : 0;
-    sized.set(n.id, { node: n, text, width, height, slant, pad });
+    const inLabels = n.inputs.flatMap((f) => into.get(inPort(n.id, f.item)) ?? []);
+    const pad = inLabels.length
+      ? Math.max(...inLabels.map((e) => labels.get(e.id)!.width)) + LABEL_CLEAR + 2
+      : 0;
+    sized.set(n.id, { node: n, text, width, height, slant, tray, pad });
   }
 
-  const chart = graph.nodes.filter((n) => !raw.has(n.id));
-  const label = (l: Label): ElkLabel => ({ text: l.text, width: l.width, height: l.height });
-  const elkEdges = [
-    ...inner.map((e): ElkExtendedEdge => ({
-      id: e.id,
-      sources: [splitOf(e) ? `${splitOf(e)!}#out` : outPort(e.source, e.item)],
-      targets: [inPort(e.target, e.item)],
-      labels: [label(labels.get(e.id)!)],
-    })),
-    ...trunks.map((t): ElkExtendedEdge => ({
-      id: t.split,
-      sources: [outPort(t.first.source, t.first.item)],
-      targets: [`${t.split}#in`],
-      labels: [label(t.label)],
-    })),
-    // Lines dropping from the band, so ELK orders the chart with them in
-    // mind; their routes are drawn by hand (A46).
-    ...drops.map((e): ElkExtendedEdge => ({
-      id: `top:${e.id}`,
-      sources: [`top#${e.id}`],
-      targets: [inPort(e.target, e.item)],
-    })),
-  ];
-
-  type Order = { id: string; side: 'EAST' | 'WEST' }[];
-  const elkGraph = (orders: Map<string, Order> | undefined, corridor: number): ElkNode => {
-    // Room beside each column for the lines to and from the band (A46).
-    const edgeNode = Math.max(6, corridor ? 7 + (corridor - 1) * LANE : 0);
-    return {
-      id: 'root',
-      layoutOptions: { 'elk.algorithm': 'fixed' },
-      children: [
-        {
-          id: 'chart',
-          layoutOptions: {
-            ...ELK_OPTIONS,
-            'elk.layered.spacing.edgeNodeBetweenLayers': String(edgeNode),
-            'elk.layered.spacing.nodeNodeBetweenLayers': String(Math.max(12, edgeNode + 3)),
-            // The first column's lanes stay inside the drawing.
-            'elk.padding': `[top=${PAD},left=${Math.max(PAD, edgeNode + 2)},bottom=${PAD},right=${Math.max(PAD, edgeNode + 2)}]`,
-          },
-          edges: elkEdges,
-          ports: drops.map((e) => ({
-            id: `top#${e.id}`,
-            width: 0,
-            height: 0,
-            layoutOptions: { 'elk.port.side': 'NORTH' },
-          })),
-          children: [
-            ...chart.map((n): ElkNode => {
-              const s = sized.get(n.id)!;
-              const layer = LAYER[n.kind];
-              const order = orders?.get(n.id);
-              const port = (id: string, side: 'EAST' | 'WEST', k?: number): ElkPort => ({
-                id,
-                width: 0,
-                height: 0,
-                layoutOptions: {
-                  'elk.port.side': side,
-                  ...(k !== undefined ? { 'elk.port.index': String(k) } : {}),
-                },
-              });
-              return {
-                id: n.id,
-                width: s.pad + s.width,
-                height: s.height,
-                layoutOptions: {
-                  'elk.portConstraints': order ? 'FIXED_ORDER' : 'FIXED_SIDE',
-                  ...(layer ? { 'elk.layered.layering.layerConstraint': layer } : {}),
-                },
-                ports: order
-                  ? order.map((p, k) => port(p.id, p.side, k))
-                  : [
-                      ...n.inputs.map((f) => port(inPort(n.id, f.item), 'WEST')),
-                      ...n.outputs.map((f) => port(outPort(n.id, f.item), 'EAST')),
-                    ],
-              };
-            }),
-            ...trunks.map((t): ElkNode => ({
-              id: t.split,
-              width: SPLIT,
-              height: SPLIT,
-              layoutOptions: { 'elk.portConstraints': 'FIXED_SIDE' },
-              ports: (['in', 'out'] as const).map((dir) => ({
-                id: `${t.split}#${dir}`,
-                width: 0,
-                height: 0,
-                layoutOptions: { 'elk.port.side': dir === 'in' ? 'WEST' : 'EAST' },
-              })),
-            })),
-          ],
-        },
-      ],
-    };
+  /** Port heights on a node, given the order of its inputs and outputs. */
+  const portYs = (s: Sized, order: Order) => {
+    const n = s.node;
+    const ys = new Map<string, number>();
+    const inRows = order.ins.reduce((t, i) => t + rowsBefore(n, i), 0);
+    // Each input's port at the foot of its rows of labels.
+    let row = (s.height - inRows * LABEL_ROW) / 2;
+    for (const i of order.ins) {
+      row += rowsBefore(n, i) * LABEL_ROW;
+      ys.set(inPort(n.id, i), row - LABEL_CLEAR / 2);
+    }
+    const at = n.main !== undefined ? order.outs.indexOf(n.main) : -1;
+    order.outs.forEach((o, k) => {
+      const off = at >= 0 ? k - at : k - (order.outs.length - 1) / 2;
+      ys.set(outPort(n.id, o), s.height / 2 + off * trayRow);
+    });
+    return ys;
   };
 
-  // Pass 1: ELK orders each node's ports. Pass 2: the ports keep that
-  // order, with the main product moved to the middle of the outputs and the
-  // lines dropping from the band at the top of the inputs.
+  const elkGraph = (orders: Map<string, Order> | undefined): ElkNode => ({
+    id: 'root',
+    layoutOptions: ELK_OPTIONS,
+    edges: [
+      ...graph.edges.map((e): ElkExtendedEdge => ({
+        id: e.id,
+        sources: [splitOf(e) ? `${splitOf(e)!}#out` : outPort(e.source, e.item)],
+        targets: [inPort(e.target, e.item)],
+      })),
+      ...trunks.map((t): ElkExtendedEdge => ({
+        id: t.split,
+        sources: [outPort(t.first.source, t.first.item)],
+        targets: [`${t.split}#in`],
+      })),
+    ],
+    children: [
+      ...graph.nodes.map((n): ElkNode => {
+        const s = sized.get(n.id)!;
+        const layer = LAYER[n.kind];
+        const order = orders?.get(n.id);
+        const width = s.pad + s.width + s.tray;
+        const ys = order ? portYs(s, order) : undefined;
+        const port = (id: string, side: 'EAST' | 'WEST'): ElkPort => ({
+          id,
+          width: 0,
+          height: 0,
+          ...(ys ? { x: side === 'EAST' ? width : 0, y: ys.get(id)! } : {}),
+          layoutOptions: { 'elk.port.side': side },
+        });
+        return {
+          id: n.id,
+          width,
+          height: s.height,
+          layoutOptions: {
+            'elk.portConstraints': order ? 'FIXED_POS' : 'FIXED_SIDE',
+            ...(layer ? { 'elk.layered.layering.layerConstraint': layer } : {}),
+          },
+          ports: [
+            ...(order?.ins ?? n.inputs.map((f) => f.item)).map((i) =>
+              port(inPort(n.id, i), 'WEST'),
+            ),
+            ...(order?.outs ?? n.outputs.map((f) => f.item)).map((o) =>
+              port(outPort(n.id, o), 'EAST'),
+            ),
+          ],
+        };
+      }),
+      ...trunks.map((t): ElkNode => ({
+        id: t.split,
+        width: t.width,
+        height: t.height,
+        layoutOptions: { 'elk.portConstraints': orders ? 'FIXED_POS' : 'FIXED_SIDE' },
+        ports: (['in', 'out'] as const).map((dir) => ({
+          id: `${t.split}#${dir}`,
+          width: 0,
+          height: 0,
+          ...(orders ? { x: dir === 'in' ? 0 : t.width, y: t.height / 2 } : {}),
+          layoutOptions: { 'elk.port.side': dir === 'in' ? 'WEST' : 'EAST' },
+        })),
+      })),
+    ],
+  });
+
+  // Pass 1: ELK orders each node's ports. Pass 2: the ports keep that order,
+  // spaced for their labels and tray rows, the main product in the middle.
   let out: ElkNode | undefined;
-  if (chart.length) {
-    const first = (await engine.layout(elkGraph(undefined, 0))).children?.[0];
-    const firstPorts = new Map((first?.children ?? []).map((c) => [c.id, c.ports ?? []]));
+  if (graph.nodes.length) {
+    const first = await engine.layout(elkGraph(undefined));
+    const firstPorts = new Map((first.children ?? []).map((c) => [c.id, c.ports ?? []]));
     const orders = new Map<string, Order>();
-    for (const n of chart) {
+    for (const n of graph.nodes) {
       const ys = new Map((firstPorts.get(n.id) ?? []).map((p) => [p.id, p.y ?? 0]));
       const order = (items: readonly { item: string }[], id: (item: string) => string) =>
         items
           .map((f, k) => ({ item: f.item, y: ys.get(id(f.item)) ?? 0, k }))
           .sort((a, b) => a.y - b.y || a.k - b.k)
           .map((p) => p.item);
-      const fromBand = new Set(dropsInto(n.id).map((e) => e.item));
-      const ins = order(n.inputs, (i) => inPort(n.id, i));
-      const outs = centreMain(
-        order(n.outputs, (i) => outPort(n.id, i)),
-        n.main,
-      );
-      orders.set(
-        n.id,
-        portOrder(
-          n.id,
-          [...ins.filter((i) => fromBand.has(i)), ...ins.filter((i) => !fromBand.has(i))],
-          outs,
+      orders.set(n.id, {
+        ins: order(n.inputs, (i) => inPort(n.id, i)),
+        outs: centreMain(
+          order(n.outputs, (i) => outPort(n.id, i)),
           n.main,
         ),
-      );
+      });
     }
-    const corridor = Math.max(
-      0,
-      ...columns(first?.children ?? []).map(
-        (c) => drops.filter((e) => c.ids.includes(e.target)).length,
-      ),
-    );
-    out = (await engine.layout(elkGraph(orders, corridor))).children?.[0];
+    out = await engine.layout(elkGraph(orders));
   }
   const placed = new Map((out?.children ?? []).map((c) => [c.id, c]));
   const routed = new Map(((out?.edges ?? []) as ElkExtendedEdge[]).map((e) => [e.id, e]));
 
-  // Each port where ELK put it on the box's edge, moved in to the slanted
-  // side; the hexagon sits right of its label room.
+  // The hexagon sits right of its label room; inputs meet its slanted side,
+  // outputs leave from the tray's right edge.
   const hex = new Map<string, Box>();
   const nodePorts = new Map<string, NodePort[]>();
-  for (const n of chart) {
+  for (const n of graph.nodes) {
     const s = sized.get(n.id)!;
     const c = placed.get(n.id);
-    hex.set(n.id, { x: (c?.x ?? 0) + s.pad, y: c?.y ?? 0, width: s.width, height: s.height });
+    hex.set(n.id, {
+      x: (c?.x ?? 0) + s.pad,
+      y: c?.y ?? 0,
+      width: s.width + s.tray,
+      height: s.height,
+    });
     const ports: NodePort[] = [];
     for (const p of c?.ports ?? []) {
       const [, kind = ''] = p.id.slice(n.id.length).split(/[#:]/);
       if (kind !== 'in' && kind !== 'out') continue;
       const item = p.id.slice(n.id.length + kind.length + 2);
       const y = p.y ?? 0;
-      const x = kind === 'in' ? reach(s.height, s.slant, y) : s.width - reach(s.height, s.slant, y);
-      ports.push({ item, dir: kind, x, y });
+      ports.push({
+        item,
+        dir: kind,
+        x: kind === 'in' ? reach(s.height, s.slant, y) : s.width + s.tray,
+        y,
+      });
     }
     nodePorts.set(n.id, ports);
   }
-  /** A port's point on the slanted side, in chart coordinates. */
-  const portAt = (node: string, dir: 'in' | 'out', item: string): ElkPoint | undefined => {
+  const portAt = (node: string, dir: 'in' | 'out', item: string): ElkPoint[] => {
     const h = hex.get(node);
     const p = nodePorts.get(node)?.find((q) => q.dir === dir && q.item === item);
-    return h && p ? { x: h.x + p.x, y: h.y + p.y } : undefined;
+    return h && p ? [{ x: h.x + p.x, y: h.y + p.y }] : [];
   };
-
-  // Lines from the band run down a lane just left of the column of the node
-  // they feed, the topmost port's lane nearest the column.
-  const laneX = new Map<string, number>();
-  for (const c of columns(out?.children ?? []))
-    drops
-      .filter((e) => c.ids.includes(e.target))
-      .map((e) => ({ e, y: portAt(e.target, 'in', e.item)?.y ?? 0 }))
-      .sort((a, b) => a.y - b.y || (a.e.id < b.e.id ? -1 : 1))
-      .forEach(({ e }, k) => laneX.set(e.id, c.left - 3 - k * LANE));
-
-  const band = placeBand(graph, raw, sized, laneX, (id) => labels.get(id)!);
-  const shift = band.chartTop;
-  const at = (p: ElkPoint): ElkPoint => ({ x: p.x, y: p.y + shift });
   const route = (r: ElkExtendedEdge | undefined) =>
     orthogonal(
       (r?.sections ?? []).flatMap((s) => [s.startPoint, ...(s.bendPoints ?? []), s.endPoint]),
-    ).map(at);
-  const box = (s: { x?: number; y?: number; width?: number; height?: number } | undefined) => ({
-    x: s?.x ?? 0,
-    y: (s?.y ?? 0) + shift,
-    width: s?.width ?? 0,
-    height: s?.height ?? 0,
-  });
+    );
 
   const nodes = graph.nodes.map((n): PlacedNode => {
     const s = sized.get(n.id)!;
-    const base = { ...n, text: s.text, slant: s.slant };
-    const b = band.nodes.get(n.id);
-    if (b) return { ...base, ...b, band: true };
-    return { ...base, ...box(hex.get(n.id)), band: false, ports: nodePorts.get(n.id)! };
+    const ports = nodePorts.get(n.id)!;
+    const stagesFed = multi.get(n.id);
+    return {
+      ...n,
+      ...hex.get(n.id)!,
+      text: s.text,
+      slant: s.slant,
+      tray: s.tray,
+      rows: n.outputs.map((f) => ({
+        item: f.item,
+        rate: f.rate,
+        y: ports.find((p) => p.dir === 'out' && p.item === f.item)?.y ?? s.height / 2,
+      })),
+      ports,
+      ...(stagesFed !== undefined ? { stages: stagesFed } : {}),
+    };
   });
-  const end = (node: string, dir: 'in' | 'out', item: string) => {
-    const p = portAt(node, dir, item);
-    return p ? [at(p)] : [];
-  };
-  // Labels of lines dropping into one port stack upwards from it.
+  // Labels of lines entering one port stack upwards from it.
   const stacked = new Map<string, number>();
   const edges = graph.edges.map((e): PlacedEdge => {
     const l = labels.get(e.id)!;
-    const own = band.edges.get(e.id);
-    if (own) return { ...e, points: own.points, label: { ...own.label, text: l.text } };
-    if (drops.includes(e)) {
-      const p = end(e.target, 'in', e.item);
-      const x = laneX.get(e.id)!;
-      const y = p[0]?.y ?? shift;
-      const key = `${e.target}\n${e.item}`;
-      const row = stacked.get(key) ?? 0;
-      stacked.set(key, row + 1);
-      const h = hex.get(e.target)!;
-      return {
-        ...e,
-        points: join(
-          band.drops.get(e.id) ?? [],
-          [
-            { x, y: shift },
-            { x, y },
-          ],
-          p,
-        ),
-        label: {
-          x: h.x - LABEL_CLEAR - l.width,
-          y: y - 2 - l.height - row * LABEL_ROW,
-          width: l.width,
-          height: l.height,
-          text: l.text,
-        },
-      };
-    }
     const split = splitOf(e);
     const points = [...(split ? route(routed.get(split)) : []), ...route(routed.get(e.id))];
+    const end = portAt(e.target, 'in', e.item);
+    const key = inPort(e.target, e.item);
+    const row = stacked.get(key) ?? 0;
+    stacked.set(key, row + 1);
+    const h = hex.get(e.target)!;
+    const y = end[0]?.y ?? h.y;
     return {
       ...e,
-      points: join(end(e.source, 'out', e.item), points, end(e.target, 'in', e.item)),
-      label: { ...box(routed.get(e.id)?.labels?.[0]), text: l.text },
+      points: join(portAt(e.source, 'out', e.item), points, end),
+      label: {
+        x: h.x - LABEL_CLEAR - l.width,
+        y: y - LABEL_LIFT - l.height - row * LABEL_ROW,
+        width: l.width,
+        height: l.height,
+        text: l.text,
+      },
     };
   });
   const bundles = trunks.map((t): Bundle => {
     const s = placed.get(t.split);
+    const x = (s?.x ?? 0) + t.width;
+    const y = (s?.y ?? 0) + t.height / 2;
     return {
       source: t.first.source,
       item: t.first.item,
       rate: t.rate,
-      split: { x: (s?.x ?? 0) + SPLIT / 2, y: (s?.y ?? 0) + SPLIT / 2 + shift },
-      label: { ...box(routed.get(t.split)?.labels?.[0]), text: t.label.text },
+      split: { x, y },
+      label: {
+        x: x - LABEL_CLEAR / 2 - t.label.width,
+        y: y - LABEL_LIFT - t.label.height,
+        width: t.label.width,
+        height: t.label.height,
+        text: t.label.text,
+      },
     };
   });
-  return {
-    width: Math.max(out?.width ?? 0, band.width),
-    height: shift + (out?.height ?? 0),
-    nodes,
-    edges,
-    bundles,
-  };
-}
-
-/** ELK's layers as columns: boxes whose x ranges overlap, left to right. */
-function columns(children: readonly ElkNode[]): Column[] {
-  const boxes = [...children].sort((a, b) => (a.x ?? 0) - (b.x ?? 0) || (a.id < b.id ? -1 : 1));
-  const out: Column[] = [];
-  for (const c of boxes) {
-    const left = c.x ?? 0;
-    const right = left + (c.width ?? 0);
-    const last = out.at(-1);
-    if (last && left < last.right) {
-      last.right = Math.max(last.right, right);
-      last.ids.push(c.id);
-    } else out.push({ left, right, ids: [c.id] });
-  }
-  return out;
+  return { width: out?.width ?? 0, height: out?.height ?? 0, nodes, edges, bundles };
 }
 
 const EPS = 1e-6;
@@ -784,198 +682,6 @@ function join(...parts: ElkPoint[][]): ElkPoint[] {
     const upright = Math.abs(a.x - p.x) < 1e-6 && Math.abs(b.x - p.x) < 1e-6;
     return !flat && !upright;
   });
-}
-
-interface Band {
-  /** Where the chart's top edge lands. */
-  chartTop: number;
-  width: number;
-  nodes: Map<string, Box & { ports: NodePort[] }>;
-  /** Per edge from a raw input: its line from the node down to the chart's top edge. */
-  drops: Map<string, ElkPoint[]>;
-  /** Lines between two raw inputs, over the top of the band. */
-  edges: Map<string, { points: ElkPoint[]; label: Box }>;
-}
-
-/**
- * The raw-input band (A46): one row along the top, each raw input as close
- * above the lanes its lines drop down as the row allows. Below each raw
- * input, a bus runs sideways to those lanes; buses that overlap get lanes of
- * their own. Lines between two raw inputs run over the top of the band, each
- * in a lane of its own with its label above it.
- */
-function placeBand(
-  graph: FactoryGraph,
-  raw: ReadonlySet<string>,
-  sized: ReadonlyMap<string, Sized>,
-  laneX: ReadonlyMap<string, number>,
-  labelOf: (edge: string) => Label,
-): Band {
-  const empty: Band = {
-    chartTop: 0,
-    width: 0,
-    nodes: new Map(),
-    drops: new Map(),
-    edges: new Map(),
-  };
-  const members = graph.nodes.filter((n) => raw.has(n.id));
-  if (!members.length) return empty;
-
-  // Each raw input's ports: lines to other raw inputs on its top, one per
-  // item into the chart on its bottom.
-  const over = graph.edges.filter((e) => raw.has(e.source) && raw.has(e.target));
-  const below = (id: string) => {
-    const list: { item: string; dir: 'out'; ports: { edge: string; x: number }[] }[] = [];
-    for (const e of graph.edges) {
-      if (e.source !== id || raw.has(e.target)) continue;
-      const x = laneX.get(e.id) ?? 0;
-      const has = list.find((p) => p.item === e.item);
-      if (has) has.ports.push({ edge: e.id, x });
-      else list.push({ item: e.item, dir: 'out', ports: [{ edge: e.id, x }] });
-    }
-    return list;
-  };
-  const above = (id: string) => {
-    const list: { item: string; dir: 'in' | 'out'; edge: string }[] = [];
-    for (const e of over) {
-      if (e.target === id) list.push({ item: e.item, dir: 'in', edge: e.id });
-      if (e.source === id) list.push({ item: e.item, dir: 'out', edge: e.id });
-    }
-    return list;
-  };
-
-  // Order the row by where each raw input's lines enter the chart; one with
-  // none goes next to the raw inputs it feeds or is fed by.
-  const want = new Map<string, number>();
-  for (const n of members) {
-    const xs = below(n.id).flatMap((p) => p.ports.map((q) => q.x));
-    if (xs.length) want.set(n.id, xs.reduce((s, x) => s + x, 0) / xs.length);
-  }
-  for (const n of members)
-    if (!want.has(n.id)) {
-      const near = over
-        .flatMap((e) => (e.source === n.id ? [e.target] : e.target === n.id ? [e.source] : []))
-        .map((id) => want.get(id))
-        .filter((x): x is number => x !== undefined);
-      want.set(n.id, near.length ? near.reduce((s, x) => s + x, 0) / near.length : 0);
-    }
-  const row = [...members].sort(
-    (a, b) => want.get(a.id)! - want.get(b.id)! || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
-  );
-
-  // Lanes over the band, outermost first, each with its label above its line.
-  const lanes = over.map((e) => ({ e, label: labelOf(e.id) }));
-  const order = new Map(row.map((n, k) => [n.id, k]));
-  const span = (e: FlowEdge) => Math.abs(order.get(e.source)! - order.get(e.target)!);
-  lanes.sort((a, b) => span(b.e) - span(a.e) || (a.e.id < b.e.id ? -1 : 1));
-  let y = PAD;
-  const laneY = new Map<string, { line: number; top: number }>();
-  for (const l of lanes) {
-    laneY.set(l.e.id, { top: y, line: y + l.label.height + 2 });
-    y += l.label.height + 2 + LANE;
-  }
-  const rowTop = lanes.length ? y + LANE : PAD;
-  const rowHeight = Math.max(...row.map((n) => sized.get(n.id)!.height));
-
-  // Left to right, each as near its wish as the one before it allows.
-  const nodes = new Map<string, Box & { ports: NodePort[] }>();
-  let right = PAD - BAND_GAP;
-  for (const n of row) {
-    const s = sized.get(n.id)!;
-    const x = Math.max(right + BAND_GAP, want.get(n.id)! - s.width / 2);
-    right = x + s.width;
-    const top = above(n.id);
-    const bottom = below(n.id);
-    const spread = (count: number, k: number) =>
-      s.slant + ((s.width - 2 * s.slant) * (k + 1)) / (count + 1);
-    nodes.set(n.id, {
-      x,
-      y: rowTop + (rowHeight - s.height) / 2,
-      width: s.width,
-      height: s.height,
-      ports: [
-        ...top.map((p, k): NodePort => ({
-          item: p.item,
-          dir: p.dir,
-          x: spread(top.length, k),
-          y: 0,
-        })),
-        ...bottom.map((p, k): NodePort => ({
-          item: p.item,
-          dir: p.dir,
-          x: spread(bottom.length, k),
-          y: s.height,
-        })),
-      ],
-    });
-  }
-
-  // Below the band: each bus that has to run sideways takes the first lane
-  // where it doesn't overlap another.
-  const rowBottom = rowTop + rowHeight;
-  const buses = row.flatMap((n) => {
-    const b = nodes.get(n.id)!;
-    const bottom = b.ports.filter((q) => q.y > 0);
-    return below(n.id).map((p, k) => {
-      const from = b.x + bottom[k]!.x;
-      const xs = [from, ...p.ports.map((q) => q.x)];
-      return { ...p, node: b, from, left: Math.min(...xs), right: Math.max(...xs) };
-    });
-  });
-  const ends: number[] = [];
-  const laneOf = new Map<(typeof buses)[number], number>();
-  for (const bus of [...buses].sort((a, b) => a.left - b.left || a.from - b.from)) {
-    if (bus.right - bus.left <= 0.5) continue;
-    let k = ends.findIndex((r) => r + BAND_GAP <= bus.left);
-    if (k < 0) k = ends.push(bus.right) - 1;
-    else ends[k] = bus.right;
-    laneOf.set(bus, rowBottom + BAND_GAP + k * LANE);
-  }
-  const chartTop = rowBottom + BAND_GAP + Math.max(0, ends.length - 1) * LANE + BAND_GAP;
-
-  const drops = new Map<string, ElkPoint[]>();
-  for (const bus of buses) {
-    const start = { x: bus.from, y: bus.node.y + bus.node.height };
-    const lane = laneOf.get(bus);
-    for (const p of bus.ports)
-      drops.set(
-        p.edge,
-        lane === undefined
-          ? [start, { x: p.x, y: chartTop }]
-          : [start, { x: bus.from, y: lane }, { x: p.x, y: lane }, { x: p.x, y: chartTop }],
-      );
-  }
-
-  const edges = new Map<string, { points: ElkPoint[]; label: Box }>();
-  for (const l of lanes) {
-    const { e } = l;
-    const s = nodes.get(e.source)!;
-    const t = nodes.get(e.target)!;
-    const from = s.x + s.ports.find((p) => p.y === 0 && p.dir === 'out' && p.item === e.item)!.x;
-    const to = t.x + t.ports.find((p) => p.y === 0 && p.dir === 'in' && p.item === e.item)!.x;
-    const lane = laneY.get(e.id)!;
-    edges.set(e.id, {
-      points: [
-        { x: from, y: s.y },
-        { x: from, y: lane.line },
-        { x: to, y: lane.line },
-        { x: to, y: t.y },
-      ],
-      label: {
-        x: (from + to) / 2 - l.label.width / 2,
-        y: lane.top,
-        width: l.label.width,
-        height: l.label.height,
-      },
-    });
-  }
-  return {
-    chartTop,
-    width: right + PAD,
-    nodes,
-    drops,
-    edges,
-  };
 }
 
 const intersect = (a: Box, b: Box) =>

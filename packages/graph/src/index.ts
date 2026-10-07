@@ -31,11 +31,14 @@ export {
   nodeLines,
   nodeText,
   overlaps,
-  bandNodes,
   isRaw,
+  LABEL_ICON_GAP,
+  multiStageInputs,
+  TRAY_PAD,
   rateText,
   wrapText,
 } from './layout';
+export { flowForm, GASES, type FlowForm } from './forms';
 export { gap, layoutScore, type LayoutScore } from './score';
 export type {
   Box,
@@ -47,6 +50,7 @@ export type {
   NodeText,
   PlacedEdge,
   PlacedNode,
+  TrayRow,
 } from './layout';
 export { factoryNodeId, groupNodeId, worldGraph } from './world';
 export type {

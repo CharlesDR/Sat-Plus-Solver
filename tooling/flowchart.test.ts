@@ -6,6 +6,7 @@
 import type { Model } from '@sps/data';
 import {
   factoryGraph,
+  GASES,
   layoutFactoryGraph,
   overlaps,
   type FactoryGraph,
@@ -111,6 +112,11 @@ describe('factory flowchart on the SF+ model', () => {
         expect(Math.min(Math.abs(a.x - b.x), Math.abs(a.y - b.y))).toBeLessThan(1e-6);
       }
   }, 60_000);
+
+  test('every listed gas is a fluid in the model (A48)', () => {
+    const fluids = new Set(model.items.filter((i) => i.form === 'fluid').map((i) => i.id));
+    for (const gas of GASES) expect(fluids, gas).toContain(gas);
+  });
 
   test('heater edges follow the heater rule: Steam 20/min burns a whole heater (A17)', async () => {
     const r = await solve(model, { targets: [{ item: 'steam', rate: 20 }] }, backend);
