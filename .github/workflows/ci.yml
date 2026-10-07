@@ -15,6 +15,13 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # Playwright's image ships Chromium and its system libraries, so e2e needs no
+    # per-run `playwright install --with-deps`. Keep the tag equal to the
+    # @playwright/test version in pnpm-lock.yaml; a mismatch fails e2e with
+    # "Executable doesn't exist".
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --ipc=host
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -28,7 +35,6 @@ jobs:
       - run: pnpm build:data
       - run: pnpm test
       - run: pnpm build
-      - run: pnpm --filter @sps/web exec playwright install --with-deps chromium
       - run: pnpm e2e
       # The build that just passed every check is what Pages serves (M10).
       - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
