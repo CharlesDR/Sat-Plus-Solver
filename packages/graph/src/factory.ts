@@ -32,6 +32,12 @@ export interface FlowNode {
   machinesCeil?: number;
   /** Heaters only: boiler load 0–1. */
   boilerLoad?: number;
+  /**
+   * Recipe and resource nodes: the main product (the recipe's first output).
+   * Its edges leave from the node's right vertex; other outputs are byproducts
+   * and leave from vertices of their own (A40).
+   */
+  main?: string;
   /** Node class drawn on (resource nodes). */
   node?: string;
   /** Import/missing/target/byproduct nodes: the item and its rate. */
@@ -119,6 +125,7 @@ export function factoryGraph(
     machines: r.machines,
     machinesCeil: r.machinesCeil,
     ...(r.boilerLoad !== undefined ? { boilerLoad: r.boilerLoad } : {}),
+    ...(r.outputs[0] ? { main: r.outputs[0].item } : {}),
     ...(r.node ? { node: r.node } : {}),
     inputs: merge(r.inputs),
     outputs: merge(r.outputs),

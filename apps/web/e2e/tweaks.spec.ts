@@ -5,7 +5,7 @@
  */
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
-import { autosaved, openFactory } from './helpers';
+import { autosaved, clickFlowNode, openFactory } from './helpers';
 
 const node = (page: Page, id: string) =>
   page.getByTestId('flowchart').locator(`.react-flow__node[data-id="${id}"]`);
@@ -23,7 +23,7 @@ test('ban, swap and import a recipe group; undo, Ctrl+Z and revert all', async (
   await expect(panel.getByRole('button', { name: 'Revert all' })).toBeDisabled();
 
   // Ban: the solver picks another ingot recipe.
-  await node(page, 'recipe:cast-iron-ingot').click();
+  await clickFlowNode(page, 'recipe:cast-iron-ingot');
   await page
     .getByRole('group', { name: 'Change Cast Iron Ingot' })
     .getByRole('button', { name: 'Don’t use this recipe' })
@@ -37,7 +37,7 @@ test('ban, swap and import a recipe group; undo, Ctrl+Z and revert all', async (
 
   // Swap, with its effect previewed.
   await settled(page);
-  await node(page, 'recipe:iron-plate').click();
+  await clickFlowNode(page, 'recipe:iron-plate');
   await page.getByRole('button', { name: 'Swap recipe…' }).click();
   const swaps = page.getByRole('list', { name: 'Recipes to swap in' });
   const steel = swaps.getByRole('listitem').filter({ hasText: 'Steel Cast Plate' });
@@ -54,7 +54,7 @@ test('ban, swap and import a recipe group; undo, Ctrl+Z and revert all', async (
 
   // Import instead, plus a ban; both are saved, and Revert all drops both.
   await settled(page);
-  await node(page, 'recipe:iron-plate').click();
+  await clickFlowNode(page, 'recipe:iron-plate');
   await page.getByRole('button', { name: 'Import Iron Plate instead' }).click();
   await expect(node(page, 'import:iron-plate')).toHaveCount(1);
   await expect(node(page, 'recipe:iron-plate')).toHaveCount(0);

@@ -50,10 +50,25 @@ const KIND_LABEL = {
   byproduct: 'Byproduct',
 } as const;
 
+/**
+ * A node is a hexagon with vertices left and right (A40): inputs meet the left
+ * vertex, the main product leaves the right one, and byproducts leave the
+ * lower and upper right vertices. The left sides carry the kind's colour.
+ */
 const FlowNodeView = memo(function FlowNodeView({ data }: NodeProps<FlowchartNode>) {
   const { title, details } = data.node.text;
+  const { width: w, height: h, slant: s } = data.node;
+  const outline = `${s},0.5 ${w - s},0.5 ${w - 0.5},${h / 2} ${w - s},${h - 0.5} ${s},${h - 0.5} 0.5,${h / 2}`;
   return (
-    <div className={`flow-node ${data.node.kind}`}>
+    <div className={`flow-node ${data.node.kind}`} style={{ paddingInline: s + 7 }}>
+      <svg className="flow-hex" width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
+        <polygon className="flow-hex-shadow" points={outline} />
+        <polygon className="flow-hex-body" points={outline} />
+        <polyline
+          className="flow-hex-kind"
+          points={`${s + 1},1.5 1.5,${h / 2} ${s + 1},${h - 1.5}`}
+        />
+      </svg>
       <Handle type="target" position={Position.Left} isConnectable={false} />
       {data.icon ? (
         <img className="flow-icon" src={data.icon} alt="" width={ICON_SIZE} height={ICON_SIZE} />

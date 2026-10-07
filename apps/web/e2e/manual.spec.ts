@@ -5,7 +5,7 @@
  */
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
-import { autosaved, openFactory } from './helpers';
+import { autosaved, clickFlowNode, openFactory } from './helpers';
 
 const node = (page: Page, id: string) =>
   page.getByTestId('flowchart').locator(`.react-flow__node[data-id="${id}"]`);
@@ -29,7 +29,7 @@ test('freeze, edit, see Missing, undo, revert, leave, come back, discard', async
   await expect(page.getByLabel('Per minute')).toBeDisabled();
 
   // Edit: one more Iron Plate constructor needs ingots nobody makes.
-  await node(page, 'recipe:iron-plate').click();
+  await clickFlowNode(page, 'recipe:iron-plate');
   const editor = page.getByRole('group', { name: 'Edit Iron Plate' });
   const count = editor.getByLabel('Machines');
   const was = Number(await count.inputValue());
@@ -53,14 +53,14 @@ test('freeze, edit, see Missing, undo, revert, leave, come back, discard', async
   await expect(recipes).toHaveText(before);
 
   // Revert all, after two edits.
-  await node(page, 'recipe:iron-plate').click();
+  await clickFlowNode(page, 'recipe:iron-plate');
   await editor.getByRole('button', { name: 'Remove from plan' }).click();
   await expect(node(page, 'recipe:iron-plate')).toHaveCount(0);
   await page.getByRole('button', { name: 'Revert all' }).click();
   await expect(recipes).toHaveText(before);
 
   // Saved, and kept when switching back to the solver and in again.
-  await node(page, 'recipe:iron-plate').click();
+  await clickFlowNode(page, 'recipe:iron-plate');
   await count.fill('1');
   await count.press('Enter');
   await expect

@@ -35,3 +35,14 @@ export async function drawLink(page: Page, from: string, to: string) {
 /** The world as autosaved in local storage. */
 export const autosaved = (page: Page) =>
   page.evaluate(() => JSON.parse(localStorage.getItem('sps:autosave') ?? 'null') as unknown);
+
+/**
+ * Clicks a factory flowchart node. The plan opens at a readable zoom, so a
+ * node can lie outside the canvas; Fit shows the whole plan first, so the
+ * click lands on the node and not on whatever covers that spot.
+ */
+export async function clickFlowNode(page: Page, id: string) {
+  const chart = page.getByTestId('flowchart');
+  await chart.getByRole('button', { name: 'Fit the whole plan' }).click();
+  await chart.locator(`.react-flow__node[data-id="${id}"]`).click();
+}

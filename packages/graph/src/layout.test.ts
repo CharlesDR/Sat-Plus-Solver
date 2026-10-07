@@ -1,6 +1,6 @@
 import ELK from 'elkjs/lib/elk.bundled.js';
 import { describe, expect, test } from 'vitest';
-import type { FactoryGraph } from './factory';
+import type { FactoryGraph, FlowNode } from './factory';
 import { ICON_GAP, layoutFactoryGraph, nodeText, overlaps, rateText, wrapText } from './layout';
 
 const graph: FactoryGraph = {
@@ -55,6 +55,15 @@ const graph: FactoryGraph = {
   ],
 };
 
+const edge = (source: string, target: string, item: string, rate: number) => ({
+  id: `${source}→${target}:${item}`,
+  source,
+  target,
+  item,
+  itemName: item,
+  rate,
+});
+
 test('rateText: 3 decimals, commas between thousands', () => {
   expect(rateText(60)).toBe('60');
   expect(rateText(1555.5556)).toBe('1,555.556');
@@ -68,7 +77,9 @@ describe('layoutFactoryGraph', () => {
     const iconed = await layoutFactoryGraph(graph, new ELK(), { iconSize: 60 });
     for (const n of plain.nodes) {
       const m = iconed.nodes.find((x) => x.id === n.id)!;
-      expect(m.width).toBe(Math.max(80, n.width + 60 + ICON_GAP));
+      // The text area widens by the icon and its gap; the taller hexagon's
+      // slanted sides reach further in (A40).
+      expect(m.width - 2 * m.slant).toBe(n.width - 2 * n.slant + 60 + ICON_GAP);
       expect(m.height).toBeGreaterThanOrEqual(60);
     }
     expect(overlaps(iconed)).toEqual([]);
@@ -88,6 +99,74 @@ describe('layoutFactoryGraph', () => {
     expect(l.width).toBeGreaterThan(0);
   });
 
+  test('hexagons: edges meet the left vertex and leave the right one; byproducts get their own (A40)', async () => {
+    const g: FactoryGraph = {
+      nodes: (
+        [
+          ...graph.nodes,
+          {
+            id: 'byproduct:slag',
+            kind: 'byproduct',
+            label: 'Slag',
+            item: 'slag',
+            rate: 5,
+            inputs: [{ item: 'slag', rate: 5 }],
+            outputs: [],
+          },
+          {
+            id: 'byproduct:gas',
+            kind: 'byproduct',
+            label: 'Gas',
+            item: 'gas',
+            rate: 2,
+            inputs: [{ item: 'gas', rate: 2 }],
+            outputs: [],
+          },
+        ] as FlowNode[]
+      ).map((n): FlowNode =>
+        n.id === 'recipe:ingot'
+          ? {
+              ...n,
+              main: 'ingot',
+              outputs: [
+                { item: 'gas', rate: 2 },
+                { item: 'ingot', rate: 60 },
+                { item: 'slag', rate: 5 },
+              ],
+            }
+          : n,
+      ),
+      edges: [
+        ...graph.edges,
+        edge('recipe:ingot', 'byproduct:gas', 'gas', 2),
+        edge('recipe:ingot', 'byproduct:slag', 'slag', 5),
+      ],
+    };
+    const l = await layoutFactoryGraph(g, new ELK());
+    const node = (id: string) => l.nodes.find((n) => n.id === id)!;
+    const near = (p: { x: number; y: number }, q: { x: number; y: number }) => {
+      expect(p.x).toBeCloseTo(q.x, 6);
+      expect(p.y).toBeCloseTo(q.y, 6);
+    };
+    const port = Object.fromEntries(l.edges.map((e) => [e.item, e.sourcePort]));
+    expect(port).toEqual({ ore: 'out', ingot: 'out', gas: 'by1', slag: 'by2' });
+    for (const e of l.edges) {
+      const s = node(e.source);
+      const t = node(e.target);
+      expect(s.slant).toBe(Math.round((s.height * Math.tan(Math.PI / 6)) / 2));
+      const start = e.points[0]!;
+      const end = e.points.at(-1)!;
+      near(end, { x: t.x, y: t.y + t.height / 2 });
+      if (e.sourcePort === 'out') near(start, { x: s.x + s.width, y: s.y + s.height / 2 });
+      else
+        near(start, {
+          x: s.x + s.width - s.slant,
+          y: e.sourcePort === 'by1' ? s.y + s.height : s.y,
+        });
+    }
+    expect(overlaps(l)).toEqual([]);
+  });
+
   test('deterministic: fresh engines give identical coordinates', async () => {
     const a = await layoutFactoryGraph(graph, new ELK());
     const b = await layoutFactoryGraph(
@@ -105,8 +184,9 @@ describe('layoutFactoryGraph', () => {
     const l = await layoutFactoryGraph(g, new ELK());
     const rec = l.nodes[1]!;
     expect(rec.text).toEqual({
-      title: ['Siterite Ore', '(impure) →', 'Iron Ingot', 'with Water'],
-      details: ['2 × Flexible', 'Blast Furnace'],
+      // 18 characters a line, so hexagons stay wide and short (A40).
+      title: ['Siterite Ore', '(impure) → Iron', 'Ingot with Water'],
+      details: ['2 × Flexible Blast', 'Furnace'],
     });
     expect(rec.height).toBeGreaterThan(l.nodes[0]!.height * 2);
     const label = l.edges[1]!.label;
@@ -133,12 +213,19 @@ describe('layoutFactoryGraph', () => {
 
   test('overlaps reports intersecting nodes and labels', () => {
     const box = { x: 0, y: 0, width: 10, height: 10 };
-    const node = { ...graph.nodes[0]!, ...box, text: { title: ['Ore'], details: [] } };
+    const node = { ...graph.nodes[0]!, ...box, text: { title: ['Ore'], details: [] }, slant: 0 };
     const found = overlaps({
       width: 20,
       height: 20,
       nodes: [node, { ...node, id: 'b', x: 5 }],
-      edges: [{ ...graph.edges[0]!, points: [], label: { ...box, x: 50, text: 'x' } }],
+      edges: [
+        {
+          ...graph.edges[0]!,
+          sourcePort: 'out',
+          points: [],
+          label: { ...box, x: 50, text: 'x' },
+        },
+      ],
     });
     expect(found).toEqual(['node import:ore × node b']);
   });
