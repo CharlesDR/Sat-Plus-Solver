@@ -1189,6 +1189,12 @@ label.inline {
 .summary .num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* The exact fraction after a rounded number (A41). */
+.summary .exact {
+  color: var(--muted);
+  font-size: 0.9em;
 }
 th button.sort {
   all: unset;

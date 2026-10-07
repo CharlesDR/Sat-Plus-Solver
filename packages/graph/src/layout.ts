@@ -124,12 +124,23 @@ const LAYER: Partial<Record<FlowNodeKind, string>> = {
   byproduct: 'LAST',
 };
 
-/** Compact rate: up to 3 decimals, 3 significant digits below 0.001, commas between thousands. */
+/**
+ * A rate or machine count as the app writes it (A41): 1 to 4 decimals,
+ * rounded up away from zero to the next 0.0001, commas between thousands.
+ * The same rule as the solver's `formatRate`, which this package may not
+ * import; a tooling test keeps the two equal.
+ */
 export function rateText(n: number): string {
-  if (n !== 0 && Math.abs(n) < 0.001) return n.toPrecision(3);
-  const [whole = '', frac] = String(Math.round(n * 1000) / 1000).split('.');
-  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return frac === undefined ? grouped : `${grouped}.${frac}`;
+  if (!Number.isFinite(n)) return String(n);
+  const size = Math.abs(n);
+  const noise = Math.min(1e-9 * Math.max(1, size) * 1e4, 0.01);
+  const steps = Math.ceil(size * 1e4 - noise);
+  if (steps <= 0) return '0.0';
+  const whole = String(Math.floor(steps / 1e4)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const frac = String(steps % 1e4)
+    .padStart(4, '0')
+    .replace(/0+$/, '');
+  return `${n < 0 ? '-' : ''}${whole}.${frac || '0'}`;
 }
 
 /** The text lines a node shows, which also size it. */

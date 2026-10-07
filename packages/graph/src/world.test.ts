@@ -163,7 +163,7 @@ describe('worldGraph', () => {
     expect(node('factory:factory-3').parent).toBeUndefined();
     expect(edgeIds(g)).toContain('factory:factory-1→factory:factory-2');
     const plates = g.edges.find((e) => e.id === 'factory:factory-1→factory:factory-2')!;
-    expect(worldEdgeLines(plates)).toEqual(['18 Iron Plate']);
+    expect(worldEdgeLines(plates)).toEqual(['18.0 Iron Plate']);
     expect(plates.items[0]!.links).toEqual(['link-1']);
     // Rods gets 20 ingots and uses 10: the rest is unclaimed surplus; Screw is unmet.
     expect(node('stub:out:factory:factory-3').items).toEqual([
@@ -253,7 +253,7 @@ describe('worldGraph', () => {
       (x) => x.id === 'factory:factory-1→factory:factory-3',
     )!;
     expect(e.short).toBe(true);
-    expect(worldEdgeLines(e)).toEqual(['20 Iron Ingot (short 20)']);
+    expect(worldEdgeLines(e)).toEqual(['20.0 Iron Ingot (short 20.0)']);
   });
 
   test('deterministic', () => {

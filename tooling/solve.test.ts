@@ -162,23 +162,23 @@ describe('pnpm solve: output', () => {
         'Status: ok    Objective: resources = 1.5',
         '',
         'Recipes',
-        'Recipe             Machine      Count  Build   MW',
-        '-----------------  -----------  -----  -----  ---',
-        'Iron Ingot         Smelter          3      3   12',
-        'Iron Plate         Constructor      3      3   12',
-        'Iron Ore (normal)  Miner Mk.1     1.5      2  7.5',
+        'Recipe             Machine      Count  Build    MW',
+        '-----------------  -----------  -----  -----  ----',
+        'Iron Ingot         Smelter        3.0      3  12.0',
+        'Iron Plate         Constructor    3.0      3  12.0',
+        'Iron Ore (normal)  Miner Mk.1     1.5      2   7.5',
         '',
         'Targets',
         'Item        Per min',
         '----------  -------',
-        'Iron Plate       60',
+        'Iron Plate     60.0',
         '',
         'Nodes',
         'Node               Used  Budget  NNE',
         '-----------------  ----  ------  ---',
-        'Iron Ore (normal)   1.5      40  1.5',
+        'Iron Ore (normal)   1.5    40.0  1.5',
         '',
-        'Power: 31.5 MW draw, 0 MW generated, net 31.5 MW',
+        'Power: 31.5 MW draw, 0.0 MW generated, net 31.5 MW',
         '',
       ].join('\n'),
     );
@@ -196,10 +196,10 @@ describe('pnpm solve: output', () => {
       'Iron Ingot:30',
     ]);
     expect(stdout).toContain(
-      'Imports\nItem        Per min\n----------  -------\nIron Ingot       30',
+      'Imports\nItem        Per min\n----------  -------\nIron Ingot     30.0',
     );
     expect(stdout).toContain(
-      'Surplus and byproducts\nItem               Per min\n-----------------  -------\nHeavy Oil Residue       10',
+      'Surplus and byproducts\nItem               Per min\n-----------------  -------\nHeavy Oil Residue     10.0',
     );
   });
 
@@ -236,8 +236,8 @@ describe('pnpm solve: output', () => {
     expect(code).toBe(0);
     expect(stdout.split('\n').slice(0, 3)).toEqual([
       'Status: ok    Objectives: resources > scarcity',
-      '  resources = 0.556 (optimum 0.5)',
-      '  scarcity = 0.014 (optimum 0.014)',
+      '  resources = 0.5556 (optimum 0.5)',
+      '  scarcity = 0.0139 (optimum 0.0139)',
     ]);
     expect(stdout).toContain('Iron Wire');
   });
@@ -262,7 +262,7 @@ describe('pnpm solve: output', () => {
       'Import costs (per 1/min at the imported rate, standalone plan)\n' +
         'Item        Resource types  At /min  resources\n' +
         '----------  --------------  -------  ---------\n' +
-        'Iron Ingot  Iron Ore             90      0.017',
+        'Iron Ingot  Iron Ore           90.0     0.0167',
     );
     const scaled = await runCli([
       '--model',
@@ -276,7 +276,7 @@ describe('pnpm solve: output', () => {
       '--budget',
       'node:iron-ore:normal=0',
     ]);
-    expect(scaled.stdout).toContain('Output scale: 3 × the targets');
+    expect(scaled.stdout).toContain('Output scale: 3.0 × the targets');
   });
 
   test('--compare-alternates lists the alternates that help', async () => {
@@ -293,10 +293,10 @@ describe('pnpm solve: output', () => {
     expect(stdout.split('\n').slice(0, 7)).toEqual([
       'Alternates that help: Alternate: Cast Screw',
       '',
-      'Objective  Without   With',
-      '---------  -------  -----',
-      'resources    0.167  0.167',
-      'power        8.833  5.367',
+      'Objective  Without    With',
+      '---------  -------  ------',
+      'resources   0.1667  0.1667',
+      'power       8.8334  5.3667',
       '',
     ]);
     expect(stdout).toContain('Plan with alternates');
@@ -329,7 +329,7 @@ describe('full SF+ model', () => {
     expect(heaters[0]!.machines).toBe(1);
     const text = renderPlan(model, r);
     expect(text).toMatch(/Count\s+Build\s+Boiler\s+MW/);
-    expect(text).toMatch(/Heater.*\s1\s+1\s+20%\s/);
+    expect(text).toMatch(/Heater.*\s1\.0\s+1\s+20\.0%\s/);
     expect(r.surplus.find((s) => s.item === 'steam')).toBeUndefined();
   });
 

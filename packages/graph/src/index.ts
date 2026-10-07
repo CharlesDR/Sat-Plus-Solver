@@ -35,6 +35,7 @@ export {
   sourcePorts,
   wrapText,
 } from './layout';
+export { gap, layoutScore, type LayoutScore } from './score';
 export type {
   Box,
   FactoryLayout,

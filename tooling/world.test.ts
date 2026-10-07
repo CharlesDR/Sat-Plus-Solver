@@ -22,12 +22,12 @@ describe('pnpm world solve', () => {
     expect(code).toBe(0);
     for (const title of ['Factories', 'Links', 'Item ledger', 'Groups', 'Nodes'])
       expect(stdout).toMatch(new RegExp(`^${title}`, 'm'));
-    expect(stdout).toMatch(/Plate Works\s+Base\s+ok\s+Reinforced Iron Plate 5/);
+    expect(stdout).toMatch(/Plate Works\s+Base\s+ok\s+Reinforced Iron Plate 5\.0/);
     expect(stdout).toMatch(
-      /ingots\s+Smelter\s+Plate Works\s+Iron Ingot\s+pull\s+60\s+60\s+60\s+0\s+belt Mk1 ×1/,
+      /ingots\s+Smelter\s+Plate Works\s+Iron Ingot\s+pull\s+60\.0\s+60\.0\s+60\.0\s+0\.0\s+belt Mk1 ×1/,
     );
-    expect(stdout).toMatch(/^Power: 52\.75 MW draw, 75 MW generated, net -22\.25 MW$/m);
-    expect(stdout).toMatch(/Iron Ore \(normal\)\s+40\s+1\s+Smelter 1/);
+    expect(stdout).toMatch(/^Power: 52\.75 MW draw, 75\.0 MW generated, net -22\.25 MW$/m);
+    expect(stdout).toMatch(/Iron Ore \(normal\)\s+40\.0\s+1\.0\s+Smelter 1\.0/);
   });
 
   test('--json prints the world result', async () => {

@@ -89,18 +89,20 @@ test('two factories, a pull link, ledger, groups, trace, power and drill-down', 
   await tab(page, 'Factories');
   const demand = factoryRow(page, 'factory-1').getByTestId('link-demand');
   await expect(demand).toHaveText(/^[\d.]+ Iron Plate$/);
-  const before = plates(await demand.textContent());
+  const shown = (await demand.textContent())!;
+  const before = plates(shown);
   expect(before).toBeGreaterThan(0);
-  await expect(label(page, 'factory:factory-1→factory:factory-2')).toHaveText(
-    `${before} Iron Plate`,
-  );
+  // The canvas label shows the same rate, written the same way (A41).
+  await expect(label(page, 'factory:factory-1→factory:factory-2')).toHaveText(shown);
   await page.getByRole('button', { name: 'Open B', exact: true }).click();
   await page.getByLabel('Per minute').fill('6');
   await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
   await crumbs.getByRole('button', { name: 'World' }).click();
   await settled(page);
-  await expect(demand).not.toHaveText(`${before} Iron Plate`);
-  const rate = plates(await demand.textContent());
+  await expect(demand).not.toHaveText(shown);
+  const demandShown = await demand.textContent();
+  const rate = plates(demandShown);
+  const rateShown = demandShown!.replace(/ Iron Plate$/, '');
   expect(rate).toBeCloseTo(2 * before, 3);
   // Mk.1 belts carry 60/min.
   await tab(page, 'Links');
@@ -114,13 +116,13 @@ test('two factories, a pull link, ledger, groups, trace, power and drill-down', 
   const scope = page.getByLabel('Ledger scope');
   await scope.selectOption({ label: 'Factory: A' });
   expect(await ledgerRow(page, 'iron-plate')).toMatchObject({
-    Exported: String(rate),
-    Imported: '0',
+    Exported: rateShown,
+    Imported: '0.0',
   });
   await scope.selectOption({ label: 'Factory: B' });
   expect(await ledgerRow(page, 'iron-plate')).toMatchObject({
-    Imported: String(rate),
-    Exported: '0',
+    Imported: rateShown,
+    Exported: '0.0',
   });
 
   // Group A and B; collapsing the group hides the internal link.
@@ -142,7 +144,7 @@ test('two factories, a pull link, ledger, groups, trace, power and drill-down', 
   // The group ledger nets the internal link out.
   await tab(page, 'Ledger');
   await page.getByLabel('Ledger scope').selectOption({ label: 'Group: Iron' });
-  expect(await ledgerRow(page, 'iron-plate')).toMatchObject({ Imported: '0', Exported: '0' });
+  expect(await ledgerRow(page, 'iron-plate')).toMatchObject({ Imported: '0.0', Exported: '0.0' });
 
   // Expand again and trace Iron Plate: exactly A, B and their link light up.
   await node(page, 'group:group-1').getByRole('button', { name: 'Expand' }).click();

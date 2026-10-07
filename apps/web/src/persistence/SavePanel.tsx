@@ -63,6 +63,8 @@ export function SavePanel(props: { store: WorldStore; saves: Saves; boot: Boot }
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && menu.current?.open) {
+        // Handled: Esc closes the menu and goes no further (A42).
+        e.preventDefault();
         close();
         menu.current.querySelector('summary')?.focus();
       }

@@ -26,6 +26,7 @@ import type { Model } from '@sps/data';
 import {
   compareAlternates,
   createHighsBackend,
+  formatExact,
   formatRate,
   parseTier,
   recipeTable,
@@ -267,7 +268,7 @@ export function renderPlan(model: Model, result: SolveResult): string {
       title,
       table(
         ['Item', 'Per min'],
-        rows.map((r) => [r.name, fmt(r.rate)]),
+        rows.map((r) => [r.name, formatExact(r.rate)]),
       ),
     );
   };
