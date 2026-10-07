@@ -26,6 +26,8 @@ import {
 import { traceableItems } from './viewModel';
 import { WorldCanvas, type CanvasActions } from './WorldCanvas';
 import { PlusIcon } from '../ui/icons';
+import { useToast } from '../ui/toasts';
+import { offBuildText } from '../build/build';
 
 const TABS = ['Ledger', 'Factories', 'Links', 'Power', 'Nodes', 'Groups'] as const;
 type Tab = (typeof TABS)[number];
@@ -45,6 +47,7 @@ export function WorldView(props: {
   const [traceText, setTraceText] = useState('');
   const [draft, setDraft] = useState<LinkDraft>();
   const [newName, setNewName] = useState('');
+  const toast = useToast();
   const traceId = useId();
   const panelId = useId();
   const items = useItemLookup(catalog.items);
@@ -148,6 +151,29 @@ export function WorldView(props: {
           <button type="button" onClick={() => setTraceItem(undefined)}>
             Clear trace
           </button>
+        )}
+        <button
+          type="button"
+          disabled={plan.kind !== 'done' || !summary?.factories.length}
+          title="Save every factory's current plan as the one built in your game"
+          onClick={() => {
+            if (!summary) return;
+            const skipped = store
+              .getState()
+              .markAllBuilt(summary.factories, new Date().toISOString());
+            toast(
+              skipped.length
+                ? `Marked every factory as built except ${skipped.length} with no plan.`
+                : 'Marked every factory as built.',
+            );
+          }}
+        >
+          Mark every factory as built
+        </button>
+        {summary && offBuildText(summary.factories) && (
+          <span className="chip build-count" role="status">
+            {offBuildText(summary.factories)}
+          </span>
         )}
         {plan.kind === 'solving' ? (
           <SolvingNote progress={plan.progress} what="the world" />

@@ -5,7 +5,7 @@ import { describe, expect, test } from 'vitest';
 import vanillaMini from '../../../fixtures/vanilla-mini/model.json';
 import mini from '../../../fixtures/worlds/mini-world.json';
 import v1 from '../../../fixtures/worlds/v1-world.json';
-import v8 from '../../../fixtures/worlds/v8-world.json';
+import v9 from '../../../fixtures/worlds/v9-world.json';
 import { WORLD_VERSION, createWorld, type World } from './document';
 import { migrateWorld } from './migrate';
 import { WorldLoadError, extractFactory, loadWorld, parseWorld, serializeWorld } from './persist';
@@ -73,6 +73,14 @@ const worldArb: fc.Arbitrary<World> = (() => {
         enabled: fc.boolean(),
         frozen: fc.array(fc.record({ recipe: id, machines: rate }), { maxLength: 3 }),
         edits: fc.array(fc.record({ recipe: id, machines: rate }), { maxLength: 3 }),
+      }),
+      built: fc.record({
+        entries: fc.array(fc.record({ recipe: id, machines: rate }), { maxLength: 3 }),
+        inputs: fc.array(fc.record({ item: id, rate }), { maxLength: 3 }),
+        outputs: fc.array(fc.record({ item: id, rate }), { maxLength: 3 }),
+        dataHash: fc.stringMatching(/^[0-9a-f]{0,16}$/),
+        markedAt: fc.constant('2026-10-07T12:00:00.000Z'),
+        fingerprint: fc.record({ factory: id, world: id, links: id }),
       }),
     },
     {
@@ -154,9 +162,9 @@ describe('World → JSON → World', () => {
   });
 
   test('is deep-equal for the current-version fixture, and the fixture is current', () => {
-    expect(v8.meta.v).toBe(WORLD_VERSION);
-    const w = parseWorld(JSON.stringify(v8));
-    expect(w).toStrictEqual(v8);
+    expect(v9.meta.v).toBe(WORLD_VERSION);
+    const w = parseWorld(JSON.stringify(v9));
+    expect(w).toStrictEqual(v9);
     expect(parseWorld(serializeWorld(w, true))).toStrictEqual(w);
   });
 

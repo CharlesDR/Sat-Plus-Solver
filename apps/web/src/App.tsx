@@ -22,6 +22,7 @@ import type { Catalog, FocusPlan, SolveProgress, WorldAction } from './solver/pr
 import type { Scope, WorldStore } from './store';
 import { SolvingNote } from './SolvingNote';
 import { SummaryTable } from './SummaryTable';
+import { BuildPanel } from './build/BuildPanel';
 import { ManualPanel, ModeSwitch } from './manual/ManualPanel';
 import { planToFreeze } from './manual/manual';
 import { TweakPanel } from './tweaks/TweakPanel';
@@ -564,6 +565,33 @@ function FactoryView(props: {
             manual={manual}
             blocked={plan.kind === 'solving' ? 'Wait for the plan to finish solving.' : undefined}
             onChange={toManual}
+          />
+          <BuildPanel
+            factory={factory}
+            check={mine?.build}
+            names={names}
+            blocked={
+              plan.kind === 'solving' || !mine
+                ? 'Wait for the plan to finish solving.'
+                : mine.status === 'infeasible'
+                  ? 'This factory has no plan to mark.'
+                  : undefined
+            }
+            onMark={() => {
+              if (!mine) return;
+              const again = factory.built !== undefined;
+              actions.markBuilt(mine, new Date().toISOString());
+              toast(again ? 'Marked the current plan as built again.' : 'Marked as built.');
+            }}
+            onRestore={() => {
+              setSelection(undefined);
+              actions.restoreBuild(factoryId);
+              toast('Restored the plan as built, in manual mode.');
+            }}
+            onClear={() => {
+              actions.clearBuilt(factoryId);
+              toast('Cleared the build mark.');
+            }}
           />
           {manual && factory.manual && (
             <ManualPanel

@@ -6,6 +6,7 @@
 import type { ItemRate, ObjectiveId } from '@sps/solver';
 import * as edit from '@sps/world';
 import {
+  type BuildSource,
   clampTolerance,
   createWorld,
   type Factory,
@@ -95,6 +96,15 @@ export interface WorldState {
   revertManual(factoryId: string): void;
   /** Replaces the document with an edited copy ("allocate remaining", "size power plant"). */
   replaceWorld(world: World): void;
+
+  // Build marks (A44): `at` is the ISO time of marking.
+  /** Marks a factory's current plan as matching the in-game build. */
+  markBuilt(source: BuildSource, at: string): void;
+  /** Marks every factory with a plan; returns the ids left unmarked. */
+  markAllBuilt(sources: readonly BuildSource[], at: string): string[];
+  clearBuilt(factoryId: string): void;
+  /** Manual mode with the built plan. */
+  restoreBuild(factoryId: string): void;
 }
 
 export type WorldStore = ReturnType<typeof createWorldStore>;
@@ -226,6 +236,21 @@ export function createWorldStore(initial: World = createWorld()) {
       undoManual: (factoryId) => apply((w) => edit.undoManual(w, factoryId)),
       revertManual: (factoryId) => apply((w) => edit.revertManual(w, factoryId)),
       replaceWorld: (world) => set({ world }),
+      markBuilt: (source, at) =>
+        set(({ world, modelHash }) => ({
+          world: edit.markBuilt(world, source, modelHash ?? world.meta.dataHash, at),
+        })),
+      markAllBuilt: (sources, at) => {
+        let skipped: string[] = [];
+        set(({ world, modelHash }) => {
+          const out = edit.markAllBuilt(world, sources, modelHash ?? world.meta.dataHash, at);
+          skipped = out.skipped;
+          return { world: out.world };
+        });
+        return skipped;
+      },
+      clearBuilt: (factoryId) => apply((w) => edit.clearBuilt(w, factoryId)),
+      restoreBuild: (factoryId) => apply((w) => edit.restoreBuild(w, factoryId)),
     };
   });
 }

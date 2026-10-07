@@ -103,7 +103,8 @@ function shapeProblems(w: World): string[] {
       isStr(f.notes) &&
       Array.isArray(f.tweaks) &&
       f.tweaks.every(isTweak) &&
-      isOpt(f.manual, isManual),
+      isOpt(f.manual, isManual) &&
+      isOpt(f.built, isBuilt),
   );
   list(
     'groups',
@@ -151,6 +152,23 @@ const isEntries = (v: unknown, min: number) =>
 
 function isManual(m: unknown): boolean {
   return isObj(m) && isBool(m.enabled) && isEntries(m.frozen, 0) && isEntries(m.edits, 0);
+}
+
+function isBuilt(b: unknown): boolean {
+  return (
+    isObj(b) &&
+    isEntries(b.entries, 0) &&
+    Array.isArray(b.inputs) &&
+    b.inputs.every(isRate) &&
+    Array.isArray(b.outputs) &&
+    b.outputs.every(isRate) &&
+    isStr(b.dataHash) &&
+    isStr(b.markedAt) &&
+    isObj(b.fingerprint) &&
+    isStr(b.fingerprint.factory) &&
+    isStr(b.fingerprint.world) &&
+    isStr(b.fingerprint.links)
+  );
 }
 
 function isRequest(r: unknown): boolean {

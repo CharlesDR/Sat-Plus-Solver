@@ -16,10 +16,11 @@ import type { FactoryResult, FactoryStatus, GroupResult, LedgerRow, LinkResult }
 
 /** The parts of a world result the graph reads. */
 export interface WorldGraphInput {
-  factories: readonly Pick<
+  factories: readonly (Pick<
     FactoryResult,
     'id' | 'name' | 'groupId' | 'status' | 'ledger' | 'power' | 'nodes' | 'machines' | 'manual'
-  >[];
+  > &
+    Partial<Pick<FactoryResult, 'build'>>)[];
   groups: readonly Pick<
     GroupResult,
     'id' | 'name' | 'parentId' | 'factories' | 'ledger' | 'power' | 'nodes' | 'machines'
@@ -59,6 +60,8 @@ export interface WorldNode {
   status?: FactoryStatus;
   /** Factories in manual mode (A36). */
   manual?: true;
+  /** Factories marked as built (A44): the mark's state. */
+  build?: 'matches' | 'note' | 'differs' | 'broken';
   power?: PowerSummary;
   /** Nodes used, summed over node classes. */
   nodesUsed?: number;
@@ -209,6 +212,7 @@ export function worldGraph(input: WorldGraphInput, options: WorldGraphOptions = 
       ...(parent ? { parent } : {}),
       status: f.status,
       ...(f.manual ? { manual: true as const } : {}),
+      ...(f.build ? { build: f.build.state } : {}),
       power: { ...f.power },
       nodesUsed: sumNodes(f.nodes),
       machines: f.machines,

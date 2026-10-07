@@ -243,7 +243,7 @@ The result has the shape of a solve result, so ledgers, the flowchart and the ta
 
 A factory can be marked as built (A44): "Mark as built" stores a snapshot of its current plan in `Factory.built`. The snapshot holds the plan as recipe groups with fractional machine counts (the same entries manual mode freezes), the boundary flows at that moment (what it imported and what it delivered to targets and links), the data hash, the time it was marked, and fingerprints of the factory's own settings, the world defaults and its link boundary. Marking again replaces the snapshot; "Mark every factory as built" marks each factory that has a plan. Marking never changes the factory's mode.
 
-Every world resolution checks each marked factory against its snapshot, by arithmetic only, after the factory's place in the solve order:
+Every world resolution checks each marked factory against its snapshot once the world is resolved, by arithmetic only:
 
 - **Can it still run as built?** The built entries are run through the manual-mode arithmetic (§4.7) under today's request: today's targets and link demand, today's unassigned import caps, a fixed link capped at what it delivers, and a pull link uncapped unless its producer failed or is manual (then capped at what it delivers). A pull producer adapts to what it is asked, so its own flags, not its consumers', report whether it can.
 - **Does today's plan match the build?** Today's recipe groups are compared with the built ones, as whole buildings when the factory plans whole machines and as fractional counts otherwise, within 1e-6 relative.

@@ -1856,3 +1856,52 @@ section.diagnostics li p {
     width: 130px;
   }
 }
+
+/* Build marks (A44): the bar in the plan toolbar, its flags, and the world count. */
+.build-bar {
+  display: grid;
+  gap: 6px;
+}
+.build-bar:not(:has(.build-head)) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.build-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.build-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+.build-flags {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.build-flags > li {
+  padding: 6px 10px;
+  border-left: 3px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.build-flags > li.error {
+  border-left-color: var(--error);
+  background: var(--error-soft);
+}
+.build-flags > li.warning {
+  border-left-color: var(--warn);
+  background: var(--warn-soft);
+}
+.build-flags ul {
+  margin: 2px 0 0;
+  padding-left: 18px;
+}

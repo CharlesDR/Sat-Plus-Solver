@@ -7,6 +7,7 @@ import v5 from '../../../fixtures/worlds/v5-world.json';
 import v6 from '../../../fixtures/worlds/v6-world.json';
 import v7 from '../../../fixtures/worlds/v7-world.json';
 import v8 from '../../../fixtures/worlds/v8-world.json';
+import v9 from '../../../fixtures/worlds/v9-world.json';
 import { WORLD_VERSION, createWorld, factorySolveRequest } from './document';
 import { WorldMigrationError, migrateWorld } from './migrate';
 
@@ -180,6 +181,7 @@ describe('migrateWorld', () => {
     // The v8 fixture is the migrated v7 one with the setting off in one factory.
     expect({
       ...v8,
+      meta: { ...v8.meta, v: WORLD_VERSION },
       factories: v8.factories.map((f) => ({
         ...f,
         request: (({
@@ -191,6 +193,20 @@ describe('migrateWorld', () => {
     expect(
       factorySolveRequest(v8 as unknown as typeof w, { nodes: [] }, 'factory-2'),
     ).not.toHaveProperty('avoidFluidByproducts');
+  });
+
+  test('a v8 save carries over unchanged but for its version (A44)', () => {
+    const before = JSON.stringify(v8);
+    const w = migrateWorld(v8);
+    expect(w).toEqual({ ...v8, meta: { ...v8.meta, v: WORLD_VERSION } });
+    expect(JSON.stringify(v8)).toBe(before);
+    expect(w.factories.some((f) => f.built)).toBe(false);
+    // The v9 fixture is the v8 one plus a build mark on one factory.
+    const strip = (x: typeof w) => ({
+      ...x,
+      factories: x.factories.map(({ built: _, ...f }) => f),
+    });
+    expect(strip(migrateWorld(v9))).toEqual(w);
   });
 
   test('a current world passes through unchanged', () => {

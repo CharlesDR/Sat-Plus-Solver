@@ -10,12 +10,13 @@
  * added the max-tier filter; v4 replaced the factory's node budget with
  * per-resource limits (A33); v5 moved worlds on the old default objective
  * stack (O1) to the new one (O2); v6 added plan tweaks (A35); v7 added
- * manual mode (A36); v8 added "Avoid fluid byproducts" (A39), on. `migrateWorld` upgrades older documents.
+ * manual mode (A36); v8 added "Avoid fluid byproducts" (A39), on; v9 added
+ * build marks (A44). `migrateWorld` upgrades older documents.
  */
 import type { Model } from '@sps/data';
 import type { ItemRate, ObjectiveId, RecipeFilter, SolveRequest } from '@sps/solver';
 
-export const WORLD_VERSION = 8;
+export const WORLD_VERSION = 9;
 
 /** Lexicographic tolerance bounds (CLAUDE.md): 0.01%–90%, default 0.01%. */
 export const TOLERANCE_MIN = 0.0001;
@@ -111,6 +112,31 @@ export interface Factory {
    * switched off, so switching on again restores it; missing = never frozen.
    */
   manual?: ManualPlan;
+  /**
+   * Build mark (A44, §4.8): the plan as built in the game, checked against
+   * every resolution; missing = not marked.
+   */
+  built?: BuiltSnapshot;
+}
+
+/**
+ * A factory's build mark (A44): its plan and boundary flows when it was
+ * marked as matching the in-game build, plus fingerprints that tell later
+ * checks what changed since.
+ */
+export interface BuiltSnapshot {
+  /** The plan as recipe groups, as manual mode freezes them (A36), sorted by recipe. */
+  entries: ManualEntry[];
+  /** What it imported, per item, sorted. */
+  inputs: ItemRate[];
+  /** What it delivered to its targets and links, per item, sorted. */
+  outputs: ItemRate[];
+  /** `model.meta.dataHash` at marking. */
+  dataHash: string;
+  /** ISO time of marking (injected by the app). */
+  markedAt: string;
+  /** Hashes of the factory's own settings, the world defaults and its link boundary at marking. */
+  fingerprint: { factory: string; world: string; links: string };
 }
 
 /** One recipe group of a manual plan: fractional machines at the recipe's clock. */

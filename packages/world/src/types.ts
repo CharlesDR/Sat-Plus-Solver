@@ -4,7 +4,7 @@
  */
 import type { NodePurity } from '@sps/data';
 import type { ItemRate, PowerSummary, SolveRequest, SolveResult, SolveStatus } from '@sps/solver';
-import type { Link } from './document';
+import type { Link, ManualEntry } from './document';
 
 /** Solves one factory; injected so the world layer never sees the LP backend (§7). */
 export type SolveFactory = (request: SolveRequest) => Promise<SolveResult>;
@@ -74,6 +74,53 @@ export interface FactoryResult extends ScopeTotals {
    * each target gets (a target can come up short), both sorted by item.
    */
   manual?: { missing: ItemRate[]; targets: ItemRate[] };
+  /** The plan as recipe groups (A36 entries), sorted; empty when it has no plan. What "Mark as built" stores. */
+  plan: ManualEntry[];
+  /** Build mark check (A44, §4.8), when the factory is marked as built. */
+  build?: BuildCheck;
+}
+
+/** Recipe group counts, built and now: machines, or whole buildings with whole machines on (A44). */
+export interface RecipeChange {
+  recipe: string;
+  built: number;
+  now: number;
+}
+
+/** One deficit between a factory's build mark and today's world (A44, §4.8). */
+export type BuildFlag =
+  /** Can't get enough inputs: needed beyond what links and imports supply. */
+  | { kind: 'inputs-short'; severity: 'error'; items: ItemRate[] }
+  /** The build makes less than its targets and links ask for: short per item. */
+  | { kind: 'needs-expansion'; severity: 'error'; items: ItemRate[] }
+  /** The build extracts more than the factory's resource limit allows. */
+  | {
+      kind: 'over-resource-limit';
+      severity: 'error';
+      items: { item: string; rate: number; limit: number }[];
+    }
+  /** Built recipes no longer in the game data. */
+  | { kind: 'recipe-gone'; severity: 'error'; recipes: string[] }
+  /** Today's plan adds groups or machines the build lacks. */
+  | { kind: 'plan-changed'; severity: 'warning'; changes: RecipeChange[] }
+  /** Today's plan only needs fewer machines or fewer groups. */
+  | { kind: 'can-reduce'; severity: 'info'; changes: RecipeChange[] }
+  /** The game data changed since the mark. */
+  | { kind: 'data-changed'; severity: 'info' };
+
+/** What changed since a factory was marked as built. */
+export type BuildCause = 'factory-settings' | 'world-settings' | 'links' | 'game-data';
+
+/**
+ * A marked factory's check (A44): `matches` with no flags, `note` with info
+ * only, `differs` with a warning, `broken` when the build can't run.
+ */
+export interface BuildCheck {
+  state: 'matches' | 'note' | 'differs' | 'broken';
+  /** Worst first. */
+  flags: BuildFlag[];
+  causes: BuildCause[];
+  markedAt: string;
 }
 
 export interface LinkResult {
@@ -146,6 +193,7 @@ export type WorldDiagnostic =
     })
   | (Diag & { code: 'node-over-allocated'; node: string; used: number; pool: number })
   | (Diag & { code: 'import-cost-unsettled'; factories: string[] })
+  | (Diag & { code: 'build-drift'; factory: string; state: 'differs' | 'broken' })
   | (Diag & {
       code: 'manual-short';
       factory: string;
