@@ -35,9 +35,11 @@ import { useSidebarOpen } from './ui/prefs';
 import { ThemeSwitch } from './ui/ThemeSwitch';
 import { ToastProvider, useToast } from './ui/toasts';
 import { WorldView } from './world/WorldView';
+import { EscapeContext, escapeStack, isTextField, useEscapeLayer } from './escape';
+import { backOut, factoryView, focusOf, WORLD_VIEW, type View } from './viewPath';
 
 /** Where the user is: the world canvas (home), or one factory drilled into. */
-export type View = { kind: 'world' } | { kind: 'factory'; id: string };
+export type { View } from './viewPath';
 
 export function App(props: {
   client: SolverClient;
@@ -65,11 +67,11 @@ function AppFrame(props: {
   const world = useStore(store, (s) => s.world);
   const [catalog, setCatalog] = useState<Catalog | undefined>();
   const [initError, setInitError] = useState<string | undefined>();
-  const [view, setView] = useState<View>({ kind: 'world' });
+  const [view, setView] = useState<View>(WORLD_VIEW);
   const [palette, setPalette] = useState(false);
+  const escape = useMemo(() => escapeStack(), []);
   // A view of a factory that no longer exists (deleted, or a load replaced the world) is the world.
-  const focus =
-    view.kind === 'factory' && world.factories.some((f) => f.id === view.id) ? view.id : undefined;
+  const focus = focusOf(view, (id) => world.factories.some((f) => f.id === id));
 
   useEffect(() => {
     client.ready.then(
@@ -93,73 +95,90 @@ function AppFrame(props: {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // Esc steps back one thing at a time (A42): out of a text field, then the
+  // latest open layer, then one level up the view path. Menus and dialogs that
+  // handle Esc themselves mark the event handled.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      const el = document.activeElement;
+      if (isTextField(el)) el.blur();
+      else if (!escape.pop()) setView(backOut);
+      e.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [escape]);
+
   return (
-    <div className="app">
-      <header className="topbar">
-        <div className="brand">
-          <LogoMark />
-          <h1>Sat-Plus-Solver</h1>
-        </div>
-        <Breadcrumb
-          world={world}
-          focus={focus}
-          onWorld={() => setView({ kind: 'world' })}
-          onFactory={(id) => setView({ kind: 'factory', id })}
-        />
-        <div className="topbar-actions">
-          <button
-            type="button"
-            className="search-button"
-            onClick={() => setPalette(true)}
-            disabled={!catalog}
-            title="Quick search (Ctrl+K)"
-          >
-            <SearchIcon />
-            <span>Search</span>
-            <kbd>Ctrl K</kbd>
-          </button>
-          <SavePanel store={store} saves={saves} boot={boot} />
-          <ThemeSwitch />
-        </div>
-      </header>
-      <main className={focus !== undefined ? 'main factory-main' : 'main world-main'}>
-        {mismatch && (
-          <p className="warning banner" role="alert">
-            This plan was made with different game data ({mismatch.world}); the loaded data is{' '}
-            {mismatch.model}. Results may differ.
-          </p>
-        )}
-        {initError ? (
-          <p className="error" role="alert">
-            The solver failed to start: {initError}
-          </p>
-        ) : !catalog ? (
-          <p aria-busy="true" role="status" className="loading">
-            Loading the solver…
-          </p>
-        ) : (
-          <ErrorBoundary what="the app" recovery={<ExportWorld store={store} />}>
-            <Shell
-              client={client}
-              store={store}
-              layout={layout}
-              catalog={catalog}
-              focus={focus}
-              onView={setView}
-            />
-            {palette && (
-              <CommandPalette
+    <EscapeContext.Provider value={escape}>
+      <div className="app">
+        <header className="topbar">
+          <div className="brand">
+            <LogoMark />
+            <h1>Sat-Plus-Solver</h1>
+          </div>
+          <Breadcrumb
+            world={world}
+            focus={focus}
+            onWorld={() => setView(WORLD_VIEW)}
+            onFactory={(id) => setView(factoryView(id))}
+          />
+          <div className="topbar-actions">
+            <button
+              type="button"
+              className="search-button"
+              onClick={() => setPalette(true)}
+              disabled={!catalog}
+              title="Quick search (Ctrl+K)"
+            >
+              <SearchIcon />
+              <span>Search</span>
+              <kbd>Ctrl K</kbd>
+            </button>
+            <SavePanel store={store} saves={saves} boot={boot} />
+            <ThemeSwitch />
+          </div>
+        </header>
+        <main className={focus !== undefined ? 'main factory-main' : 'main world-main'}>
+          {mismatch && (
+            <p className="warning banner" role="alert">
+              This plan was made with different game data ({mismatch.world}); the loaded data is{' '}
+              {mismatch.model}. Results may differ.
+            </p>
+          )}
+          {initError ? (
+            <p className="error" role="alert">
+              The solver failed to start: {initError}
+            </p>
+          ) : !catalog ? (
+            <p aria-busy="true" role="status" className="loading">
+              Loading the solver…
+            </p>
+          ) : (
+            <ErrorBoundary what="the app" recovery={<ExportWorld store={store} />}>
+              <Shell
+                client={client}
                 store={store}
+                layout={layout}
                 catalog={catalog}
                 focus={focus}
                 onView={setView}
-                onClose={() => setPalette(false)}
               />
-            )}
-          </ErrorBoundary>
-        )}
-      </main>
-    </div>
+              {palette && (
+                <CommandPalette
+                  store={store}
+                  catalog={catalog}
+                  focus={focus}
+                  onView={setView}
+                  onClose={() => setPalette(false)}
+                />
+              )}
+            </ErrorBoundary>
+          )}
+        </main>
+      </div>
+    </EscapeContext.Provider>
   );
 }
 
@@ -247,7 +266,7 @@ function Shell(props: {
   const world = useStore(store, (s) => s.world);
   const { state, run } = useWorldPlan(client, world, focus);
   const [actionError, setActionError] = useState<string>();
-  const openFactory = useCallback((id: string) => onView({ kind: 'factory', id }), [onView]);
+  const openFactory = useCallback((id: string) => onView(factoryView(id)), [onView]);
   const sizePower = (factoryId: string) => {
     setActionError(undefined);
     run({ kind: 'size-power', factoryId }).then(
@@ -319,6 +338,8 @@ function FactoryView(props: {
   const toast = useToast();
   const [sidebarOpen, setSidebarOpen] = useSidebarOpen();
   const [selection, setSelection] = useState<Selection>();
+  // Esc clears the selection before it leaves the factory (A42).
+  useEscapeLayer(selection !== undefined, () => setSelection(undefined));
   const world = useStore(store, (s) => s.world);
   const actions = store.getState();
   const factory = world.factories.find((f) => f.id === factoryId);
@@ -450,7 +471,7 @@ function FactoryView(props: {
         <RecipeToggles store={store} scope={scope} recipes={catalog.recipes} />
       </details>
       <details className="card">
-        <summary>Unassigned imports ({factory.unassignedImports.length})</summary>
+        <summary>Imports ({factory.unassignedImports.length} unassigned)</summary>
         <ImportsEditor
           catalog={catalog.items}
           imports={factory.unassignedImports}

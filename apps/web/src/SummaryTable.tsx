@@ -5,7 +5,13 @@ import {
   recipeNodeId,
   targetNodeId,
 } from '@sps/graph';
-import { formatRate as fmt, recipeTable, type PlanSummary, type SummaryFlow } from '@sps/solver';
+import {
+  formatExact,
+  formatRate as fmt,
+  recipeTable,
+  type PlanSummary,
+  type SummaryFlow,
+} from '@sps/solver';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Selection } from './selection';
 import { itemIcon } from './icons/icons';
@@ -87,7 +93,7 @@ function Flows(props: { title: string; rows: SummaryFlow[]; id: (item: string) =
     <Table
       title={title}
       head={['Item', 'Per min']}
-      rows={rows.map((r) => [r.name, fmt(r.rate)])}
+      rows={rows.map((r) => [r.name, formatExact(r.rate)])}
       keys={rows.map((r) => id(r.item))}
       icons={rows.map((r) => itemIcon(r.item))}
       {...pick}
@@ -97,8 +103,25 @@ function Flows(props: { title: string; rows: SummaryFlow[]; id: (item: string) =
 
 type Sort = { col: number; dir: 'ascending' | 'descending' } | undefined;
 
-/** A number cell's value for sorting ("1,234.5", "50%", "" → NaN). */
-const numeric = (v: string) => Number(v.replace(/[,%]/g, '').trim() || NaN);
+/** A number cell's value for sorting ("1,234.5", "50%", "2.3334 (2 1/3)", "" → NaN). */
+const numeric = (v: string) =>
+  Number(
+    v
+      .replace(/ \(.*\)$/, '')
+      .replace(/[,%]/g, '')
+      .trim() || NaN,
+  );
+
+/** A number cell, its exact fraction (A41) after it in a quieter style. */
+function NumberText({ text }: { text: string }) {
+  const m = / \((.+)\)$/.exec(text);
+  if (!m) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, m.index)} <span className="exact">({m[1]})</span>
+    </>
+  );
+}
 
 function Table(
   props: {
@@ -187,7 +210,7 @@ function Table(
               {c === 0 && icon && (
                 <img className="cell-icon" src={icon} alt="" width={20} height={20} />
               )}
-              {v}
+              {c < textColumns ? v : <NumberText text={v} />}
             </td>
           ));
           if (key === undefined || !onSelect) return <tr key={k}>{cells}</tr>;

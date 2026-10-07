@@ -17,7 +17,8 @@
     "build:data": "tsx tooling/build-data.ts",
     "solve": "tsx tooling/solve.ts",
     "e2e": "pnpm --filter @sps/web e2e",
-    "world": "tsx tooling/world.ts"
+    "world": "tsx tooling/world.ts",
+    "layout-score": "tsx tooling/layout-score.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

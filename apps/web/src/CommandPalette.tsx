@@ -4,7 +4,7 @@
  */
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useStore } from 'zustand';
-import type { View } from './App';
+import { factoryView, WORLD_VIEW, type View } from './viewPath';
 import { itemIcon } from './icons/icons';
 import type { Catalog } from './solver/protocol';
 import type { WorldStore } from './store';
@@ -48,7 +48,7 @@ export function CommandPalette(props: {
         id: 'world',
         label: 'World',
         hint: 'Go to',
-        run: () => onView({ kind: 'world' }),
+        run: () => onView(WORLD_VIEW),
       });
     for (const f of world.factories)
       if (f.id !== focus && has(f.name))
@@ -56,14 +56,14 @@ export function CommandPalette(props: {
           id: `factory:${f.id}`,
           label: f.name,
           hint: 'Open factory',
-          run: () => onView({ kind: 'factory', id: f.id }),
+          run: () => onView(factoryView(f.id)),
         });
     if (has('New factory'))
       out.push({
         id: 'new-factory',
         label: 'New factory',
         hint: 'Create',
-        run: () => onView({ kind: 'factory', id: store.getState().addFactory('') }),
+        run: () => onView(factoryView(store.getState().addFactory(''))),
       });
     const factory = world.factories.find((f) => f.id === focus);
     if (factory && q && !factory.manual?.enabled) {

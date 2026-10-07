@@ -1,6 +1,6 @@
 /**
  * UI polish (A38): theme switch, quick search, settings sidebar, sortable
- * tables, the summary strip and item icons.
+ * tables, the summary strip and item icons; number format (A41) and Esc (A42).
  */
 import { expect, test } from './fixtures';
 import { addFactory, openFactory } from './helpers';
@@ -136,4 +136,46 @@ test('avoid fluid byproducts is on, and its fix turns it off for the factory (A3
   await page.getByRole('button', { name: 'Allow leftover fluids in this factory' }).click();
   await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
   await expect(avoid).not.toBeChecked();
+});
+
+test('counts show 1 to 4 decimals rounded up, with the exact fraction (A41)', async ({ page }) => {
+  await openFactory(page);
+  await page.getByLabel('Per minute').fill('10');
+  await page.getByLabel('Target item').fill('Iron Rod');
+  await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
+  const rod = page.getByRole('table', { name: 'Recipes' }).getByRole('row', { name: /^Iron Rod / });
+  await expect(rod.getByRole('cell').nth(2)).toHaveText('0.6667 (2/3)');
+  await expect(page.locator('summary', { hasText: 'Imports' })).toHaveText(
+    'Imports (0 unassigned)',
+  );
+});
+
+test('Esc leaves a field, then clears the selection, then backs out to the world (A42)', async ({
+  page,
+}) => {
+  await openFactory(page);
+  const factory = page.getByTestId('factory-view');
+  const item = page.getByLabel('Target item');
+  await page.getByLabel('Per minute').fill('60');
+  await item.fill('Iron Plate');
+  await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
+
+  await item.focus();
+  await page.keyboard.press('Escape');
+  await expect(item).not.toBeFocused();
+  await expect(factory).toBeVisible();
+
+  const row = page.locator('tr[data-node="recipe:iron-plate"]');
+  await row.click();
+  await expect(row).toHaveAttribute('aria-selected', 'true');
+  await page.keyboard.press('Escape');
+  await expect(row).toHaveAttribute('aria-selected', 'false');
+  await expect(factory).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(factory).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText('World');
+  // At the world, Esc does nothing more.
+  await page.keyboard.press('Escape');
+  await expect(factory).toHaveCount(0);
 });

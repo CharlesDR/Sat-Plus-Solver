@@ -64,11 +64,13 @@ const edge = (source: string, target: string, item: string, rate: number) => ({
   rate,
 });
 
-test('rateText: 3 decimals, commas between thousands', () => {
-  expect(rateText(60)).toBe('60');
-  expect(rateText(1555.5556)).toBe('1,555.556');
-  expect(rateText(-12345)).toBe('-12,345');
-  expect(rateText(0.0004)).toBe('0.000400');
+test('rateText: 1 to 4 decimals rounded up, commas between thousands (A41)', () => {
+  expect(rateText(60)).toBe('60.0');
+  expect(rateText(1555.5556)).toBe('1,555.5556');
+  expect(rateText(-12345)).toBe('-12,345.0');
+  expect(rateText(0.0004)).toBe('0.0004');
+  expect(rateText(1 / 3)).toBe('0.3334');
+  expect(rateText(60.00000001)).toBe('60.0');
 });
 
 describe('layoutFactoryGraph', () => {
@@ -92,7 +94,7 @@ describe('layoutFactoryGraph', () => {
     expect(rec!.x + rec!.width).toBeLessThan(tgt!.x);
     for (const e of l.edges) {
       expect(e.points.length).toBeGreaterThanOrEqual(2);
-      expect(e.label.text).toBe(`60 ${e.itemName}`);
+      expect(e.label.text).toBe(`60.0 ${e.itemName}`);
       expect(e.label.width).toBeGreaterThan(0);
     }
     expect(overlaps(l)).toEqual([]);
@@ -186,13 +188,13 @@ describe('layoutFactoryGraph', () => {
     expect(rec.text).toEqual({
       // 18 characters a line, so hexagons stay wide and short (A40).
       title: ['Siterite Ore', '(impure) → Iron', 'Ingot with Water'],
-      details: ['2 × Flexible Blast', 'Furnace'],
+      details: ['2.0 × Flexible', 'Blast Furnace'],
     });
     expect(rec.height).toBeGreaterThan(l.nodes[0]!.height * 2);
     const label = l.edges[1]!.label;
-    expect(label.text).toBe('60\nReinforced\nIron Plate');
+    expect(label.text).toBe('60.0\nReinforced\nIron Plate');
     expect(label.height).toBeGreaterThan(l.edges[0]!.label.height * 2);
-    expect(l.edges[0]!.label.text).toBe('60 Ore');
+    expect(l.edges[0]!.label.text).toBe('60.0 Ore');
     expect(overlaps(l)).toEqual([]);
   });
 

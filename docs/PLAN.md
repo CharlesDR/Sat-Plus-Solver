@@ -136,6 +136,18 @@ References like §4.3 point into `ARCHITECTURE.md`.
 - **Import.** "Import from Modeler" reads a `.sfmd` and makes one factory per top-level Outpost (or one factory when the save has none). Each factory starts in manual mode (M13, §4.7): its recipe nodes and `Max` counts become the frozen plan, so it is kept exactly as built, and its net outputs become its targets, so switching it to Solver re-solves for the same products. Our belts are wired automatically (A24), so Modeler's own wiring, splitters, mergers, storage, sinks and Dimensional Depots are not kept as nodes. A node with no `Max` (unlimited in Modeler) has no count we can freeze. Every node we can't map (an unknown name, a part or recipe missing from our data, a node without a count, a Modeler-only setting such as clock speed or Somersloops) is listed in an import report. Nothing is dropped silently.
 - **Acceptance:** Exporting a solved or manual factory and importing the file back gives the same recipes and machine counts, exactly. A sample `.sfmd` fixture imports with the expected factories, counts and report entries. An exported multi-factory world opens in Modeler with every node and connection in place (checked by Charles in Modeler, since it is a closed Windows app). A malformed file shows an error and leaves the world unchanged.
 
+### Graph readability track (G1–G5)
+
+Charles, 2026-10-07: the flowchart and number-format ideas are built in five steps, each one PR, in dependency order (G1 foundations, G2 ports and routing, G3 edge and node visuals, G4 layout tuning, G5 areas). Each step adds its entry here when it is built.
+
+#### G1 — Foundations
+
+- **Number format (A41):** machine counts and rates show 1 to 4 decimals, rounded up to the next 0.0001; the plan tables add the exact mixed fraction where 4 decimals can't show the value ("2.3334 (2 1/3)").
+- **Esc (A42):** Esc leaves a text field, then clears the selection, then backs out of the factory to the world. The view is a path, ready for nested factories.
+- **Rename:** the factory settings section "Unassigned imports (n)" is now "Imports (n unassigned)".
+- **Layout score (A43):** crossings, bends, edge length, area and smallest gap on three fixed plans, checked against a baseline, so later graph steps can show they improve the layout.
+- **Acceptance:** 1/3 shows as 0.3334 and a 2/3 machine count as "0.6667 (2/3)" in the CLI and the web table alike. Esc from a focused field, then a selected row, then the factory view reaches the world in three presses. The layout score test passes on `main` and fails if a layout change adds crossings or crowds two boxes below 6 px.
+
 ---
 
 **Review checkpoints:** after M1 (miner and fracking numbers in `report.md`), after M3 (try the slice), and after M5 (world semantics, using the CLI on a sample of your own save layout).
