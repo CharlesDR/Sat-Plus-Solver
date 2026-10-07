@@ -31,20 +31,22 @@ export {
   nodeLines,
   nodeText,
   overlaps,
+  bandNodes,
+  isRaw,
   rateText,
-  sourcePorts,
   wrapText,
 } from './layout';
 export { gap, layoutScore, type LayoutScore } from './score';
 export type {
   Box,
+  Bundle,
   FactoryLayout,
   LayoutEngine,
   LayoutOptions,
+  NodePort,
   NodeText,
   PlacedEdge,
   PlacedNode,
-  Port,
 } from './layout';
 export { factoryNodeId, groupNodeId, worldGraph } from './world';
 export type {

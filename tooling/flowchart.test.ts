@@ -103,6 +103,13 @@ describe('factory flowchart on the SF+ model', () => {
     const layout = await layoutFactoryGraph(g, elk);
     expect(performance.now() - t0).toBeLessThan(2000);
     expect(overlaps(layout)).toEqual([]);
+    // Every line is drawn square: no slanted segment (A46).
+    for (const e of layout.edges)
+      for (let k = 1; k < e.points.length; k++) {
+        const a = e.points[k - 1]!;
+        const b = e.points[k]!;
+        expect(Math.min(Math.abs(a.x - b.x), Math.abs(a.y - b.y))).toBeLessThan(1e-6);
+      }
   }, 60_000);
 
   test('heater edges follow the heater rule: Steam 20/min burns a whole heater (A17)', async () => {

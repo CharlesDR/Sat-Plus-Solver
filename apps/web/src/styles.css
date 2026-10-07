@@ -1486,6 +1486,16 @@ section.diagnostics li p {
   color: var(--accent);
   font-weight: 600;
 }
+/* A bundle's trunk carries the total (A46). */
+.flow-edge-label.trunk {
+  font-weight: 600;
+}
+.flow-split {
+  fill: color-mix(in srgb, var(--muted) 70%, transparent);
+}
+.flow-split.active {
+  fill: var(--accent);
+}
 
 /* ---------- World view ---------- */
 .world > .toolbar {

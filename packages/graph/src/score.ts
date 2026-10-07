@@ -8,13 +8,13 @@ import type { Box, FactoryLayout } from './layout';
 export interface LayoutScore {
   /** Places where two edges cross (a horizontal and a vertical segment). */
   crossings: number;
-  /** Corners along all edges. */
+  /** Corners along all edges, each drawn corner once. */
   bends: number;
-  /** Total routed edge length, px. */
+  /** Total routed edge length, px, each drawn segment once. */
   edgeLength: number;
   /** Width × height of the whole drawing, px². */
   area: number;
-  /** Smallest gap between two boxes (nodes and edge labels), px. */
+  /** Smallest gap between two boxes (nodes, edge labels and trunk labels), px. */
   minGap: number;
 }
 
@@ -40,13 +40,28 @@ export function gap(a: Box, b: Box): number {
 
 const round1 = (v: number) => Math.round(v * 10) / 10;
 
+/**
+ * A line drawn once counts once: lines that share a stretch (a bundle's
+ * trunk, A46) share its segments and corners.
+ */
 export function layoutScore(layout: FactoryLayout): LayoutScore {
-  const segments = layout.edges.map((e) =>
-    e.points.slice(1).map((p, k): Segment => {
+  const key = (...v: number[]) => v.map((n) => n.toFixed(3)).join(',');
+  const seen = new Set<string>();
+  const corners = new Set<string>();
+  const segments = layout.edges.map((e) => {
+    e.points.slice(1, -1).forEach((p, k) => {
+      const a = e.points[k]!;
+      const b = e.points[k + 2]!;
+      corners.add(key(a.x, a.y, p.x, p.y, b.x, b.y));
+    });
+    return e.points.slice(1).flatMap((p, k): Segment[] => {
       const q = e.points[k]!;
-      return { x1: q.x, y1: q.y, x2: p.x, y2: p.y };
-    }),
-  );
+      const id = key(q.x, q.y, p.x, p.y);
+      if (seen.has(id)) return [];
+      seen.add(id);
+      return [{ x1: q.x, y1: q.y, x2: p.x, y2: p.y }];
+    });
+  });
   let crossings = 0;
   for (let i = 0; i < segments.length; i++)
     for (let j = i + 1; j < segments.length; j++)
@@ -55,11 +70,15 @@ export function layoutScore(layout: FactoryLayout): LayoutScore {
           if (isHorizontal(a) && isVertical(b) && crosses(a, b)) crossings++;
           else if (isVertical(a) && isHorizontal(b) && crosses(b, a)) crossings++;
         }
-  const bends = layout.edges.reduce((s, e) => s + Math.max(0, e.points.length - 2), 0);
+  const bends = corners.size;
   const edgeLength = segments
     .flat()
     .reduce((s, g) => s + Math.abs(g.x2 - g.x1) + Math.abs(g.y2 - g.y1), 0);
-  const boxes: Box[] = [...layout.nodes, ...layout.edges.map((e) => e.label)];
+  const boxes: Box[] = [
+    ...layout.nodes,
+    ...layout.edges.map((e) => e.label),
+    ...layout.bundles.map((b) => b.label),
+  ];
   let minGap = Infinity;
   for (let i = 0; i < boxes.length; i++)
     for (let j = i + 1; j < boxes.length; j++) minGap = Math.min(minGap, gap(boxes[i]!, boxes[j]!));

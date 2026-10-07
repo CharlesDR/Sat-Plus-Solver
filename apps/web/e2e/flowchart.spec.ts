@@ -46,3 +46,29 @@ test('Iron Plate 60/min: flowchart nodes, edge rates and two-way selection', asy
   await page.keyboard.press('Enter');
   await expect(node(page, 'target:iron-plate')).not.toHaveClass(/selected/);
 });
+
+test('Reinforced Iron Plate 5/min: raw inputs on top, a fan-out drawn as one trunk (A46)', async ({
+  page,
+}) => {
+  await openFactory(page);
+  await page.getByLabel('Per minute').fill('5');
+  await page.getByLabel('Target item').fill('Reinforced Iron Plate');
+  await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
+  const chart = page.getByTestId('flowchart');
+  await chart.getByRole('button', { name: 'Fit the whole plan' }).click();
+
+  // Water sits above every recipe that is not a raw input.
+  const top = async (id: string) => (await node(page, id).boundingBox())!.y;
+  const water = await top('recipe:water');
+  for (const id of ['recipe:iron-plate', 'recipe:cast-iron-ingot', 'recipe:screws'])
+    expect(water).toBeLessThan(await top(id));
+
+  // Iron Ingot feeds Iron Plate and Iron Rod: one trunk with the total,
+  // each branch with its rate only.
+  await expect(chart.locator('.flow-edge-label.trunk', { hasText: '30.0 Iron Ingot' })).toHaveCount(
+    1,
+  );
+  await expect(chart.locator('.flow-edge-label:not(.trunk)', { hasText: /^15\.0$/ })).toHaveCount(
+    2,
+  );
+});
