@@ -167,9 +167,19 @@ Charles, 2026-10-07: the flowchart and number-format ideas are built in five ste
 #### G2 — Ports and routing
 
 - **Ports (A46):** one port per item on the hexagon's slanted sides; the main product at the right vertex, other outputs above and below it. ELK picks the port order with the fewest crossings, then the ports are fixed in that order.
-- **Raw-input band (A46):** imports, missing inputs, miners and other resource nodes, and recipes that take nothing (Water) sit along the top when they feed recipes at more than one stage and the chart does not feed them; one feeding a single stage sits in the chart. Their lines drop straight down beside each recipe that needs them, labelled with the rate beside the recipe. Imports are no longer pinned to the left.
+- **Raw-input band (A46):** imports, missing inputs, miners and other resource nodes, and recipes that take nothing (Water) sit along the top when they feed recipes at more than one stage and the chart does not feed them; one feeding a single stage sits in the chart. Their lines drop straight down beside each recipe that needs them, labelled with the rate beside the recipe. Imports are no longer pinned to the left. Removed in G3 (A47).
 - **Fan-out bundles (A46):** an output feeding several recipes draws one trunk labelled with the total, then splits; each branch shows its rate.
 - **Acceptance:** on Reinforced Iron Plate 5/min, Water sits above every recipe and Iron Ingot shows one "30.0 Iron Ingot" trunk with two "15.0" branches. Every route is square and nothing overlaps on the 151-node plan, which still lays out in under 2 s. The layout score test passes against the baseline Charles approved for G2.
+
+#### G3 — Edge and node visuals
+
+- **No band (A47):** Charles reverted G2's raw-input band; raw inputs sit in the chart, and one used at more than one stage of the plan is marked with a rose outline and an "N stages" badge.
+- **Colour by form (A48):** solid, fluid and gas lines each have their own colour, in light and dark themes, with a legend.
+- **Line weight and byproducts (A48):** thicker lines for bigger flows on a log scale; byproduct lines dashed, lighter and behind.
+- **Labels (A48):** icon and rate on one line, just before the port the line enters; the item's name on hover.
+- **Output tray (A48):** every node lists what it makes, one row per item, and each line leaves from its row.
+- **Focus and tooltip (A48):** hovering or selecting a node dims all but its neighbourhood; clicking a node opens its exact values, which Esc closes before the selection.
+- **Acceptance:** on Reinforced Iron Plate 5/min, Water is marked "2 stages", the Iron Ingot trunk reads 30.0 with two 15.0 branches, and every label names its item on hover. Hovering Screws dims Water. Clicking Water opens its exact values with a fraction; the first Esc closes them and keeps the selection, the second clears it. The layout score test passes, with every scored number at or below G2's baseline.
 
 ---
 

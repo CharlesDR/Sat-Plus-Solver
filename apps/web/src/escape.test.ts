@@ -14,6 +14,16 @@ describe('Esc stack (A42)', () => {
     expect(closed).toEqual(['tooltip', 'selection']);
   });
 
+  test('a layer opened above closes before plain layers opened after it (A48)', () => {
+    const closed: string[] = [];
+    const stack = escapeStack();
+    stack.push(() => closed.push('tooltip'), true);
+    stack.push(() => closed.push('selection'));
+    stack.pop();
+    stack.pop();
+    expect(closed).toEqual(['tooltip', 'selection']);
+  });
+
   test('a layer removed before Esc is not closed', () => {
     const closed: string[] = [];
     const stack = escapeStack();

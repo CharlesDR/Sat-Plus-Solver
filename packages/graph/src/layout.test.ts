@@ -2,10 +2,11 @@ import ELK from 'elkjs/lib/elk.bundled.js';
 import { describe, expect, test } from 'vitest';
 import type { FactoryGraph, FlowNode } from './factory';
 import {
-  bandNodes,
   ICON_GAP,
+  LABEL_ICON_GAP,
   isRaw,
   layoutFactoryGraph,
+  multiStageInputs,
   nodeText,
   orthogonal,
   overlaps,
@@ -98,23 +99,26 @@ describe('layoutFactoryGraph', () => {
     expect(overlaps(iconed)).toEqual([]);
   });
 
-  test('left to right, with routed edges and labels; a raw input used at one stage sits in the chart', async () => {
+  test('left to right, each line labelled with its rate just before the port it enters (A48)', async () => {
     const l = await layoutFactoryGraph(graph, new ELK());
     const [imp, rec, tgt] = l.nodes;
-    // The import feeds one stage, so it is not in the band (A46).
-    expect(imp!.band).toBe(false);
     expect(imp!.x + imp!.width).toBeLessThan(rec!.x);
     expect(rec!.x + rec!.width).toBeLessThan(tgt!.x);
     for (const e of l.edges) {
+      const t = l.nodes.find((n) => n.id === e.target)!;
+      const end = e.points.at(-1)!;
       expect(e.points.length).toBeGreaterThanOrEqual(2);
-      expect(e.label.text).toBe(`60.0 ${e.itemName}`);
-      expect(e.label.width).toBeGreaterThan(0);
+      expect(e.label.text).toBe('60.0');
+      // Left of the node it enters, clear of it, and just above the line's end.
+      expect(e.label.x + e.label.width).toBeCloseTo(t.x - 6, 6);
+      expect(e.label.y + e.label.height).toBeCloseTo(end.y - 2, 6);
+      expect(end.x - e.label.x).toBeLessThan(e.label.width + 6 + t.slant + 1);
     }
     expect(overlaps(l)).toEqual([]);
     expect(l.width).toBeGreaterThan(0);
   });
 
-  test('one port per item on the slanted sides, the main product at the right vertex (A46)', async () => {
+  test('inputs on the slanted side; outputs on the tray, the main product in the middle (A46, A48)', async () => {
     const g: FactoryGraph = {
       nodes: (
         [
@@ -157,7 +161,7 @@ describe('layoutFactoryGraph', () => {
         edge('recipe:ingot', 'byproduct:slag', 'slag', 5),
       ],
     };
-    const l = await layoutFactoryGraph(g, new ELK());
+    const l = await layoutFactoryGraph(g, new ELK(), { labelIconSize: 16 });
     const node = (id: string) => l.nodes.find((n) => n.id === id)!;
     const near = (p: { x: number; y: number }, q: { x: number; y: number }) => {
       expect(p.x).toBeCloseTo(q.x, 6);
@@ -167,7 +171,8 @@ describe('layoutFactoryGraph', () => {
     expect(rec.slant).toBe(Math.round((rec.height * Math.tan(Math.PI / 6)) / 2));
     const outs = rec.ports.filter((p) => p.dir === 'out');
     expect(outs.map((p) => p.item).sort()).toEqual(['gas', 'ingot', 'slag']);
-    // The main product at the right vertex, one byproduct above and one below.
+    // The main product level with the hexagon's right vertex, one byproduct
+    // above and one below, all on the tray's right edge.
     near(
       outs.find((p) => p.item === 'ingot')!,
       { x: rec.width, y: rec.height / 2 },
@@ -175,14 +180,19 @@ describe('layoutFactoryGraph', () => {
     const ys = outs.map((p) => p.y).sort((a, b) => a - b);
     expect(ys[0]).toBeLessThan(rec.height / 2);
     expect(ys[2]).toBeGreaterThan(rec.height / 2);
-    for (const p of rec.ports) {
+    for (const p of outs) expect(p.x).toBe(rec.width);
+    // One tray row per output, centred on its port, wide enough for its rate.
+    expect(rec.rows.map((r) => [r.item, r.y])).toEqual(
+      rec.outputs.map((f) => [f.item, outs.find((p) => p.item === f.item)!.y]),
+    );
+    expect(rec.tray).toBe(2 * 4 + 16 + 3 + '60.0'.length * 8.5);
+    for (const p of rec.ports.filter((q) => q.dir === 'in')) {
       // On the slanted side: as far in from the box edge as the slant reaches at that height.
       const inset = (rec.slant * Math.abs(p.y - rec.height / 2)) / (rec.height / 2);
-      expect(p.dir === 'in' ? p.x : rec.width - p.x).toBeCloseTo(inset, 6);
+      expect(p.x).toBeCloseTo(inset, 6);
     }
     // Every line starts at its source's port for its item and ends at its target's.
     for (const e of l.edges) {
-      if (node(e.source).band) continue;
       const s = node(e.source);
       const t = node(e.target);
       const from = s.ports.find((p) => p.dir === 'out' && p.item === e.item)!;
@@ -193,71 +203,33 @@ describe('layoutFactoryGraph', () => {
     expect(overlaps(l)).toEqual([]);
   });
 
-  test('a raw input drops a straight line beside the column of each recipe it feeds (A46)', async () => {
-    const consumer = (
-      id: string,
-      rate: number,
-      extra: { item: string; rate: number }[] = [],
-    ): FlowNode => ({
-      id: `recipe:${id}`,
-      kind: 'recipe',
+  test('labels of lines entering one port stack above it (A48)', async () => {
+    const source = (id: string, rate: number): FlowNode => ({
+      id: `import:${id}`,
+      kind: 'import',
       label: id,
-      recipe: id,
-      machine: 'Smelter',
-      machines: 1,
-      machinesCeil: 1,
-      main: id,
-      inputs: [{ item: 'ore', rate }, ...extra],
-      outputs: [{ item: id, rate }],
-    });
-    const target = (id: string, rate: number): FlowNode => ({
-      id: `target:${id}`,
-      kind: 'target',
-      label: id,
-      item: id,
+      item: 'ore',
       rate,
-      inputs: [{ item: id, rate }],
-      outputs: [],
+      inputs: [],
+      outputs: [{ item: 'ore', rate }],
     });
     const g: FactoryGraph = {
-      nodes: [
-        graph.nodes[0]!,
-        // Ore feeds two stages: recipe a, and recipe b, which takes a's output.
-        consumer('a', 20),
-        consumer('b', 40, [{ item: 'a', rate: 20 }]),
-        target('b', 40),
-      ],
+      nodes: [source('a', 20), source('b', 40), ...graph.nodes.slice(1)],
       edges: [
-        edge('import:ore', 'recipe:a', 'ore', 20),
-        edge('import:ore', 'recipe:b', 'ore', 40),
-        edge('recipe:a', 'recipe:b', 'a', 20),
-        edge('recipe:b', 'target:b', 'b', 40),
+        edge('import:a', 'recipe:ingot', 'ore', 20),
+        edge('import:b', 'recipe:ingot', 'ore', 40),
+        graph.edges[1]!,
       ],
     };
     const l = await layoutFactoryGraph(g, new ELK());
-    const node = (id: string) => l.nodes.find((n) => n.id === id)!;
-    const imp = node('import:ore');
-    expect(imp.band).toBe(true);
-    for (const n of l.nodes) if (!n.band) expect(imp.y + imp.height).toBeLessThan(n.y);
-    for (const id of ['recipe:a', 'recipe:b']) {
-      const e = l.edges.find((x) => x.target === id)!;
-      const t = node(id);
-      // From the band node's bottom, along the bus, down, then in to the port.
-      expect(e.points[0]!.y).toBeCloseTo(imp.y + imp.height, 6);
-      const down = e.points.at(-3)!;
-      const turn = e.points.at(-2)!;
-      expect(turn.x).toBe(down.x);
-      expect(turn.x).toBeLessThan(t.x);
-      expect(turn.y).toBeCloseTo(e.points.at(-1)!.y, 6);
-      // The line comes down left of every node in the recipe's column.
-      for (const n of l.nodes)
-        if (!n.band && n.x < t.x + t.width && t.x < n.x + n.width) expect(turn.x).toBeLessThan(n.x);
-      // Its label sits beside the recipe, above the line's end.
-      // The band node names the item; the line's label is its rate.
-      expect(e.label.text).toBe(rateText(e.rate));
-      expect(e.label.x + e.label.width).toBeLessThanOrEqual(t.x - 6);
-      expect(e.label.y + e.label.height).toBeLessThan(turn.y);
-    }
+    const rec = l.nodes.find((n) => n.id === 'recipe:ingot')!;
+    const port = rec.ports.find((p) => p.dir === 'in')!;
+    const [lower, upper] = l.edges
+      .filter((e) => e.target === rec.id)
+      .map((e) => e.label)
+      .sort((a, b) => b.y - a.y);
+    expect(lower!.y + lower!.height).toBeCloseTo(rec.y + port.y - 2, 6);
+    expect(upper!.y + upper!.height).toBeLessThanOrEqual(lower!.y - 6);
     expect(overlaps(l)).toEqual([]);
   });
 
@@ -283,7 +255,10 @@ describe('layoutFactoryGraph', () => {
     expect(l.bundles).toHaveLength(1);
     const b = l.bundles[0]!;
     expect(b).toMatchObject({ source: 'recipe:ingot', item: 'ingot', rate: 60 });
-    expect(b.label.text).toBe('60.0 Ingot');
+    expect(b.label.text).toBe('60.0');
+    // The total sits just before the split point, above the trunk.
+    expect(b.label.x + b.label.width).toBeLessThanOrEqual(b.split.x);
+    expect(b.label.y + b.label.height).toBeCloseTo(b.split.y - 2, 6);
     const branches = l.edges.filter((e) => e.source === 'recipe:ingot');
     expect(branches.map((e) => e.label.text).sort()).toEqual(['20.0', '40.0']);
     // Both branches run through the split point.
@@ -315,36 +290,7 @@ describe('layoutFactoryGraph', () => {
     expect(isRaw(n('byproduct', 1))).toBe(false);
   });
 
-  test('bandNodes: a raw input fed from the chart is drawn in the chart, so no line rises (A46)', () => {
-    const n = (id: string, kind: FlowNode['kind'], inputs: string[]): FlowNode => ({
-      id,
-      kind,
-      label: id,
-      inputs: inputs.map((item) => ({ item, rate: 1 })),
-      outputs: [],
-    });
-    const g: FactoryGraph = {
-      nodes: [
-        n('water', 'recipe', []),
-        n('miner-wet', 'resource', ['water']),
-        n('acid', 'recipe', ['water']),
-        n('miner-acid', 'resource', ['acid']),
-        n('smelter', 'recipe', ['ore', 'water', 'acid-ore']),
-      ],
-      edges: [
-        edge('water', 'miner-wet', 'water', 1),
-        edge('water', 'acid', 'water', 1),
-        edge('water', 'smelter', 'water', 1),
-        edge('miner-wet', 'acid', 'ore', 1),
-        edge('miner-wet', 'smelter', 'ore', 1),
-        edge('acid', 'miner-acid', 'acid', 1),
-        edge('miner-acid', 'smelter', 'acid-ore', 1),
-      ],
-    };
-    expect([...bandNodes(g)].sort()).toEqual(['miner-wet', 'water']);
-  });
-
-  test('bandNodes: only raw inputs used at more than one stage go in the band (A46)', () => {
+  test('multiStageInputs: raw inputs used at more than one stage, with how many (A47)', () => {
     const n = (id: string, kind: FlowNode['kind'], inputs: string[]): FlowNode => ({
       id,
       kind,
@@ -373,7 +319,7 @@ describe('layoutFactoryGraph', () => {
         edge('plate', 'radiator', 'plate', 1),
       ],
     };
-    expect([...bandNodes(g)]).toEqual(['water']);
+    expect(multiStageInputs(g)).toEqual(new Map([['water', 2]]));
   });
 
   test('orthogonal: a route with a slanted segment is redrawn square', () => {
@@ -398,11 +344,10 @@ describe('layoutFactoryGraph', () => {
     expect(b).toEqual(a);
   });
 
-  test('long node text and edge labels wrap, and taller boxes fit them', async () => {
+  test('long node text wraps, and taller boxes fit it', async () => {
     const g = JSON.parse(JSON.stringify(graph)) as FactoryGraph;
     g.nodes[1]!.label = 'Siterite Ore (impure) → Iron Ingot with Water';
     g.nodes[1]!.machine = 'Flexible Blast Furnace';
-    g.edges[1]!.itemName = 'Reinforced Iron Plate';
     const l = await layoutFactoryGraph(g, new ELK());
     const rec = l.nodes[1]!;
     expect(rec.text).toEqual({
@@ -411,20 +356,20 @@ describe('layoutFactoryGraph', () => {
       details: ['2.0 × Flexible', 'Blast Furnace'],
     });
     expect(rec.height).toBeGreaterThan(l.nodes[0]!.height * 2);
-    const label = l.edges[1]!.label;
-    expect(label.text).toBe('60.0\nReinforced\nIron Plate');
-    expect(label.height).toBeGreaterThan(l.edges[0]!.label.height * 2);
-    // The import feeds one stage, so it sits in the chart and its line names the item (A46).
-    expect(l.edges[0]!.label.text).toBe('60.0 Ore');
     expect(overlaps(l)).toEqual([]);
   });
 
-  test('custom edge labels size the label boxes', async () => {
-    const l = await layoutFactoryGraph(graph, new ELK(), { edgeLabel: (e) => e.item });
-    expect(l.edges.map((e) => e.label.text)).toEqual(['ore', 'ingot']);
-    expect(l.edges[1]!.label.width).toBeLessThan(
-      (await layoutFactoryGraph(graph, new ELK())).edges[1]!.label.width,
-    );
+  test('a label icon widens every line label and tray row by its size and gap (A48)', async () => {
+    const plain = await layoutFactoryGraph(graph, new ELK());
+    const iconed = await layoutFactoryGraph(graph, new ELK(), { labelIconSize: 16 });
+    plain.edges.forEach((e, k) => {
+      expect(iconed.edges[k]!.label.width).toBe(e.label.width + 16 + LABEL_ICON_GAP);
+      expect(iconed.edges[k]!.label.text).toBe(e.label.text);
+    });
+    plain.nodes.forEach((n, k) => {
+      expect(iconed.nodes[k]!.tray).toBe(n.tray ? n.tray + 16 + LABEL_ICON_GAP : 0);
+    });
+    expect(overlaps(iconed)).toEqual([]);
   });
 
   test('wrapText breaks between words; a long word keeps its own line', () => {
@@ -444,7 +389,8 @@ describe('layoutFactoryGraph', () => {
       ...box,
       text: { title: ['Ore'], details: [] },
       slant: 0,
-      band: false,
+      tray: 0,
+      rows: [],
       ports: [],
     };
     const layout: FactoryLayout = {

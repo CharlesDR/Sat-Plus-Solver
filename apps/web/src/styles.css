@@ -36,6 +36,11 @@
   --kind-import: #6b7280;
   --kind-target: #b7791f;
   --kind-byproduct: #b42318;
+  /* Flowchart line colours by form, and the multi-stage input mark (A47, A48). */
+  --form-solid: #6b7280;
+  --form-fluid: #0e8aa0;
+  --form-gas: #8b5cf6;
+  --flow-multi: #c0267f;
   --radius: 10px;
   --radius-sm: 7px;
   --shadow-sm: 0 1px 2px rgb(16 24 40 / 6%), 0 1px 3px rgb(16 24 40 / 8%);
@@ -87,6 +92,10 @@
     --kind-import: #9aa3b0;
     --kind-target: #f0c060;
     --kind-byproduct: #ff8a80;
+    --form-solid: #9aa3b0;
+    --form-fluid: #4cc9dc;
+    --form-gas: #b79cff;
+    --flow-multi: #f472b6;
     --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
     --shadow-md: 0 4px 10px -2px rgb(0 0 0 / 50%);
     --shadow-lg: 0 16px 36px -8px rgb(0 0 0 / 70%);
@@ -124,6 +133,10 @@
   --kind-import: #9aa3b0;
   --kind-target: #f0c060;
   --kind-byproduct: #ff8a80;
+  --form-solid: #9aa3b0;
+  --form-fluid: #4cc9dc;
+  --form-gas: #b79cff;
+  --flow-multi: #f472b6;
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
   --shadow-md: 0 4px 10px -2px rgb(0 0 0 / 50%);
   --shadow-lg: 0 16px 36px -8px rgb(0 0 0 / 70%);
@@ -1465,22 +1478,45 @@ section.diagnostics li p {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
+/* Lines take their item's form colour (A48); the focus takes the accent. */
 .flow-edge {
-  stroke: color-mix(in srgb, var(--muted) 70%, transparent) !important;
+  --form: var(--form-solid);
+  stroke: var(--form) !important;
+  transition: opacity 120ms;
+}
+.form-fluid {
+  --form: var(--form-fluid);
+}
+.form-gas {
+  --form: var(--form-gas);
+}
+/* Byproducts and other secondary outputs: dashed and lighter, drawn behind. */
+.flow-edge.secondary {
+  stroke-dasharray: 6 4;
+  opacity: 0.75;
 }
 .flow-edge.active {
   stroke: var(--accent) !important;
+  opacity: 1;
+}
+.flow-edge.dim,
+.flow-edge-label.dim,
+.flow-split.dim,
+.flow-node.dim {
+  opacity: 0.18;
 }
 .flow-edge-label {
   position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 3px;
   font-size: 14px;
   line-height: 17px;
   white-space: pre;
-  text-align: center;
   color: var(--muted);
   background: var(--surface);
   border-radius: 4px;
-  pointer-events: none;
+  transition: opacity 120ms;
 }
 .flow-edge-label.active {
   color: var(--accent);
@@ -1491,10 +1527,146 @@ section.diagnostics li p {
   font-weight: 600;
 }
 .flow-split {
-  fill: color-mix(in srgb, var(--muted) 70%, transparent);
+  fill: var(--form);
 }
 .flow-split.active {
   fill: var(--accent);
+}
+.flow-item-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+.flow-item-icon.placeholder {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--form, var(--muted)) 18%, transparent);
+  color: var(--form, var(--muted));
+  font-size: 10px;
+  font-weight: 700;
+}
+/* The output tray (A48): one row per item made, its line leaving from the dot. */
+.flow-tray {
+  position: absolute;
+  background: var(--fill);
+  border: 1px solid var(--edge);
+  border-left: none;
+  border-radius: 0 6px 6px 0;
+  box-shadow: 0 1.5px 0 rgb(0 0 0 / 0.1);
+}
+.flow-node .num,
+.flow-edge-label .num,
+.flow-tooltip .num {
+  font-variant-numeric: tabular-nums;
+}
+.flow-tray-row {
+  position: absolute;
+  inset-inline: 0;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding-inline: 4px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 17px;
+  white-space: nowrap;
+}
+.flow-tray-row::after {
+  content: '';
+  position: absolute;
+  right: -4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--form);
+}
+.flow-tray-row.form-solid {
+  --form: var(--form-solid);
+}
+/* A raw input used at several stages of the plan (A47). */
+.flow-node.multi-stage {
+  --edge: var(--flow-multi);
+  --fill: color-mix(in srgb, var(--flow-multi) 9%, var(--flow-resource));
+}
+.flow-node.multi-stage .flow-hex-body {
+  stroke-width: 2;
+}
+.flow-stages {
+  position: absolute;
+  top: 0;
+  transform: translate(-50%, -50%);
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--flow-multi);
+  color: var(--surface);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+/* The click tooltip (A48), at screen size whatever the zoom. */
+.flow-tooltip {
+  position: fixed;
+  z-index: 50;
+  min-width: 200px;
+  max-width: 320px;
+  padding: 8px 10px;
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  font-size: 13px;
+  line-height: 18px;
+}
+.flow-tooltip ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.flow-tooltip li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.flow-tip-title {
+  font-weight: 600;
+}
+.flow-tip-head {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.flow-tip-stages {
+  color: var(--flow-multi);
+}
+.flow-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.flow-legend-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.flow-legend-entry line {
+  stroke-width: 3;
+}
+.flow-legend-multi {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--flow-multi);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--flow-multi) 12%, transparent);
 }
 
 /* ---------- World view ---------- */

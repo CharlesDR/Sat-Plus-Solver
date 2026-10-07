@@ -42,8 +42,12 @@ export const SCORE_PLANS: Record<string, (model: Model) => SolveRequest> = {
   }),
 };
 
-/** The app's flowchart icon size (apps/web `ICON_SIZE`), so nodes are sized as drawn. */
+/**
+ * The app's flowchart icon sizes (apps/web `ICON_SIZE` and `LABEL_ICON_SIZE`),
+ * so nodes and labels are sized as drawn.
+ */
 const ICON_SIZE = 32;
+const LABEL_ICON_SIZE = 16;
 
 export const BASELINE = join(ROOT, 'fixtures', 'layout', 'scores.json');
 
@@ -69,7 +73,10 @@ export async function scorePlans(
     const result = await solve(model, request(model), backend);
     if (result.status !== 'ok') throw new Error(`${name} did not solve: ${result.status}`);
     const graph = factoryGraph(result, labels);
-    const layout = await layoutFactoryGraph(graph, new ELK(), { iconSize: ICON_SIZE });
+    const layout = await layoutFactoryGraph(graph, new ELK(), {
+      iconSize: ICON_SIZE,
+      labelIconSize: LABEL_ICON_SIZE,
+    });
     out[name] = { nodes: graph.nodes.length, ...layoutScore(layout) };
   }
   return out;

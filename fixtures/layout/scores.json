@@ -3,26 +3,26 @@
   "plans": {
     "plastic-20": {
       "nodes": 40,
-      "crossings": 56,
-      "bends": 124,
-      "edgeLength": 94577,
-      "area": 11040257.5,
+      "crossings": 48,
+      "bends": 101,
+      "edgeLength": 72511.2,
+      "area": 6980523,
       "minGap": 6
     },
     "reinforced-iron-plate-5": {
       "nodes": 20,
-      "crossings": 23,
-      "bends": 62,
-      "edgeLength": 23056.9,
-      "area": 2636551.2,
+      "crossings": 15,
+      "bends": 43,
+      "edgeLength": 22421.6,
+      "area": 2043676.3,
       "minGap": 6
     },
     "ballistic-warp-drive-1": {
       "nodes": 151,
-      "crossings": 3761,
-      "bends": 1038,
-      "edgeLength": 1060257,
-      "area": 84934208.3,
+      "crossings": 2782,
+      "bends": 810,
+      "edgeLength": 774520.5,
+      "area": 60027561,
       "minGap": 6
     }
   }

@@ -13,13 +13,18 @@ export type LayoutState =
 
 /** Side of the item icon drawn in every flowchart node, in px (A38). */
 export const ICON_SIZE = 32;
+/** Side of the item icon before the rate in line labels and tray rows (A48). */
+export const LABEL_ICON_SIZE = 16;
 
 /** Lays the graph out in the layout worker whenever it changes. */
 export function useLayout(engine: LayoutEngine, graph: FactoryGraph): LayoutState {
   const [settled, setSettled] = useState<{ graph: FactoryGraph; state: LayoutState }>();
   useEffect(() => {
     let live = true;
-    layoutFactoryGraph(graph, engine, { iconSize: ICON_SIZE }).then(
+    layoutFactoryGraph(graph, engine, {
+      iconSize: ICON_SIZE,
+      labelIconSize: LABEL_ICON_SIZE,
+    }).then(
       (layout) => {
         if (live) startTransition(() => setSettled({ graph, state: { kind: 'done', layout } }));
       },
