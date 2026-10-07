@@ -2,6 +2,7 @@ import ELK from 'elkjs/lib/elk.bundled.js';
 import { describe, expect, test } from 'vitest';
 import type { FactoryGraph, FlowNode } from './factory';
 import {
+  bandNodes,
   ICON_GAP,
   isRaw,
   layoutFactoryGraph,
@@ -105,7 +106,8 @@ describe('layoutFactoryGraph', () => {
     expect(rec!.x + rec!.width).toBeLessThan(tgt!.x);
     for (const e of l.edges) {
       expect(e.points.length).toBeGreaterThanOrEqual(2);
-      expect(e.label.text).toBe(`60.0 ${e.itemName}`);
+      // A line from the band shows its rate; the band node names the item (A46).
+      expect(e.label.text).toBe(e.source === 'import:ore' ? '60.0' : `60.0 ${e.itemName}`);
       expect(e.label.width).toBeGreaterThan(0);
     }
     expect(overlaps(l)).toEqual([]);
@@ -245,7 +247,8 @@ describe('layoutFactoryGraph', () => {
       for (const n of l.nodes)
         if (!n.band && n.x < t.x + t.width && t.x < n.x + n.width) expect(turn.x).toBeLessThan(n.x);
       // Its label sits beside the recipe, above the line's end.
-      expect(e.label.text).toBe(`${rateText(e.rate)} ore`);
+      // The band node names the item; the line's label is its rate.
+      expect(e.label.text).toBe(rateText(e.rate));
       expect(e.label.x + e.label.width).toBeLessThanOrEqual(t.x - 6);
       expect(e.label.y + e.label.height).toBeLessThan(turn.y);
     }
@@ -306,6 +309,30 @@ describe('layoutFactoryGraph', () => {
     expect(isRaw(n('byproduct', 1))).toBe(false);
   });
 
+  test('bandNodes: a raw input fed from the chart is drawn in the chart, so no line rises (A46)', () => {
+    const n = (id: string, kind: FlowNode['kind'], inputs: string[]): FlowNode => ({
+      id,
+      kind,
+      label: id,
+      inputs: inputs.map((item) => ({ item, rate: 1 })),
+      outputs: [],
+    });
+    const g: FactoryGraph = {
+      nodes: [
+        n('water', 'recipe', []),
+        n('miner-wet', 'resource', ['water']),
+        n('acid', 'recipe', ['water']),
+        n('miner-acid', 'resource', ['acid']),
+      ],
+      edges: [
+        edge('water', 'miner-wet', 'water', 1),
+        edge('water', 'acid', 'water', 1),
+        edge('acid', 'miner-acid', 'acid', 1),
+      ],
+    };
+    expect([...bandNodes(g)].sort()).toEqual(['miner-wet', 'water']);
+  });
+
   test('orthogonal: a route with a slanted segment is redrawn square', () => {
     const p = (x: number, y: number) => ({ x, y });
     expect(orthogonal([p(0, 0), p(10, 0), p(10, 5)])).toEqual([p(0, 0), p(10, 0), p(10, 5)]);
@@ -344,8 +371,8 @@ describe('layoutFactoryGraph', () => {
     const label = l.edges[1]!.label;
     expect(label.text).toBe('60.0\nReinforced\nIron Plate');
     expect(label.height).toBeGreaterThan(l.edges[0]!.label.height * 2);
-    // A line from the band keeps its label on one line, beside the node (A46).
-    expect(l.edges[0]!.label.text).toBe('60.0 Ore');
+    // A line from the band is labelled with its rate, beside the node (A46).
+    expect(l.edges[0]!.label.text).toBe('60.0');
     expect(overlaps(l)).toEqual([]);
   });
 

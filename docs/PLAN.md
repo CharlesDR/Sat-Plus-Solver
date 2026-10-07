@@ -167,7 +167,7 @@ Charles, 2026-10-07: the flowchart and number-format ideas are built in five ste
 #### G2 — Ports and routing
 
 - **Ports (A46):** one port per item on the hexagon's slanted sides; the main product at the right vertex, other outputs above and below it. ELK picks the port order with the fewest crossings, then the ports are fixed in that order.
-- **Raw-input band (A46):** imports, missing inputs, miners and other resource nodes, and recipes that take nothing (Water) sit along the top. Their lines drop straight down beside each recipe that needs them, labelled beside the recipe. Imports are no longer pinned to the left.
+- **Raw-input band (A46):** imports, missing inputs, miners and other resource nodes, and recipes that take nothing (Water) sit along the top, unless the chart feeds them. Their lines drop straight down beside each recipe that needs them, labelled with the rate beside the recipe. Imports are no longer pinned to the left.
 - **Fan-out bundles (A46):** an output feeding several recipes draws one trunk labelled with the total, then splits; each branch shows its rate.
 - **Acceptance:** on Reinforced Iron Plate 5/min, Water sits above every recipe and Iron Ingot shows one "30.0 Iron Ingot" trunk with two "15.0" branches. Every route is square and nothing overlaps on the 151-node plan, which still lays out in under 2 s. The layout score test passes against the baseline Charles approved for G2.
 

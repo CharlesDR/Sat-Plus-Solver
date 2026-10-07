@@ -249,6 +249,25 @@ export function isRaw(n: FlowNode): boolean {
   );
 }
 
+/**
+ * The nodes drawn in the band (A46): the raw inputs that take nothing from
+ * the chart, so every line between the band and the chart drops down. A
+ * miner fed with Water from the band stays in it; one fed with an acid made
+ * in the chart is drawn in the chart.
+ */
+export function bandNodes(graph: FactoryGraph): Set<string> {
+  const band = new Set(graph.nodes.filter(isRaw).map((n) => n.id));
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const e of graph.edges)
+      if (band.has(e.target) && !band.has(e.source)) {
+        band.delete(e.target);
+        changed = true;
+      }
+  }
+  return band;
+}
+
 /** How many outputs sit above and below the main product at most. */
 const sideCount = (n: FlowNode) => {
   const others = n.outputs.length - (n.main !== undefined ? 1 : 0);
@@ -339,13 +358,12 @@ export async function layoutFactoryGraph(
   const iconSpace = icon > 0 ? icon + ICON_GAP : 0;
   const edgeLabel = options.edgeLabel ?? defaultEdgeLabel;
 
-  const raw = new Set(graph.nodes.filter(isRaw).map((n) => n.id));
+  const raw = bandNodes(graph);
   // Lines in the chart (ELK routes them), lines dropping from the band into
-  // the chart, lines rising from the chart into the band, and lines between
-  // two raw inputs, over the top of the band.
+  // the chart, and lines between two raw inputs, over the top of the band.
+  // No line runs from the chart up into the band.
   const inner = graph.edges.filter((e) => !raw.has(e.source) && !raw.has(e.target));
   const drops = graph.edges.filter((e) => raw.has(e.source) && !raw.has(e.target));
-  const rises = graph.edges.filter((e) => !raw.has(e.source) && raw.has(e.target));
   const over = graph.edges.filter((e) => raw.has(e.source) && raw.has(e.target));
 
   // An output feeding two or more lines in the chart is a bundle.
@@ -361,10 +379,11 @@ export async function layoutFactoryGraph(
     width: longest(text) * FLOW_CHAR_WIDTH,
     height: text.length * FLOW_LINE_HEIGHT,
   });
-  // Lines to and from the band are labelled on one line, beside the node.
+  // A line dropping from the band is a branch of the band node, which names
+  // the item: its label is the rate, on one line beside the recipe.
   const labels = new Map<string, Label>(
     graph.edges.map((e) => {
-      const text = edgeLabel(e, isBranch(e));
+      const text = edgeLabel(e, isBranch(e) || drops.includes(e));
       return [e.id, sizeOf(inner.includes(e) || over.includes(e) ? labelLines(text) : [text])];
     }),
   );
@@ -428,6 +447,13 @@ export async function layoutFactoryGraph(
       targets: [`${t.split}#in`],
       labels: [label(t.label)],
     })),
+    // Lines dropping from the band, so ELK orders the chart with them in
+    // mind; their routes are drawn by hand (A46).
+    ...drops.map((e): ElkExtendedEdge => ({
+      id: `top:${e.id}`,
+      sources: [`top#${e.id}`],
+      targets: [inPort(e.target, e.item)],
+    })),
   ];
 
   type Order = { id: string; side: 'EAST' | 'WEST' }[];
@@ -448,6 +474,12 @@ export async function layoutFactoryGraph(
             'elk.padding': `[top=${PAD},left=${Math.max(PAD, edgeNode + 2)},bottom=${PAD},right=${Math.max(PAD, edgeNode + 2)}]`,
           },
           edges: elkEdges,
+          ports: drops.map((e) => ({
+            id: `top#${e.id}`,
+            width: 0,
+            height: 0,
+            layoutOptions: { 'elk.port.side': 'NORTH' },
+          })),
           children: [
             ...chart.map((n): ElkNode => {
               const s = sized.get(n.id)!;
@@ -529,11 +561,8 @@ export async function layoutFactoryGraph(
     }
     const corridor = Math.max(
       0,
-      ...columns(first?.children ?? []).map((c) =>
-        Math.max(
-          drops.filter((e) => c.ids.includes(e.target)).length,
-          rises.filter((e) => c.ids.includes(e.source)).length,
-        ),
+      ...columns(first?.children ?? []).map(
+        (c) => drops.filter((e) => c.ids.includes(e.target)).length,
       ),
     );
     out = (await engine.layout(elkGraph(orders, corridor))).children?.[0];
@@ -567,23 +596,15 @@ export async function layoutFactoryGraph(
     return h && p ? { x: h.x + p.x, y: h.y + p.y } : undefined;
   };
 
-  // Lines to and from the band run down a lane beside the column of the node
-  // they serve: drops on its left, the topmost port's lane nearest the
-  // column, rises on its right.
+  // Lines from the band run down a lane just left of the column of the node
+  // they feed, the topmost port's lane nearest the column.
   const laneX = new Map<string, number>();
-  for (const c of columns(out?.children ?? [])) {
-    const byPort = (list: FlowEdge[], node: (e: FlowEdge) => string, dir: 'in' | 'out') =>
-      list
-        .filter((e) => c.ids.includes(node(e)))
-        .map((e) => ({ e, y: portAt(node(e), dir, e.item)?.y ?? 0 }))
-        .sort((a, b) => a.y - b.y || (a.e.id < b.e.id ? -1 : 1));
-    byPort(drops, (e) => e.target, 'in').forEach(({ e }, k) =>
-      laneX.set(e.id, c.left - 3 - k * LANE),
-    );
-    byPort(rises, (e) => e.source, 'out').forEach(({ e }, k) =>
-      laneX.set(e.id, c.right + 3 + k * LANE),
-    );
-  }
+  for (const c of columns(out?.children ?? []))
+    drops
+      .filter((e) => c.ids.includes(e.target))
+      .map((e) => ({ e, y: portAt(e.target, 'in', e.item)?.y ?? 0 }))
+      .sort((a, b) => a.y - b.y || (a.e.id < b.e.id ? -1 : 1))
+      .forEach(({ e }, k) => laneX.set(e.id, c.left - 3 - k * LANE));
 
   const band = placeBand(graph, raw, sized, laneX, (id) => labels.get(id)!);
   const shift = band.chartTop;
@@ -641,23 +662,6 @@ export async function layoutFactoryGraph(
           height: l.height,
           text: l.text,
         },
-      };
-    }
-    if (rises.includes(e)) {
-      const p = end(e.source, 'out', e.item);
-      const x = laneX.get(e.id)!;
-      const y = p[0]?.y ?? shift;
-      return {
-        ...e,
-        points: join(
-          p,
-          [
-            { x, y },
-            { x, y: shift },
-          ],
-          band.rises.get(e.id) ?? [],
-        ),
-        label: { ...band.riseLabels.get(e.id)!, text: l.text },
       };
     }
     const split = splitOf(e);
@@ -747,10 +751,6 @@ interface Band {
   nodes: Map<string, Box & { ports: NodePort[] }>;
   /** Per edge from a raw input: its line from the node down to the chart's top edge. */
   drops: Map<string, ElkPoint[]>;
-  /** Per edge into a raw input: its line from the chart's top edge up into the node. */
-  rises: Map<string, ElkPoint[]>;
-  /** Per edge into a raw input: its label, below the bus it rises into. */
-  riseLabels: Map<string, Box>;
   /** Lines between two raw inputs, over the top of the band. */
   edges: Map<string, { points: ElkPoint[]; label: Box }>;
 }
@@ -774,30 +774,22 @@ function placeBand(
     width: 0,
     nodes: new Map(),
     drops: new Map(),
-    rises: new Map(),
-    riseLabels: new Map(),
     edges: new Map(),
   };
   const members = graph.nodes.filter((n) => raw.has(n.id));
   if (!members.length) return empty;
 
   // Each raw input's ports: lines to other raw inputs on its top, one per
-  // item to and from the chart on its bottom.
+  // item into the chart on its bottom.
   const over = graph.edges.filter((e) => raw.has(e.source) && raw.has(e.target));
   const below = (id: string) => {
-    const list: { item: string; dir: 'in' | 'out'; ports: { edge: string; x: number }[] }[] = [];
+    const list: { item: string; dir: 'out'; ports: { edge: string; x: number }[] }[] = [];
     for (const e of graph.edges) {
-      const dir =
-        e.target === id && !raw.has(e.source)
-          ? 'in'
-          : e.source === id && !raw.has(e.target)
-            ? 'out'
-            : undefined;
-      if (!dir) continue;
+      if (e.source !== id || raw.has(e.target)) continue;
       const x = laneX.get(e.id) ?? 0;
-      const has = list.find((p) => p.item === e.item && p.dir === dir);
+      const has = list.find((p) => p.item === e.item);
       if (has) has.ports.push({ edge: e.id, x });
-      else list.push({ item: e.item, dir, ports: [{ edge: e.id, x }] });
+      else list.push({ item: e.item, dir: 'out', ports: [{ edge: e.id, x }] });
     }
     return list;
   };
@@ -897,42 +889,19 @@ function placeBand(
     else ends[k] = bus.right;
     laneOf.set(bus, rowBottom + BAND_GAP + k * LANE);
   }
-  // Rising lines are labelled in rows under the buses, beside their lane.
-  const busBottom = rowBottom + BAND_GAP + Math.max(0, ends.length - 1) * LANE;
-  const riseLabels = new Map<string, Box>();
-  const rowEnds: number[] = [];
-  const rising = buses
-    .filter((b) => b.dir === 'in')
-    .flatMap((b) => b.ports)
-    .sort((a, b) => a.x - b.x || (a.edge < b.edge ? -1 : 1));
-  for (const p of rising) {
-    const l = labelOf(p.edge);
-    const x = p.x + 3;
-    let k = rowEnds.findIndex((r) => r + LABEL_CLEAR <= x);
-    if (k < 0) k = rowEnds.push(x + l.width) - 1;
-    else rowEnds[k] = x + l.width;
-    riseLabels.set(p.edge, {
-      x,
-      y: busBottom + LABEL_CLEAR + k * LABEL_ROW,
-      width: l.width,
-      height: l.height,
-    });
-  }
-  const chartTop = busBottom + rowEnds.length * LABEL_ROW + BAND_GAP;
+  const chartTop = rowBottom + BAND_GAP + Math.max(0, ends.length - 1) * LANE + BAND_GAP;
 
   const drops = new Map<string, ElkPoint[]>();
-  const rises = new Map<string, ElkPoint[]>();
   for (const bus of buses) {
     const start = { x: bus.from, y: bus.node.y + bus.node.height };
     const lane = laneOf.get(bus);
-    for (const p of bus.ports) {
-      const path =
+    for (const p of bus.ports)
+      drops.set(
+        p.edge,
         lane === undefined
           ? [start, { x: p.x, y: chartTop }]
-          : [start, { x: bus.from, y: lane }, { x: p.x, y: lane }, { x: p.x, y: chartTop }];
-      if (bus.dir === 'out') drops.set(p.edge, path);
-      else rises.set(p.edge, path.reverse());
-    }
+          : [start, { x: bus.from, y: lane }, { x: p.x, y: lane }, { x: p.x, y: chartTop }],
+      );
   }
 
   const edges = new Map<string, { points: ElkPoint[]; label: Box }>();
@@ -960,11 +929,9 @@ function placeBand(
   }
   return {
     chartTop,
-    width: Math.max(right, ...rowEnds) + PAD,
+    width: right + PAD,
     nodes,
     drops,
-    rises,
-    riseLabels,
     edges,
   };
 }

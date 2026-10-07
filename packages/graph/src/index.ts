@@ -31,6 +31,7 @@ export {
   nodeLines,
   nodeText,
   overlaps,
+  bandNodes,
   isRaw,
   rateText,
   wrapText,
