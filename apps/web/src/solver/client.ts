@@ -91,6 +91,8 @@ export function createSolverClient(worker: WorkerLike): SolverClient {
         ...(msg.focus ? { focus: msg.focus } : {}),
         ...(msg.edited ? { edited: msg.edited } : {}),
         ...(msg.previews ? { previews: msg.previews } : {}),
+        ...(msg.imported ? { imported: msg.imported } : {}),
+        ...(msg.sfmd !== undefined ? { sfmd: msg.sfmd } : {}),
       });
     } else done.reject(new Error(msg.message));
     if (queued) {

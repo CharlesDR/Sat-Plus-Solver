@@ -2,7 +2,7 @@
 import type { BeltCapacity, NodePurity } from '@sps/data';
 import type { FactoryGraph } from '@sps/graph';
 import type { Diagnostic, PlanSummary, SummaryFlow } from '@sps/solver';
-import type { FactoryResult, World, WorldResult } from '@sps/world';
+import type { FactoryResult, ModelerReportLine, World, WorldResult } from '@sps/world';
 
 /** An item the target picker offers. */
 export interface CatalogItem {
@@ -98,7 +98,19 @@ export interface FocusPlan {
  */
 export type WorldAction =
   | { kind: 'size-power'; factoryId: string }
-  | { kind: 'preview-swaps'; factoryId: string; from: string; candidates: string[] };
+  | { kind: 'preview-swaps'; factoryId: string; from: string; candidates: string[] }
+  /** Modeler import (M14, A57): `text` is the `.sfmd` file; `at` the ISO time of the build marks. */
+  | { kind: 'import-modeler'; text: string; at: string }
+  /** Modeler export (M14, A58): one factory, or the whole world when `factoryId` is missing. */
+  | { kind: 'export-modeler'; factoryId?: string };
+
+/** What a Modeler import made, and what it could not map. */
+export interface ModelerImported {
+  factories: string[];
+  report: ModelerReportLine[];
+  /** Machine counts sized from the save's flows (A56). */
+  inferred: number;
+}
 
 /** One swap candidate's effect on its factory (A35). */
 export interface SwapPreview {
@@ -128,6 +140,10 @@ export interface WorldSolved {
   edited?: World;
   /** `preview-swaps`: one per candidate, in its order. */
   previews?: SwapPreview[];
+  /** `import-modeler`: what it made (the world is in `edited`). */
+  imported?: ModelerImported;
+  /** `export-modeler`: the `.sfmd` file's text. */
+  sfmd?: string;
 }
 
 export type ToWorker = { type: 'solve'; id: number } & WorldSolveRequest;

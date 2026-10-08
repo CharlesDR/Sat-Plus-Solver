@@ -17,6 +17,11 @@ export function fileName(name: string): string {
   return `${slug || 'world'}.json`;
 }
 
+/** A Modeler file name (M14): "Plate Works" → "plate-works.sfmd". */
+export function modelerFileName(name: string): string {
+  return fileName(name).replace(/\.json$/, '.sfmd');
+}
+
 /** Offers `text` as a file download. */
 export function downloadText(name: string, text: string) {
   const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
