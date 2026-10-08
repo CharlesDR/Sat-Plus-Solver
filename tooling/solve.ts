@@ -3,8 +3,8 @@
  *
  *   pnpm solve --target "Iron Plate:60" [--target ...] [--import "Iron Ingot:30"]
  *              [--objective resources,machines,...] [--tolerance 0.01%] [--min-branch 0.01] [--min-flow 0.001] [--whole-machines]
- *              [--cost-imports] [--avoid-fluid-byproducts] [--alternates] [--compare-alternates] [--exclude <recipe-id>]
- *              [--enable <recipe-id>] [--max-tier <major-minor>] [--budget "<node-id>=<count>"] [--model <model.json>] [--json]
+ *              [--cost-imports] [--avoid-fluid-byproducts] [--miner-fluids any|water|none] [--miner-fluid-supply local|outside]
+ *              [--alternates] [--compare-alternates] [--exclude <recipe-id>] [--enable <recipe-id>] [--max-tier <major-minor>] [--budget "<node-id>=<count>"] [--model <model.json>] [--json]
  *
  * Items are matched by id or by name (case-insensitive). An import without a
  * rate is unlimited. `--budget` overrides the map pool for one node class.
@@ -16,6 +16,8 @@
  * `--enable` turns on single alternates; `--max-tier` leaves out recipes above
  * a dataset tier (tier 0-0 always stays); `--avoid-fluid-byproducts` lets no
  * fluid but Steam, Flue Gas and Energetic Dark Matter be left over (A39, the app's default);
+ * `--miner-fluids` limits Modular Miner fluid modules and `--miner-fluid-supply outside`
+ * imports miner fluid at its cost (A69);
  * `--compare-alternates` solves both ways and lists the alternates that help.
  * The model is data/generated/model.json, built in memory when it is missing.
  */
@@ -38,6 +40,8 @@ import {
   type ItemRate,
   type LpBackend,
   type ObjectiveId,
+  type MinerFluidSupply,
+  type MinerFluids,
   type SolveRequest,
   type SolveResult,
   type SummaryFlow,
@@ -46,7 +50,8 @@ import { ROOT, runPipeline } from './build-data';
 
 export const USAGE = `Usage: pnpm solve --target "Item:rate" [--target ...] [--import "Item[:cap]"]
                   [--objective resources,machines,...] [--tolerance <percent>] [--min-branch <machines>] [--min-flow <per-minute>]
-                  [--whole-machines] [--cost-imports] [--avoid-fluid-byproducts] [--alternates] [--compare-alternates] [--exclude <recipe-id>]
+                  [--whole-machines] [--cost-imports] [--avoid-fluid-byproducts] [--miner-fluids any|water|none]
+                  [--miner-fluid-supply local|outside] [--alternates] [--compare-alternates] [--exclude <recipe-id>]
                   [--enable <recipe-id>] [--max-tier <major-minor>] [--budget "<node-id>=<count>"] [--model <model.json>] [--json]
 Objectives: resources (o1), scarcity (o2), machines (o3), power (o4), output (o5), types (o6).`;
 
@@ -91,6 +96,8 @@ export function parseCli(argv: string[], model: Model): CliArgs {
         'min-flow': { type: 'string' },
         'whole-machines': { type: 'boolean' },
         'avoid-fluid-byproducts': { type: 'boolean' },
+        'miner-fluids': { type: 'string' },
+        'miner-fluid-supply': { type: 'string' },
         'cost-imports': { type: 'boolean' },
         alternates: { type: 'boolean' },
         'no-alternates': { type: 'boolean' },
@@ -156,6 +163,12 @@ export function parseCli(argv: string[], model: Model): CliArgs {
   const maxTier = parsed['max-tier']?.trim();
   if (maxTier !== undefined && !parseTier(maxTier))
     throw new CliError(`--max-tier "${maxTier}" must look like 3-2 (major-minor).`);
+  const minerFluids = parsed['miner-fluids'];
+  if (minerFluids !== undefined && !['any', 'water', 'none'].includes(minerFluids))
+    throw new CliError(`--miner-fluids "${minerFluids}" must be any, water or none.`);
+  const minerFluidSupply = parsed['miner-fluid-supply'];
+  if (minerFluidSupply !== undefined && !['local', 'outside'].includes(minerFluidSupply))
+    throw new CliError(`--miner-fluid-supply "${minerFluidSupply}" must be local or outside.`);
   let nodeBudget: SolveRequest['nodeBudget'] = 'pool';
   if (parsed.budget?.length) {
     const caps: Record<string, number> = Object.fromEntries(
@@ -179,6 +192,10 @@ export function parseCli(argv: string[], model: Model): CliArgs {
       ...(parsed['whole-machines'] ? { wholeMachines: true } : {}),
       ...(parsed['avoid-fluid-byproducts'] ? { avoidFluidByproducts: true } : {}),
       ...(parsed['cost-imports'] ? { costImports: true } : {}),
+      ...(minerFluids !== undefined ? { minerFluids: minerFluids as MinerFluids } : {}),
+      ...(minerFluidSupply !== undefined
+        ? { minerFluidSupply: minerFluidSupply as MinerFluidSupply }
+        : {}),
       nodeBudget,
       ...(imports.length ? { imports } : {}),
       recipes: {

@@ -10,6 +10,7 @@ import type {
 } from '../lp/types';
 import { closestFixes, producible, prune } from './reachability';
 import { filterRecipes, parseTier } from './recipes';
+import { filterMinerRoutes, minerSupplyItem } from './minerFluids';
 import { extractionOf } from './resources';
 import { OBJECTIVE_IDS } from './types';
 import type {
@@ -40,6 +41,8 @@ const POLISH_SLACK = 1e-10;
 const IMPORT_SLACK_COST = 0.01;
 /** Elastic re-solve: cost of 1/min more of a limited resource (A33), in normal-node-equivalents. */
 const RESOURCE_SLACK_COST = 0.001;
+/** Rate a miner fluid supplied from outside is costed at, per m³/min (A69): its standalone plan's cost / rate. */
+const MINER_SUPPLY_COST_RATE = 60;
 /** Elastic re-solve: cost of 1/min of a fluid byproduct left over against `avoidFluidByproducts` (A39). */
 const SURPLUS_SLACK_COST = 0.001;
 /** Fluids that are easy to dump, so `avoidFluidByproducts` still lets them be left over (A39). */
@@ -73,6 +76,7 @@ const SLACK_TOL = 1e-9;
 const recipeVar = (id: string) => `recipe:${id}`;
 const importVar = (item: string) => `import:${item}`;
 const surplusVar = (item: string) => `surplus:${item}`;
+const supplyVar = (item: string) => `supply:${item}`;
 const nodeSlackVar = (node: string) => `slack:node:${node}`;
 const importSlackVar = (item: string) => `slack:import:${item}`;
 const resourceSlackVar = (item: string) => `slack:resource:${item}`;
@@ -121,6 +125,11 @@ interface Problem {
   extracts: Map<string, { item: string; rate: number }>;
   /** `request.resourceLimits`, on the resources the kept recipes extract. */
   resourceLimits: Map<string, number>;
+  /**
+   * Miner fluid supplied from outside (A69): per supply item, the fluid it
+   * stands for and its cost per m³ under each objective.
+   */
+  supply: Map<string, { fluid: string; cost: Partial<Record<ObjectiveId, number>> }>;
   /** `avoidFluidByproducts` (A39): balance-row items that may not be left over, sorted. */
   noSurplus: Set<string>;
   /** Per objective: cost per machine of each kept recipe (before the regularizer). */
@@ -187,8 +196,46 @@ export async function solve(
     if (i.cap > 0) importCaps.set(i.item, (importCaps.get(i.item) ?? 0) + i.cap);
 
   // Recipe filter, then reachability (§3.5) and pruning.
-  const { enabled, disabled } = filterRecipes([...model.recipes].sort(byId), request.recipes);
-  const sources = [...importCaps.keys()].sort();
+  const filtered = filterRecipes([...model.recipes].sort(byId), request.recipes);
+  const { disabled } = filtered;
+  // Miner fluid modules (A69): leave out the ones not allowed, and with the
+  // fluid supplied from outside, route it through a supply item of its own.
+  const outside = request.minerFluidSupply === 'outside';
+  let enabled = filterMinerRoutes(filtered.enabled, request.minerFluids ?? 'any').map((r) =>
+    outside && r.route?.fluid
+      ? {
+          ...r,
+          inputs: r.inputs.map((f) =>
+            f.item === r.route!.fluid ? { ...f, item: minerSupplyItem(f.item) } : f,
+          ),
+        }
+      : r,
+  );
+  const fluidsOf = (rs: readonly Recipe[]) =>
+    [...new Set(rs.flatMap((r) => (r.route?.fluid ? [r.route.fluid] : [])))].sort();
+  const sourcesOf = (fluids: readonly string[]) =>
+    [...importCaps.keys(), ...fluids.map(minerSupplyItem)].sort();
+  // Each supplied fluid the plan may use is costed at a standalone plan's
+  // cost per m³; a fluid no plan can make is left out, as it is when made here.
+  const supply: Problem['supply'] = new Map();
+  if (outside) {
+    const all = fluidsOf(enabled);
+    const used = fluidsOf(prune(enabled, producible(enabled, sourcesOf(all)), wanted));
+    for (const fluid of used) {
+      const c = await embodiedCost(
+        model,
+        { ...request, minerFluidSupply: 'local' },
+        stack,
+        fluid,
+        MINER_SUPPLY_COST_RATE,
+        backend,
+        options,
+      );
+      if ('cost' in c) supply.set(minerSupplyItem(fluid), { fluid, cost: c.cost });
+    }
+    enabled = enabled.filter((r) => !r.route?.fluid || supply.has(minerSupplyItem(r.route.fluid)));
+  }
+  const sources = sourcesOf([...supply.values()].map((s) => s.fluid));
   const available = producible(enabled, sources);
   const unreachable = wanted.filter((i) => !available.has(i)).sort();
   const names = new Map(model.items.map((i) => [i.id, i.name]));
@@ -222,11 +269,14 @@ export async function solve(
   for (const item of [...importCaps.keys()]) if (!itemSet.has(item)) importCaps.delete(item);
 
   const fluids = new Set(model.items.filter((i) => i.form === 'fluid').map((i) => i.id));
-  const noSurplus = new Set(
-    request.avoidFluidByproducts
+  for (const item of [...supply.keys()]) if (!itemSet.has(item)) supply.delete(item);
+  const noSurplus = new Set([
+    ...(request.avoidFluidByproducts
       ? items.filter((i) => fluids.has(i) && !DUMPABLE_FLUIDS.includes(i))
-      : [],
-  );
+      : []),
+    // A supply is only ever drawn for the miners that use it.
+    ...supply.keys(),
+  ]);
 
   const nodes = new Map(model.nodes.map((n) => [n.id, n]));
   const budget = request.nodeBudget ?? 'pool';
@@ -286,6 +336,7 @@ export async function solve(
     nodes,
     extracts,
     resourceLimits,
+    supply,
     noSurplus,
     costs,
     resources,
@@ -765,7 +816,15 @@ async function pruneFlows(
       .filter((u) => u.inputs.some((f) => tiny(f.rate)) || u.outputs.every((f) => tiny(f.rate)))
       .map((u) => recipeVar(u.id)),
     ...r.surplus.filter((f) => tiny(f.rate)).map((f) => surplusVar(f.item)),
-    ...r.imports.filter((f) => tiny(f.rate)).map((f) => importVar(f.item)),
+    ...r.imports
+      .filter((f) => {
+        const supplied = r.minerSupply?.find((m) => m.item === f.item)?.rate ?? 0;
+        return p.importCaps.has(f.item) && tiny(f.rate - supplied);
+      })
+      .map((f) => importVar(f.item)),
+    ...(r.minerSupply ?? [])
+      .filter((f) => tiny(f.rate))
+      .map((f) => supplyVar(minerSupplyItem(f.item))),
   ];
   /** Stage `k`'s `value` within MAX_FLOW_COST of the original plan's. */
   const within = (k: number, value: number) => {
@@ -1018,6 +1077,10 @@ function objectiveTerms(p: Problem, objective: ObjectiveId): LpTerm[] {
     const c = ic.cost[objective] ?? 0;
     if (c !== 0) terms.push({ var: importVar(item), coef: c });
   }
+  for (const [item, { cost }] of p.supply) {
+    const c = cost[objective] ?? 0;
+    if (c !== 0) terms.push({ var: supplyVar(item), coef: c });
+  }
   return terms;
 }
 
@@ -1057,6 +1120,7 @@ async function embodiedCost(
     ...(request.tolerance !== undefined ? { tolerance: request.tolerance } : {}),
     ...(request.scarcityWeights ? { scarcityWeights: request.scarcityWeights } : {}),
     ...(request.recipes ? { recipes: request.recipes } : {}),
+    ...(request.minerFluids ? { minerFluids: request.minerFluids } : {}),
   };
   if (!standalone.objectives!.length) return { item, rate, cost: {}, resourceTypes: [] };
   const key = JSON.stringify(standalone);
@@ -1292,6 +1356,10 @@ function buildLp(
     } else variables.push({ name: v, lo: 0, hi: Math.min(cap_i, cap) });
     balance.get(item)!.push({ var: v, coef: 1 });
   }
+  for (const item of p.supply.keys()) {
+    variables.push({ name: supplyVar(item), lo: 0, hi: cap });
+    balance.get(item)!.push({ var: supplyVar(item), coef: 1 });
+  }
   for (const item of p.items) {
     const v = surplusVar(item);
     // A fluid that may not be left over (A39) gets no surplus; the elastic
@@ -1446,7 +1514,11 @@ function finish(
   const imported = new Map<string, number>();
   const surplus = new Map<string, number>();
   for (const item of p.items) {
-    let s = p.importCaps.has(item) ? val(importVar(item)) : 0;
+    let s = p.importCaps.has(item)
+      ? val(importVar(item))
+      : p.supply.has(item)
+        ? val(supplyVar(item))
+        : 0;
     let z = val(surplusVar(item));
     // An import that only feeds surplus is a no-op: cancel it.
     const both = Math.min(s, z);
@@ -1524,6 +1596,7 @@ function finish(
       items.push(flow);
   }
   for (const [item, s] of imported) {
+    if (p.supply.has(item)) continue;
     const c = p.importCaps.get(item) ?? 0;
     if (s > c + BALANCE_TOL * Math.max(1, c)) failures.push(`import ${item} ${s} exceeds cap ${c}`);
   }
@@ -1543,6 +1616,30 @@ function finish(
   }
   if (failures.length) return checkFailed(p.stack, stats, failures.join('; '));
 
+  // Miner fluid supplied from outside (A69): checked on its own row, then
+  // reported under the fluid itself, as an import of it.
+  const minerSupply: ItemRate[] = [];
+  if (p.supply.size) {
+    const real = (item: string) => p.supply.get(item)?.fluid ?? item;
+    for (const r of recipes) r.inputs = r.inputs.map((f) => ({ ...f, item: real(f.item) }));
+    const merged = new Map<string, ItemFlow>();
+    for (const f of items) {
+      const item = real(f.item);
+      const m = merged.get(item);
+      if (!m) merged.set(item, { ...f, item });
+      else
+        for (const k of ['produced', 'consumed', 'imported', 'surplus', 'demand'] as const)
+          m[k] += f[k];
+    }
+    items.splice(0, items.length, ...[...merged.values()].sort(byItem));
+    for (const [item, rate] of [...imported]) {
+      if (!p.supply.has(item)) continue;
+      imported.delete(item);
+      minerSupply.push({ item: real(item), rate });
+      imported.set(real(item), (imported.get(real(item)) ?? 0) + rate);
+    }
+  }
+
   return {
     status: 'ok',
     objective: p.stack[0]!,
@@ -1552,6 +1649,7 @@ function finish(
     recipes,
     items,
     imports: toRates(imported),
+    ...(minerSupply.length ? { minerSupply: minerSupply.sort(byItem) } : {}),
     surplus: toRates(surplus),
     nodes,
     extraction,
@@ -1597,6 +1695,13 @@ function validate(
     return bad(`Minimum branch must be 0 or more machines (got ${request.minBranch}).`);
   if (request.minFlow !== undefined && (!Number.isFinite(request.minFlow) || request.minFlow < 0))
     return bad(`Minimum flow must be 0 or more per minute (got ${request.minFlow}).`);
+  if (request.minerFluids !== undefined && !['any', 'water', 'none'].includes(request.minerFluids))
+    return bad(`Unknown miner fluid setting "${String(request.minerFluids)}".`);
+  if (
+    request.minerFluidSupply !== undefined &&
+    !['local', 'outside'].includes(request.minerFluidSupply)
+  )
+    return bad(`Unknown miner fluid supply "${String(request.minerFluidSupply)}".`);
   for (const t of [...request.targets, ...(request.demand ?? [])]) {
     if (!known.has(t.item)) return bad(`Unknown item "${t.item}".`);
     if (!Number.isFinite(t.rate) || t.rate < 0)

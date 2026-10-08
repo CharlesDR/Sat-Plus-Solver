@@ -3,6 +3,8 @@
  * Units: items/min, fluids m³/min, power MW (positive = consumption).
  */
 
+import type { MinerFluids, MinerFluidSupply } from './minerFluids';
+
 export interface ItemRate {
   item: string;
   /** Per minute (MW for the `mw` item). */
@@ -116,6 +118,19 @@ export interface SolveRequest {
    * Default false.
    */
   avoidFluidByproducts?: boolean;
+  /**
+   * Which optional fluid modules Modular Miner routes may use (A69): `any`
+   * (default), `water` or `none`. An ore with no plain route keeps Water if
+   * it allows it, otherwise every fluid it allows.
+   */
+  minerFluids?: MinerFluids;
+  /**
+   * Where miner routes get their fluid (A69): `local` (default) makes it in
+   * this plan like any input; `outside` takes it from a supply of its own,
+   * costed per m³ at a standalone plan's cost (like a costed import), and
+   * reports it in `imports` and `minerSupply`.
+   */
+  minerFluidSupply?: MinerFluidSupply;
 }
 
 export type SolveStatus = 'ok' | 'unreachable' | 'infeasible' | 'unbounded' | 'error';
@@ -282,7 +297,10 @@ export interface SolveResult {
   recipes: RecipeUsage[];
   /** Every item that moves, sorted by id. */
   items: ItemFlow[];
+  /** Imports, with any miner fluid supplied from outside (A69) included. */
   imports: ItemRate[];
+  /** The fluid miner routes take from outside (A69), sorted by item; absent unless supplied. */
+  minerSupply?: ItemRate[];
   /** Byproducts and free disposal; at the world level this is available supply. */
   surplus: ItemRate[];
   /** Node classes in use, sorted by id. */

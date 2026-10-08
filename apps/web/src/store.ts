@@ -3,7 +3,7 @@
  * save/share format (CLAUDE.md). Every edit replaces the parts it touches and
  * shares the rest, so unchanged factories keep their identity.
  */
-import type { ItemRate, ObjectiveId } from '@sps/solver';
+import type { ItemRate, MinerFluidSupply, MinerFluids, ObjectiveId } from '@sps/solver';
 import * as edit from '@sps/world';
 import {
   type BuildSource,
@@ -28,6 +28,10 @@ export interface Settings {
   wholeMachines: boolean;
   costImports: boolean;
   avoidFluidByproducts: boolean;
+  /** Missing in a world saved before v12: `any` (A69). */
+  minerFluids?: MinerFluids;
+  /** Missing in a world saved before v12: `local` (A69). */
+  minerFluidSupply?: MinerFluidSupply;
   maxTier: string | null;
 }
 export type SettingKey = keyof Settings;
@@ -323,6 +327,8 @@ export function effectiveSettings(
     'wholeMachines',
     'costImports',
     'avoidFluidByproducts',
+    'minerFluids',
+    'minerFluidSupply',
     'maxTier',
   ];
   const values = {} as Record<SettingKey, unknown>;

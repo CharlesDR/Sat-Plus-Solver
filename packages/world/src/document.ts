@@ -11,13 +11,22 @@
  * per-resource limits (A33); v5 moved worlds on the old default objective
  * stack (O1) to the new one (O2); v6 added plan tweaks (A35); v7 added
  * manual mode (A36); v8 added "Avoid fluid byproducts" (A39), on; v9 added
- * build marks (A44); v10 added nested factories (A45, A49). `migrateWorld`
- * upgrades older documents.
+ * build marks (A44); v10 added nested factories (A45, A49); v11 added
+ * flowchart areas (A64); v12 added the miner fluid settings (A69), which an
+ * older world leaves out (fluid modules modelled, fluid made here).
+ * `migrateWorld` upgrades older documents.
  */
 import type { Model } from '@sps/data';
-import type { ItemRate, ObjectiveId, RecipeFilter, SolveRequest } from '@sps/solver';
+import type {
+  ItemRate,
+  MinerFluidSupply,
+  MinerFluids,
+  ObjectiveId,
+  RecipeFilter,
+  SolveRequest,
+} from '@sps/solver';
 
-export const WORLD_VERSION = 11;
+export const WORLD_VERSION = 12;
 
 /** Lexicographic tolerance bounds (CLAUDE.md): 0.01%–90%, default 0.01%. */
 export const TOLERANCE_MIN = 0.0001;
@@ -47,6 +56,14 @@ export interface WorldDefaults {
   /** Avoid fluid byproducts (A39): no fluid but Steam, Flue Gas and Energetic Dark Matter may be left over. Default on. */
   avoidFluidByproducts: boolean;
   /**
+   * "Model miner optional fluid usage" (A69): `any` models every fluid
+   * module, `water` only Water, `none` none (an ore that needs a fluid keeps
+   * one). Missing = `any`, as in a world saved before v12.
+   */
+  minerFluids?: MinerFluids;
+  /** Where miner fluid comes from (A69): made here, or supplied from outside. Missing = `local`. */
+  minerFluidSupply?: MinerFluidSupply;
+  /**
    * Per-recipe toggles by recipe id: `false` disables a recipe, `true` enables
    * it (an alternate while `alternates` is off). A recipe not listed follows
    * the default: standard recipes on, alternates per `alternates`.
@@ -65,6 +82,8 @@ export interface FactoryRequest {
   wholeMachines?: boolean;
   costImports?: boolean;
   avoidFluidByproducts?: boolean;
+  minerFluids?: MinerFluids;
+  minerFluidSupply?: MinerFluidSupply;
   /** Per-recipe toggles that win over the world's; a recipe not listed inherits. */
   recipes?: Record<string, boolean>;
   /** `null` = no limit, overriding the world's. */
@@ -236,6 +255,8 @@ export function defaultWorldDefaults(): WorldDefaults {
     wholeMachines: false,
     costImports: false,
     avoidFluidByproducts: true,
+    minerFluids: 'any',
+    minerFluidSupply: 'outside',
     recipes: {},
     maxTier: null,
   };
@@ -300,6 +321,18 @@ export function factorySolveRequest(
     ...((r.wholeMachines ?? d.wholeMachines) ? { wholeMachines: true } : {}),
     ...((r.costImports ?? d.costImports) ? { costImports: true } : {}),
     ...((r.avoidFluidByproducts ?? d.avoidFluidByproducts) ? { avoidFluidByproducts: true } : {}),
+    ...minerFluidSettings(r.minerFluids ?? d.minerFluids, r.minerFluidSupply ?? d.minerFluidSupply),
+  };
+}
+
+/** The miner fluid settings (A69) as request fields, left out at the solver's defaults. */
+function minerFluidSettings(
+  fluids: MinerFluids | undefined,
+  supply: MinerFluidSupply | undefined,
+): Pick<SolveRequest, 'minerFluids' | 'minerFluidSupply'> {
+  return {
+    ...(fluids && fluids !== 'any' ? { minerFluids: fluids } : {}),
+    ...(supply === 'outside' ? { minerFluidSupply: supply } : {}),
   };
 }
 

@@ -34,6 +34,8 @@ export {
   solve,
 } from './factory/solve';
 export { OBJECTIVE_IDS } from './factory/types';
+export { filterMinerRoutes, minerFluidOptions, minerSupplyItem } from './factory/minerFluids';
+export type { MinerFluidOptions, MinerFluids, MinerFluidSupply } from './factory/minerFluids';
 export {
   aboveTier,
   compareTiers,

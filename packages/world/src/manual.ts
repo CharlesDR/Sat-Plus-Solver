@@ -152,6 +152,9 @@ export function manualOutcome(
   const nne = new Map(model.nodes.map((n) => [n.id, n.nne]));
   const produced = new Map<string, number>();
   const consumed = new Map<string, number>();
+  // Fluid miner routes draw, supplied from outside when the request says so (A69).
+  const minerDraw = new Map<string, number>();
+  const outside = request.minerFluidSupply === 'outside';
   const add = (m: Map<string, number>, k: string, v: number) => m.set(k, (m.get(k) ?? 0) + v);
   const usage: RecipeUsage[] = [];
   const nodeUse = new Map<string, number>();
@@ -169,6 +172,8 @@ export function manualOutcome(
     const outputs = r.outputs.map((f) => ({ item: f.item, rate: rate(f) }));
     for (const f of outputs) add(produced, f.item, f.rate);
     for (const f of inputs) add(consumed, f.item, f.rate);
+    if (outside && r.route?.fluid)
+      for (const f of inputs) if (f.item === r.route.fluid) add(minerDraw, f.item, f.rate);
     if (r.node) add(nodeUse, r.node, n);
     if (r.extracts) add(extracted, r.extracts.item, r.extracts.rate * n);
     const power = r.powerMW * (r.heater ? whole : n);
@@ -202,6 +207,7 @@ export function manualOutcome(
   const imports: ItemRate[] = [];
   const surplus: ItemRate[] = [];
   const missing: ItemRate[] = [];
+  const minerSupply: ItemRate[] = [];
   const targets: ItemRate[] = [];
   const forLinks = new Map<string, number>();
   for (const item of all) {
@@ -216,7 +222,9 @@ export function manualOutcome(
     left -= l;
     if (imported > 0) {
       imports.push({ item, rate: imported });
-      const short = imported - (caps.get(item) ?? 0);
+      const supplied = Math.min(imported, minerDraw.get(item) ?? 0);
+      if (supplied > EPS) minerSupply.push({ item, rate: supplied });
+      const short = imported - supplied - (caps.get(item) ?? 0);
       if (short > EPS) missing.push({ item, rate: short });
     }
     if (left > EPS) surplus.push({ item, rate: left });
@@ -254,6 +262,7 @@ export function manualOutcome(
       power: { consumptionMW, generationMW, netMW: consumptionMW - generationMW },
       diagnostics: [],
       stats: { recipes: usage.length, columns: 0, rows: 0 },
+      ...(minerSupply.length ? { minerSupply } : {}),
     },
     missing,
     targets,

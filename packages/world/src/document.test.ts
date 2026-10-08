@@ -39,6 +39,8 @@ describe('World document', () => {
       wholeMachines: false,
       costImports: false,
       avoidFluidByproducts: true,
+      minerFluids: 'any',
+      minerFluidSupply: 'outside',
       recipes: {},
       maxTier: null,
     });
@@ -75,6 +77,7 @@ describe('factorySolveRequest', () => {
       recipes: { alternates: false, exclude: [] },
       nodeBudget: 'pool',
       avoidFluidByproducts: true,
+      minerFluidSupply: 'outside',
     });
   });
 
@@ -86,6 +89,8 @@ describe('factorySolveRequest', () => {
       tolerance: 0.05,
       alternates: false,
       recipes: { c: false, b: true, alt: false, alt2: true },
+      minerFluids: 'none',
+      minerFluidSupply: 'local',
     });
     w.factories[0]!.unassignedImports.push({ item: 'iron-ingot' }, { item: 'screw', cap: 10 });
     expect(factorySolveRequest(w, model, DEFAULT_FACTORY_ID)).toEqual({
@@ -99,6 +104,7 @@ describe('factorySolveRequest', () => {
         { item: 'screw', cap: 10 },
       ],
       avoidFluidByproducts: true,
+      minerFluids: 'none',
     });
   });
 
