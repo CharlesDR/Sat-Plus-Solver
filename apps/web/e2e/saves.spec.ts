@@ -129,6 +129,14 @@ test('an old save migrates, and a data-hash mismatch warns but loads', async ({ 
     '“bad.json” could not be imported: This world was saved by a newer version (v99)',
   );
   await expect(page.getByRole('alert')).toContainText('different game data (abc123)');
+
+  // "Use current data" adopts the loaded data's hash: the warning goes, and saves carry it.
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Use current data' }).click();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  const adopted = (await autosave(page)) as { meta: { dataHash: string } };
+  expect(adopted.meta.dataHash).not.toBe('abc123');
+  expect(adopted.meta.dataHash).not.toBe('');
 });
 
 test('an oversized world falls back to export', async ({ page }) => {

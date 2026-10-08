@@ -57,6 +57,11 @@ export interface WorldState {
    * link) and checks its data hash against the model's (PLAN M9).
    */
   loadWorld(world: World): void;
+  /**
+   * Adopts the loaded model's data hash for the world, so the mismatch
+   * warning clears and later saves carry the current hash.
+   */
+  useCurrentData(): void;
 
   // World editing (M8). Bad edits throw `WorldEditError` and leave the world unchanged.
   /** Returns the new factory's id; with `parentId`, a sub-factory (A49). */
@@ -232,6 +237,15 @@ export function createWorldStore(initial: World = createWorld()) {
           modelHash === undefined
             ? { world, dataHashMismatch: undefined }
             : checkData(world, modelHash),
+        ),
+      useCurrentData: () =>
+        set(({ world, modelHash }) =>
+          modelHash === undefined
+            ? {}
+            : {
+                world: { ...world, meta: { ...world.meta, dataHash: modelHash } },
+                dataHashMismatch: undefined,
+              },
         ),
       addFactory: (name, groupId, parentId) =>
         create((w) => edit.addFactory(w, name, groupId, parentId)),

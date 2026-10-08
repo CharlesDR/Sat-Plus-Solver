@@ -175,7 +175,10 @@ function AppFrame(props: {
           {mismatch && (
             <p className="warning banner" role="alert">
               This plan was made with different game data ({mismatch.world}); the loaded data is{' '}
-              {mismatch.model}. Results may differ.
+              {mismatch.model}. Results may differ.{' '}
+              <button type="button" onClick={() => store.getState().useCurrentData()}>
+                Use current data
+              </button>
             </p>
           )}
           {initError ? (
