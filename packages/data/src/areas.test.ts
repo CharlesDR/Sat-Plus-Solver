@@ -116,7 +116,7 @@ describe('buildAreas', () => {
   });
 });
 
-describe('real dataset (A57)', () => {
+describe('real dataset (A59)', () => {
   const root = new URL('../../../', import.meta.url);
   const read = (p: string) => readFileSync(new URL(p, root), 'utf8');
   let result: BuildResult;

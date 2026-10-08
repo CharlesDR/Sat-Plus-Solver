@@ -120,7 +120,7 @@ function v9ToV10(doc: Doc): Doc {
   return { ...doc, meta: { ...(doc.meta as Doc), v: 10 } };
 }
 
-/** v10 → v11 (A57): factories may carry flowchart area settings; none do yet. */
+/** v10 → v11 (A61): factories may carry flowchart area settings; none do yet. */
 function v10ToV11(doc: Doc): Doc {
   return { ...doc, meta: { ...(doc.meta as Doc), v: 11 } };
 }

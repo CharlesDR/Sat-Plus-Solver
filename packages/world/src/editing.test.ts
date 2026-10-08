@@ -178,7 +178,7 @@ describe('links', () => {
   });
 });
 
-describe('setFactoryAreas (A57)', () => {
+describe('setFactoryAreas (A61)', () => {
   const id = DEFAULT_FACTORY_ID;
   test('renames, moves and turns grouping off, and drops what is back to the default', () => {
     let w = createWorld('t');

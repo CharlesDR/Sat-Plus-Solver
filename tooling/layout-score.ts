@@ -43,14 +43,14 @@ export const SCORE_PLANS: Record<string, (model: Model) => SolveRequest> = {
   'plastic-20': appDefaults('plastic', 20),
   'reinforced-iron-plate-5': appDefaults('reinforced-iron-plate', 5),
   'ballistic-warp-drive-1': warpDrive,
-  // The same plans drawn in areas (A57), as the app draws them by default;
+  // The same plans drawn in areas (A60), as the app draws them by default;
   // the plain ones above are drawn with grouping off.
   'plastic-20-areas': appDefaults('plastic', 20),
   'ballistic-warp-drive-1-areas': warpDrive,
 };
 const grouped = (name: string) => name.endsWith('-areas');
 
-/** The data build's areas (A57), as the app reads them. */
+/** The data build's areas (A60), as the app reads them. */
 export function areaCatalog(model: Model): AreaCatalog | undefined {
   if (!model.areas) return undefined;
   const at = new Map(model.items.map((i) => [i.id, i.area]));

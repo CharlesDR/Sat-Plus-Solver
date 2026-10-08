@@ -41,7 +41,7 @@
   --form-fluid: #0e8aa0;
   --form-gas: #8b5cf6;
   --flow-multi: #c0267f;
-  /* Flowchart area frame tints, cycled in production order (A57). */
+  /* Flowchart area frame tints, cycled in production order (A61). */
   --area-0: #2459d6;
   --area-1: #0e8aa0;
   --area-2: #1a7f45;
@@ -1687,7 +1687,7 @@ section.diagnostics li p {
   color: var(--muted);
   font-size: 12px;
 }
-/* Area frames (A57): a light tint behind the boxes; only the title bar takes the pointer. */
+/* Area frames (A61): a light tint behind the boxes; only the title bar takes the pointer. */
 .react-flow__node-frame {
   pointer-events: none !important;
 }

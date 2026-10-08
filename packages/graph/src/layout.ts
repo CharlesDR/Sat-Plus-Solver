@@ -88,7 +88,7 @@ export interface Bundle {
   label: Box & { text: string };
 }
 
-/** An area's frame (A57): its box, with the title bar along its top. */
+/** An area's frame (A60): its box, with the title bar along its top. */
 export type PlacedArea = GraphArea & Box;
 
 export interface FactoryLayout {
@@ -97,7 +97,7 @@ export interface FactoryLayout {
   nodes: PlacedNode[];
   edges: PlacedEdge[];
   bundles: Bundle[];
-  /** Frames of the open areas of a grouped plan (A57). */
+  /** Frames of the open areas of a grouped plan (A60). */
   areas?: PlacedArea[];
 }
 
@@ -194,13 +194,13 @@ export const elkOptions = (nodes: number): Record<string, string> =>
     ? { ...ELK_OPTIONS, 'elk.layered.compaction.postCompaction.strategy': 'EDGE_LENGTH' }
     : { ...ELK_OPTIONS, 'elk.layered.thoroughness': '6' };
 
-/** Height of an area's title bar (A57), inside its frame. */
+/** Height of an area's title bar (A60), inside its frame. */
 export const AREA_TITLE = 28;
 /** Space between area frames, and around the lines between them. */
 const AREA_GAP = 24;
 
 /**
- * The layout of the areas themselves (A57): blocks left to right in
+ * The layout of the areas themselves (A60): blocks left to right in
  * production order, wrapped into rows between areas (B9) so the drawing is
  * about twice as wide as it is tall, like the canvas.
  */
@@ -214,7 +214,7 @@ const AREA_ROOT_OPTIONS = {
 /**
  * A grouped plan's first pass only learns each node's port order, which
  * crossing reduction settles; placing and compacting nodes can wait, and a
- * lighter sweep is enough (A57).
+ * lighter sweep is enough (A60).
  */
 const ORDER_ONLY = {
   'elk.layered.nodePlacement.strategy': 'SIMPLE',
@@ -223,7 +223,7 @@ const ORDER_ONLY = {
 };
 /**
  * The second pass keeps the first pass's order of nodes in each layer, read
- * from where it put them, instead of sweeping again (A57).
+ * from where it put them, instead of sweeping again (A60).
  */
 const KEEP_ORDER = { 'elk.layered.crossingMinimization.strategy': 'INTERACTIVE' };
 /** A gate's size: a point, but ELK wants a box. */
@@ -280,7 +280,7 @@ export function nodeLines(n: FlowNode): string[] {
   }
 }
 
-/** An area's machines and power, as its title bar and collapsed box show them (A57). */
+/** An area's machines and power, as its title bar and collapsed box show them (A60). */
 export function areaStats(machines: number, power: number): string {
   const mw = power < 0 ? `${rateText(-power)} MW made` : `${rateText(power)} MW`;
   return `${rateText(machines)} machines · ${mw}`;
@@ -525,7 +525,7 @@ export async function layoutFactoryGraph(
     return ys;
   };
 
-  // Areas (A57): each open area is laid out on its own, then placed as a
+  // Areas (A60): each open area is laid out on its own, then placed as a
   // block. A line crossing an area's border leaves through a gate, one per
   // output, at the area's right edge, and enters through a gate, one per
   // output, at the left edge of each area it feeds. ELK's own compound nodes

@@ -191,6 +191,14 @@ Charles, 2026-10-07: the flowchart and number-format ideas are built in five ste
 - **Dropped:** network-simplex and balanced Brandes–Köpf placement, a sweep of 7 to 20 or the two-sided switch on small plans, compaction on large plans, wider layer gaps, and an edge gap of 6 each made bends, crossings or area worse on some plan.
 - **Acceptance:** the layout score test passes with a lower baseline: Plastic 20 bends 101→99, Ballistic Warp Drive 1 crossings 2,782→2,777, edge length and area down on all three, no number up, gap 6 everywhere. The 150-node layout test passes under 2 s.
 
+#### G5 — Areas
+
+- **Area data (A59):** `data/areas.json` names the families in production order and their parts; the data build places every item by the listed name, raw or one step from raw, signature, closest family, or Other Parts. `report.md` lists each item's area and why.
+- **Grouping (A60):** a plan with 15 or more recipe boxes is drawn in tinted frames, one per area, each with its name, machine count and power. Areas wrap onto rows; lines wrap between areas only.
+- **Collapse (A61):** an area collapses to one box showing what crosses its border; double-click expands it, and "Expand all areas" shows on hover.
+- **Per factory (A61, World v11):** rename an area, move a box to another area, or turn grouping off ("Disable factory component grouping" in the factory settings). A v10 save migrates with none of these.
+- **Acceptance:** the data test places Iron Ingot in Ore Processing, Steel Beam in Steelworks, Circuit Board in Electronics and Motor in Motors, and fails the build on an unknown part. Plastic 20/min (40 nodes) shows several areas that collapse, expand, rename and take moved boxes; Iron Plate 60/min stays one flowchart. Frames never overlap each other or a box outside them. The grouped 150-node plan lays out in under 2 s with nothing overlapping. A v10 save migrates to v11. The flat plans' layout scores are unchanged, and the grouped plans join the baseline.
+
 ---
 
 **Review checkpoints:** after M1 (miner and fracking numbers in `report.md`), after M3 (try the slice), and after M5 (world semantics, using the CLI on a sample of your own save layout).

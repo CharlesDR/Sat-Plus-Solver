@@ -66,15 +66,17 @@ type FlowNodeData = {
   name: (item: string) => string;
 };
 type FlowchartNode = Node<FlowNodeData, 'flow'>;
-/** An area's frame (A57), drawn behind its boxes and lines. */
+/** An area's frame (A61), drawn behind its boxes and lines. */
 type FrameData = { area: PlacedArea; tone: number; controls: AreaControls };
 type FrameNode = Node<FrameData, 'frame'>;
 type CanvasNode = FlowchartNode | FrameNode;
 
-/** What the area frames and boxes can do (A57); absent when the plan is not grouped. */
+/** What the area frames and boxes can do (A61); absent when the plan is not grouped. */
 export interface AreaControls {
   /** Every area a box can move to, by the factory's names. */
   choices: readonly { id: string; name: string }[];
+  /** Some area is collapsed. */
+  collapsed: boolean;
   /** Boxes the factory moved, by node id. */
   moves: Readonly<Record<string, string>>;
   setCollapsed(area: string, collapsed: boolean): void;
@@ -222,7 +224,7 @@ const areaName = (areas: AreaControls, id: string) =>
   areas.choices.find((a) => a.id === id)?.name ?? id;
 
 /**
- * An area's frame (A57): a light tint behind its boxes, with a title bar
+ * An area's frame (A61): a light tint behind its boxes, with a title bar
  * showing its name, machines and power. Double-click the name to rename the
  * area in this factory; the button collapses it to one box.
  */
@@ -430,7 +432,7 @@ export function Flowchart(props: {
   onSelect: (id: string | undefined) => void;
   /** Double-click on a sub-factory box (A53). */
   onOpenFactory?: (id: string) => void;
-  /** The plan is grouped in areas (A57). */
+  /** The plan is grouped in areas (A61). */
   areas?: AreaControls;
 }) {
   const state = useLayout(props.engine, props.graph);
@@ -677,7 +679,7 @@ function Canvas(props: {
             <Follow layout={layout} box={box} selection={selection} />
           </ReactFlow>
         )}
-        {areas && layout.areas?.some((a) => a.collapsed) && (
+        {areas?.collapsed && (
           <button type="button" className="flow-expand-all" onClick={areas.expandAll}>
             Expand all areas
           </button>

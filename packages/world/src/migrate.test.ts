@@ -222,7 +222,7 @@ describe('migrateWorld', () => {
     expect(v10.factories.filter((f) => 'parentId' in f)).toHaveLength(1);
   });
 
-  test('a v10 save carries over unchanged but for its version, with default areas (A57)', () => {
+  test('a v10 save carries over unchanged but for its version, with default areas (A61)', () => {
     const before = JSON.stringify(v10);
     const w = migrateWorld(v10);
     expect(w).toEqual({ ...v10, meta: { ...v10.meta, v: WORLD_VERSION } });

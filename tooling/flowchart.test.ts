@@ -1,7 +1,7 @@
 /**
  * Factory flowchart on the full SF+ model (PLAN M7 acceptance): edge rates
  * conserve, a Converter-loop plan lays out without overlap, and a 150-node
- * plan lays out in under 2 s, grouped in areas too (A57).
+ * plan lays out in under 2 s, grouped in areas too (A60).
  */
 import type { Model } from '@sps/data';
 import {
@@ -115,7 +115,7 @@ describe('factory flowchart on the SF+ model', () => {
       }
   }, 60_000);
 
-  test('a 150-node plan grouped in areas lays out in under 2 s (A57)', async () => {
+  test('a 150-node plan grouped in areas lays out in under 2 s (A60)', async () => {
     const g = groupAreas(
       await graphOf({
         targets: [{ item: 'ballistic-warp-drive', rate: 1 }],

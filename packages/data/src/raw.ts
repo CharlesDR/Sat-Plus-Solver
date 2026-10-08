@@ -127,7 +127,7 @@ export const OverridesConfig = z.object({
 });
 export type OverridesConfig = z.infer<typeof OverridesConfig>;
 
-/** data/areas.json: the flowchart's areas and the parts listed in each (A57). */
+/** data/areas.json: the flowchart's areas and the parts listed in each (A59). */
 export const AreasConfig = z.object({
   /** Resources left out when signatures are compared (Water, Air). */
   utility: z.array(z.string()),
