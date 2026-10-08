@@ -9,6 +9,7 @@ import v7 from '../../../fixtures/worlds/v7-world.json';
 import v8 from '../../../fixtures/worlds/v8-world.json';
 import v10 from '../../../fixtures/worlds/v10-world.json';
 import v11 from '../../../fixtures/worlds/v11-world.json';
+import v12 from '../../../fixtures/worlds/v12-world.json';
 import v9 from '../../../fixtures/worlds/v9-world.json';
 import { WORLD_VERSION, createWorld, factorySolveRequest } from './document';
 import { WorldMigrationError, migrateWorld } from './migrate';
@@ -234,6 +235,35 @@ describe('migrateWorld', () => {
       factories: x.factories.map(({ areas: _, ...f }) => f),
     });
     expect(strip(migrateWorld(v11 as unknown as typeof w))).toEqual(w);
+  });
+
+  test('a v11 save carries over unchanged, keeping fluid modules made here (A69)', () => {
+    const before = JSON.stringify(v11);
+    const w = migrateWorld(v11);
+    expect(w).toEqual({ ...v11, meta: { ...v11.meta, v: WORLD_VERSION } });
+    expect(JSON.stringify(v11)).toBe(before);
+    const req = factorySolveRequest(w, { nodes: [] }, w.factories[0]!.id);
+    expect(req).not.toHaveProperty('minerFluids');
+    expect(req).not.toHaveProperty('minerFluidSupply');
+    // A new world supplies miner fluid from outside.
+    const fresh = createWorld('x');
+    expect(fresh.defaults).toMatchObject({ minerFluids: 'any', minerFluidSupply: 'outside' });
+    expect(factorySolveRequest(fresh, { nodes: [] }, fresh.factories[0]!.id)).toMatchObject({
+      minerFluidSupply: 'outside',
+    });
+    // The v12 fixture is the migrated v11 one with the settings set in the world and one factory.
+    const unset = JSON.parse(JSON.stringify(v12)) as typeof v12;
+    const defaults: { minerFluids?: string; minerFluidSupply?: string } = unset.defaults;
+    delete defaults.minerFluids;
+    delete defaults.minerFluidSupply;
+    delete (unset.factories[0]!.request as { minerFluidSupply?: string }).minerFluidSupply;
+    expect(unset).toEqual(w);
+    expect(factorySolveRequest(v12 as typeof w, { nodes: [] }, 'factory-1')).toMatchObject({
+      minerFluids: 'water',
+    });
+    expect(factorySolveRequest(v12 as typeof w, { nodes: [] }, 'factory-1')).not.toHaveProperty(
+      'minerFluidSupply',
+    );
   });
 
   test('a current world passes through unchanged', () => {

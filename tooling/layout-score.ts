@@ -32,6 +32,9 @@ import { ROOT, runPipeline } from './build-data';
 const appDefaults = (item: string, rate: number) => (model: Model) => {
   const world = createWorld();
   world.factories[0]!.request.targets = [{ item, rate }];
+  // Miner fluid made here, as the app planned when the baseline was measured
+  // (a new world supplies it from outside since A69, which gives other plans).
+  world.defaults.minerFluidSupply = 'local';
   return factorySolveRequest(world, model, world.factories[0]!.id);
 };
 const warpDrive = (): SolveRequest => ({

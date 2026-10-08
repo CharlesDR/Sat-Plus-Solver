@@ -63,7 +63,8 @@ test('Iron Plate 60/min matches the CLI table without blocking the main thread',
   const cli = execFileSync(
     'pnpm',
     // The app's default stack is scarcity-weighted (O2) and it avoids fluid
-    // byproducts (A39); the CLI's defaults are O1 and leftovers allowed.
+    // byproducts (A39) and supplies miner fluid from outside (A69); the
+    // CLI's defaults are O1, leftovers allowed and miner fluid made here.
     [
       '-s',
       'solve',
@@ -73,6 +74,8 @@ test('Iron Plate 60/min matches the CLI table without blocking the main thread',
       '--objective',
       'scarcity',
       '--avoid-fluid-byproducts',
+      '--miner-fluid-supply',
+      'outside',
     ],
     {
       cwd: ROOT,

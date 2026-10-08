@@ -1,3 +1,4 @@
+import type { MinerFluidSupply } from '@sps/solver';
 import type { ReactNode } from 'react';
 import { useStore } from 'zustand';
 import type { Catalog } from '../solver/protocol';
@@ -32,6 +33,7 @@ export function SettingsPanel({ store, scope, catalog }: Props) {
     scope.kind === 'factory'
       ? effectiveSettings(world, scope.id)
       : { values: world.defaults as Settings, overridden: undefined };
+  const minerFluids = values.minerFluids ?? 'any';
   const set = <K extends SettingKey>(key: K, v: Settings[K]) => setSetting(scope, key, v);
 
   const meta = (k: SettingKey) => ({
@@ -90,6 +92,44 @@ export function SettingsPanel({ store, scope, catalog }: Props) {
         </label>
         <p className="hint">
           No leftover fluids except Steam, Flue Gas and Energetic Dark Matter, which can be dumped.
+        </p>
+      </SettingField>
+      <SettingField {...meta('minerFluids')}>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={minerFluids !== 'none'}
+            onChange={(e) => set('minerFluids', e.target.checked ? 'any' : 'none')}
+          />
+          Model miner optional fluid usage
+        </label>
+        {minerFluids !== 'none' && (
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={minerFluids === 'water'}
+              onChange={(e) => set('minerFluids', e.target.checked ? 'water' : 'any')}
+            />
+            Water only
+          </label>
+        )}
+        <p className="hint">
+          Off, miners use no fluid modules, except where an ore can't be mined without one.
+        </p>
+      </SettingField>
+      <SettingField {...meta('minerFluidSupply')}>
+        <label>
+          Miner fluid{' '}
+          <select
+            value={values.minerFluidSupply ?? 'local'}
+            onChange={(e) => set('minerFluidSupply', e.target.value as MinerFluidSupply)}
+          >
+            <option value="outside">Supplied from outside</option>
+            <option value="local">Made here</option>
+          </select>
+        </label>
+        <p className="hint">
+          Supplied from outside, it is imported and still counts as a cost in the objectives.
         </p>
       </SettingField>
       {factory && (

@@ -140,6 +140,8 @@ function shapeProblems(w: World): string[] {
     !isBool(d.wholeMachines) ||
     !isBool(d.costImports) ||
     !isBool(d.avoidFluidByproducts) ||
+    !isOpt(d.minerFluids, isMinerFluids) ||
+    !isOpt(d.minerFluidSupply, isMinerSupply) ||
     !isBoolMap(d.recipes) ||
     !isTier(d.maxTier)
   )
@@ -147,6 +149,9 @@ function shapeProblems(w: World): string[] {
   if (!isNumMap(doc.nodePool)) out.push('"nodePool" is malformed');
   return out;
 }
+
+const isMinerFluids = (v: unknown) => v === 'any' || v === 'water' || v === 'none';
+const isMinerSupply = (v: unknown) => v === 'local' || v === 'outside';
 
 function isTweak(t: unknown): boolean {
   if (!isObj(t)) return false;
@@ -192,6 +197,8 @@ function isRequest(r: unknown): boolean {
     isOpt(r.wholeMachines, isBool) &&
     isOpt(r.costImports, isBool) &&
     isOpt(r.avoidFluidByproducts, isBool) &&
+    isOpt(r.minerFluids, isMinerFluids) &&
+    isOpt(r.minerFluidSupply, isMinerSupply) &&
     isOpt(r.recipes, isBoolMap) &&
     isOpt(r.maxTier, isTier)
   );

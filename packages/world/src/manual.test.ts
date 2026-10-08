@@ -206,4 +206,37 @@ describe('manual plans (A36)', () => {
       { item: 'water', rate: 90 },
     ]);
   });
+
+  test('miner fluid supplied from outside is not missing; other uses of it are (A69)', () => {
+    const recipe = (id: string, inputs: { item: string; rate: number }[], fluid?: string) =>
+      ({
+        id,
+        name: id,
+        machine: 'm',
+        inputs,
+        outputs: [{ item: 'ore', rate: 60 }],
+        powerMW: 0,
+        ...(fluid ? { route: { resource: 'ore', purity: 'normal', processing: 'x', fluid } } : {}),
+      }) as unknown as Model['recipes'][number];
+    const mini = {
+      nodes: [],
+      recipes: [
+        recipe('miner', [{ item: 'water', rate: 30 }], 'water'),
+        recipe('wash', [{ item: 'water', rate: 10 }]),
+      ],
+    };
+    const entries = [
+      { recipe: 'miner', machines: 1 },
+      { recipe: 'wash', machines: 1 },
+    ];
+    const outside = manualOutcome(mini, entries, {
+      targets: [],
+      minerFluidSupply: 'outside',
+    });
+    expect(outside.missing).toEqual([{ item: 'water', rate: 10 }]);
+    expect(outside.result.minerSupply).toEqual([{ item: 'water', rate: 30 }]);
+    expect(manualOutcome(mini, entries, { targets: [] }).missing).toEqual([
+      { item: 'water', rate: 40 },
+    ]);
+  });
 });
