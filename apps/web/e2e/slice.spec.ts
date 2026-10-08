@@ -99,6 +99,9 @@ test('Iron Plate 60/min matches the CLI table without blocking the main thread',
   await item.fill('Iron Plate');
   await expect(page.getByTestId('plan')).toBeVisible();
   await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
+  // "Status: ok" can show before this solve's result does; the Recipes table
+  // only comes with it, so the window below covers the whole solve.
+  await expect(page.locator('[data-testid=plan] caption', { hasText: 'Recipes' })).toBeVisible();
 
   // Let the observer flush entries from the last frames.
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 100))));
