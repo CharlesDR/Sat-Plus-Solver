@@ -17,9 +17,10 @@ import type { ItemRate, RecipeUsage, SolveResult } from '@sps/solver';
 /**
  * `missing`: what a manual plan (A36) needs beyond its imports.
  * `sub-factory`: a factory nested in this one (A53), drawn as one box.
+ * `area`: a collapsed area (A63), one box for everything in it.
  */
 export type FlowNodeKind =
-  'recipe' | 'resource' | 'import' | 'missing' | 'sub-factory' | 'target' | 'byproduct';
+  'recipe' | 'resource' | 'import' | 'missing' | 'sub-factory' | 'area' | 'target' | 'byproduct';
 
 export interface FlowNode {
   /**
@@ -34,7 +35,7 @@ export interface FlowNode {
   recipe?: string;
   /** Machine display name (recipe and resource nodes). */
   machine?: string;
-  /** Fractional machine count; whole heaters for heaters (A17). */
+  /** Fractional machine count; whole heaters for heaters (A17); a collapsed area's total. */
   machines?: number;
   machinesCeil?: number;
   /** Heaters only: boiler load 0–1. */
@@ -45,8 +46,12 @@ export interface FlowNode {
    * and leave from vertices of their own (A40).
    */
   main?: string;
+  /** Recipe and resource nodes, and collapsed areas: their draw in MW (negative = generation). */
+  power?: number;
   /** Sub-factory nodes: the nested factory's id (A53). */
   factory?: string;
+  /** The area it is drawn in (A63), when the plan is grouped; a collapsed area's own id. */
+  area?: string;
   /** Node class drawn on (resource nodes). */
   node?: string;
   /** Import/missing/target/byproduct nodes: the item and its rate. */
@@ -73,6 +78,18 @@ export interface FactoryGraph {
   nodes: FlowNode[];
   /** Sorted by id. */
   edges: FlowEdge[];
+  /** The plan's areas (A63) in production order, when it is grouped. */
+  areas?: GraphArea[];
+}
+
+/** An area of a grouped plan (A63): a frame around its nodes, or one box when collapsed. */
+export interface GraphArea {
+  id: string;
+  name: string;
+  /** Machines and draw (MW, negative = generation) of the recipes in it. */
+  machines: number;
+  power: number;
+  collapsed?: true;
 }
 
 /** Display names; ids are shown where a name is missing. */
@@ -93,8 +110,9 @@ const KIND_ORDER: Record<FlowNodeKind, number> = {
   'sub-factory': 2,
   resource: 3,
   recipe: 4,
-  target: 5,
-  byproduct: 6,
+  area: 5,
+  target: 6,
+  byproduct: 7,
 };
 
 /**
@@ -149,6 +167,7 @@ export function factoryGraph(
     machine: labels.machine?.(r.machine) ?? r.machine,
     machines: r.machines,
     machinesCeil: r.machinesCeil,
+    power: r.powerMW,
     ...(r.boilerLoad !== undefined ? { boilerLoad: r.boilerLoad } : {}),
     ...(r.outputs[0] ? { main: r.outputs[0].item } : {}),
     ...(r.node ? { node: r.node } : {}),

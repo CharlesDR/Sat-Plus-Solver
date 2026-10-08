@@ -1,5 +1,5 @@
 import type { World } from '@sps/world';
-import { startTransition, useCallback, useEffect, useState } from 'react';
+import { startTransition, useCallback, useEffect, useMemo, useState } from 'react';
 import type { SolveOutcome, SolverClient } from './solver/client';
 import type { SolveProgress, WorldAction } from './solver/protocol';
 
@@ -27,9 +27,10 @@ interface Settled {
  */
 export function useWorldPlan(
   client: SolverClient,
-  world: World,
+  document: World,
   focus: string | undefined,
 ): { state: WorldPlanState; run(action: WorldAction): Promise<SolveOutcome | null> } {
+  const world = useSolvable(document);
   const [settled, setSettled] = useState<Settled | undefined>();
   // Bumped when an action's request may have replaced this hook's own.
   const [attempt, setAttempt] = useState(0);
@@ -82,4 +83,27 @@ export function useWorldPlan(
   else if (settled.error !== undefined) state = { kind: 'error', message: settled.error };
   else state = settled.outcome ? { kind: 'done', outcome: settled.outcome } : { kind: 'solving' };
   return { state, run };
+}
+
+/**
+ * The world without what only changes how a plan is drawn (a factory's
+ * flowchart areas, A64), kept the same object while the rest stays the same,
+ * so renaming an area or moving a box does not solve the world again.
+ */
+function useSolvable(world: World): World {
+  const key = useMemo(
+    () =>
+      JSON.stringify({
+        ...world,
+        factories: world.factories.map((f) => {
+          if (f.areas === undefined) return f;
+          const rest = { ...f };
+          delete rest.areas;
+          return rest;
+        }),
+      }),
+    [world],
+  );
+  // The world is its own save format, so it comes back from JSON whole.
+  return useMemo(() => JSON.parse(key) as World, [key]);
 }

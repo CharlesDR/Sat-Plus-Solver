@@ -17,7 +17,7 @@
 import type { Model } from '@sps/data';
 import type { ItemRate, ObjectiveId, RecipeFilter, SolveRequest } from '@sps/solver';
 
-export const WORLD_VERSION = 10;
+export const WORLD_VERSION = 11;
 
 /** Lexicographic tolerance bounds (CLAUDE.md): 0.01%–90%, default 0.01%. */
 export const TOLERANCE_MIN = 0.0001;
@@ -126,6 +126,22 @@ export interface Factory {
    * every resolution; missing = not marked.
    */
   built?: BuiltSnapshot;
+  /** How its flowchart is grouped into areas (A64); missing = the defaults. */
+  areas?: FactoryAreas;
+}
+
+/**
+ * A factory's flowchart areas (A64). Area ids come from the data build
+ * (data/areas.json); node ids are the flowchart's (`recipe:<id>`,
+ * `sub:<factory id>`).
+ */
+export interface FactoryAreas {
+  /** "Disable factory component grouping": one flowchart, no areas. */
+  off?: true;
+  /** Area names chosen for this factory, by area id. */
+  names?: Record<string, string>;
+  /** Recipes and sub-factories moved to another area, by node id. */
+  moves?: Record<string, string>;
 }
 
 /**

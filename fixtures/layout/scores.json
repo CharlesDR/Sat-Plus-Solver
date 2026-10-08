@@ -24,6 +24,22 @@
       "edgeLength": 723050.5,
       "area": 55628631,
       "minGap": 6
+    },
+    "plastic-20-areas": {
+      "nodes": 40,
+      "crossings": 56,
+      "bends": 184,
+      "edgeLength": 172409.9,
+      "area": 8594632.5,
+      "minGap": 6
+    },
+    "ballistic-warp-drive-1-areas": {
+      "nodes": 151,
+      "crossings": 3472,
+      "bends": 1059,
+      "edgeLength": 1902145.7,
+      "area": 135671901,
+      "minGap": 6
     }
   }
 }

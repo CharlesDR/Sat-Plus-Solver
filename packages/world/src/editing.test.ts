@@ -11,6 +11,7 @@ import {
   removeLink,
   renameFactory,
   renameGroup,
+  setFactoryAreas,
   setFactoryGroup,
   setGroupCollapsed,
   setGroupParent,
@@ -174,5 +175,30 @@ describe('links', () => {
     const { world } = twoFactories();
     const g = addGroup(world, 'G');
     expect(migrateWorld(JSON.parse(JSON.stringify(g.world)))).toEqual(g.world);
+  });
+});
+
+describe('setFactoryAreas (A64)', () => {
+  const id = DEFAULT_FACTORY_ID;
+  test('renames, moves and turns grouping off, and drops what is back to the default', () => {
+    let w = createWorld('t');
+    w = setFactoryAreas(w, id, { names: { steelworks: ' Steel Mill ' } });
+    w = setFactoryAreas(w, id, { moves: { 'recipe:iron-plate': 'metal-parts' } });
+    w = setFactoryAreas(w, id, { off: true });
+    expect(w.factories[0]!.areas).toEqual({
+      off: true,
+      names: { steelworks: 'Steel Mill' },
+      moves: { 'recipe:iron-plate': 'metal-parts' },
+    });
+    w = setFactoryAreas(w, id, {
+      off: false,
+      names: { steelworks: '' },
+      moves: { 'recipe:iron-plate': undefined },
+    });
+    expect(w.factories[0]).not.toHaveProperty('areas');
+    expect(migrateWorld(w)).toEqual(w);
+  });
+  test('refuses an unknown factory', () => {
+    expect(() => setFactoryAreas(createWorld('t'), 'nope', { off: true })).toThrow(WorldEditError);
   });
 });

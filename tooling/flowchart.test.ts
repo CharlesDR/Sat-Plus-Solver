@@ -1,12 +1,13 @@
 /**
  * Factory flowchart on the full SF+ model (PLAN M7 acceptance): edge rates
  * conserve, a Converter-loop plan lays out without overlap, and a 150-node
- * plan lays out in under 2 s.
+ * plan lays out in under 2 s, grouped in areas too (A63).
  */
 import type { Model } from '@sps/data';
 import {
   factoryGraph,
   GASES,
+  groupAreas,
   layoutFactoryGraph,
   overlaps,
   type FactoryGraph,
@@ -16,6 +17,7 @@ import { createHighsBackend, solve, type SolveRequest } from '@sps/solver';
 import ELK from 'elkjs/lib/elk.bundled.js';
 import { beforeAll, describe, expect, test } from 'vitest';
 import { runPipeline } from './build-data';
+import { areaCatalog } from './layout-score';
 
 function expectConserved(g: FactoryGraph) {
   const sum = new Map<string, number>();
@@ -111,6 +113,26 @@ describe('factory flowchart on the SF+ model', () => {
         const b = e.points[k]!;
         expect(Math.min(Math.abs(a.x - b.x), Math.abs(a.y - b.y))).toBeLessThan(1e-6);
       }
+  }, 60_000);
+
+  test('a 150-node plan grouped in areas lays out in under 2 s (A63)', async () => {
+    const g = groupAreas(
+      await graphOf({
+        targets: [{ item: 'ballistic-warp-drive', rate: 1 }],
+        recipes: { alternates: true },
+        minBranch: 0,
+      }),
+      areaCatalog(model),
+    );
+    expect(g.nodes.length).toBeGreaterThanOrEqual(150);
+    expect(g.areas?.length).toBeGreaterThan(1);
+    const elk = new ELK();
+    await layoutFactoryGraph({ nodes: g.nodes.slice(0, 1), edges: [] }, elk);
+    const t0 = performance.now();
+    const layout = await layoutFactoryGraph(g, elk);
+    expect(performance.now() - t0).toBeLessThan(2000);
+    expect(overlaps(layout)).toEqual([]);
+    expect(layout.areas?.map((a) => a.id)).toEqual(g.areas!.map((a) => a.id));
   }, 60_000);
 
   test('every listed gas is a fluid in the model (A48)', () => {

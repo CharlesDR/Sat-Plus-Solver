@@ -67,6 +67,12 @@ const isResourceMap = (v: unknown) =>
   Object.values(v).every(
     (l) => isObj(l) && isBool(l.enabled) && isOpt(l.max, (m) => isNum(m) && m >= 0),
   );
+const isStrMap = (v: unknown) => isObj(v) && Object.values(v).every(isStr);
+const isAreas = (v: unknown) =>
+  isObj(v) &&
+  isOpt(v.off, (o) => o === true) &&
+  isOpt(v.names, isStrMap) &&
+  isOpt(v.moves, isStrMap);
 const isRate = (v: unknown) => isObj(v) && isStr(v.item) && isNum(v.rate);
 
 /**
@@ -106,7 +112,8 @@ function shapeProblems(w: World): string[] {
       Array.isArray(f.tweaks) &&
       f.tweaks.every(isTweak) &&
       isOpt(f.manual, isManual) &&
-      isOpt(f.built, isBuilt),
+      isOpt(f.built, isBuilt) &&
+      isOpt(f.areas, isAreas),
   );
   list(
     'groups',

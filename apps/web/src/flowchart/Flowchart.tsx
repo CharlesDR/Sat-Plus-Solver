@@ -4,6 +4,8 @@
  * their rates. Selecting a node selects its table row and back.
  */
 import {
+  AREA_TITLE,
+  areaStats,
   flowForm,
   nodeLines,
   rateText,
@@ -12,6 +14,7 @@ import {
   type FactoryGraph,
   type FactoryLayout,
   type LayoutEngine,
+  type PlacedArea,
   type PlacedEdge,
   type PlacedNode,
 } from '@sps/graph';
@@ -63,6 +66,27 @@ type FlowNodeData = {
   name: (item: string) => string;
 };
 type FlowchartNode = Node<FlowNodeData, 'flow'>;
+/** An area's frame (A64), drawn behind its boxes and lines. */
+type FrameData = { area: PlacedArea; tone: number; controls: AreaControls };
+type FrameNode = Node<FrameData, 'frame'>;
+type CanvasNode = FlowchartNode | FrameNode;
+
+/** What the area frames and boxes can do (A64); absent when the plan is not grouped. */
+export interface AreaControls {
+  /** Every area a box can move to, by the factory's names. */
+  choices: readonly { id: string; name: string }[];
+  /** Some area is collapsed. */
+  collapsed: boolean;
+  /** Boxes the factory moved, by node id. */
+  moves: Readonly<Record<string, string>>;
+  setCollapsed(area: string, collapsed: boolean): void;
+  expandAll(): void;
+  rename(area: string, name: string): void;
+  /** `undefined` sends the box back to its own area. */
+  move(node: string, area: string | undefined): void;
+}
+/** Frame tints, cycled in production order. */
+const TONES = 6;
 /**
  * `weight`: the line's rate on a log scale against the largest in the plan,
  * 0–1. `secondary`: not its source's main product (A48). `hot`: touches the
@@ -89,6 +113,7 @@ const KIND_LABEL = {
   'sub-factory': 'Sub-factory',
   target: 'Target',
   byproduct: 'Byproduct',
+  area: 'Collapsed area',
 } as const;
 
 /** A tray row's height; rows sit at least this far apart (A48). */
@@ -112,7 +137,15 @@ function ItemIcon({ src, name }: { src: string | undefined; name: string }) {
 }
 
 /** Exact values of a node (A48): counts and rates with their fractions. */
-function NodeTip({ node, name }: { node: PlacedNode; name: (item: string) => string }) {
+function NodeTip({
+  node,
+  name,
+  areas,
+}: {
+  node: PlacedNode;
+  name: (item: string) => string;
+  areas: AreaControls | undefined;
+}) {
   const flows = (list: readonly { item: string; rate: number }[]) =>
     list.map((f) => (
       <li key={f.item}>
@@ -123,7 +156,10 @@ function NodeTip({ node, name }: { node: PlacedNode; name: (item: string) => str
   return (
     <>
       <div className="flow-tip-title">{node.label}</div>
-      {node.machines !== undefined && (
+      {node.kind === 'area' && (
+        <div className="num">{areaStats(node.machines ?? 0, node.power ?? 0)}</div>
+      )}
+      {node.kind !== 'area' && node.machines !== undefined && (
         <div className="num">
           {formatExact(node.machines)} × {node.machine}
         </div>
@@ -147,9 +183,105 @@ function NodeTip({ node, name }: { node: PlacedNode; name: (item: string) => str
           <ul>{flows(node.outputs)}</ul>
         </>
       )}
+      {areas && node.kind === 'area' && node.area !== undefined && (
+        <button
+          type="button"
+          className="flow-tip-action"
+          onClick={() => areas.setCollapsed(node.area!, false)}
+        >
+          Expand area
+        </button>
+      )}
+      {areas && node.kind !== 'area' && node.area !== undefined && (
+        <label className="flow-tip-area">
+          Area
+          <select
+            value={areas.moves[node.id] ?? ''}
+            onChange={(e) => areas.move(node.id, e.target.value || undefined)}
+          >
+            <option value="">
+              Own area{areas.moves[node.id] === undefined ? ` (${areaName(areas, node.area)})` : ''}
+            </option>
+            {areas.choices.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
     </>
   );
 }
+
+/** An area keeps its tint from plan to plan: by its place in production order. */
+const tone = (areas: AreaControls, id: string, fallback: number) => {
+  const k = areas.choices.findIndex((c) => c.id === id);
+  return (k < 0 ? fallback : k) % TONES;
+};
+
+const areaName = (areas: AreaControls, id: string) =>
+  areas.choices.find((a) => a.id === id)?.name ?? id;
+
+/**
+ * An area's frame (A64): a light tint behind its boxes, with a title bar
+ * showing its name, machines and power. Double-click the name to rename the
+ * area in this factory; the button collapses it to one box.
+ */
+const AreaFrame = memo(function AreaFrame({ data }: NodeProps<FrameNode>) {
+  const { area, controls } = data;
+  const [editing, setEditing] = useState(false);
+  const cancelled = useRef(false);
+  return (
+    <div className={`flow-area tone-${data.tone}`} data-area={area.id}>
+      <div className="flow-area-head" style={{ height: AREA_TITLE }}>
+        {editing ? (
+          <input
+            className="flow-area-name nodrag"
+            defaultValue={area.name}
+            aria-label="Area name"
+            autoFocus
+            onFocus={(e) => e.currentTarget.select()}
+            onBlur={(e) => {
+              if (!cancelled.current) controls.rename(area.id, e.currentTarget.value);
+              cancelled.current = false;
+              setEditing(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur();
+              else if (e.key === 'Escape') {
+                // Handled here, so Esc only ends the edit.
+                e.preventDefault();
+                cancelled.current = true;
+                e.currentTarget.blur();
+              }
+            }}
+          />
+        ) : (
+          <span
+            className="flow-area-name"
+            title="Double-click to rename"
+            onDoubleClick={() => setEditing(true)}
+          >
+            {area.name}
+          </span>
+        )}
+        <span className="flow-area-stats num">{areaStats(area.machines, area.power)}</span>
+        <button
+          type="button"
+          className="flow-area-toggle nodrag"
+          title={`Collapse ${area.name} to one box`}
+          aria-label={`Collapse ${area.name}`}
+          onClick={() => controls.setCollapsed(area.id, true)}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+            <path d="M2.5 6h7" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+});
 
 /**
  * A node is a hexagon with vertices left and right (A40), its inputs meeting
@@ -279,7 +411,7 @@ const RoutedEdge = memo(function RoutedEdge({ id, data }: EdgeProps<FlowchartEdg
   );
 });
 
-const nodeTypes = { flow: FlowNodeView };
+const nodeTypes = { flow: FlowNodeView, frame: AreaFrame };
 /** The Fit button shows the whole plan, however small its text gets, up to MAX_ZOOM. */
 const FIT = { padding: 0.02 };
 /**
@@ -300,6 +432,8 @@ export function Flowchart(props: {
   onSelect: (id: string | undefined) => void;
   /** Double-click on a sub-factory box (A53). */
   onOpenFactory?: (id: string) => void;
+  /** The plan is grouped in areas (A64). */
+  areas?: AreaControls;
 }) {
   const state = useLayout(props.engine, props.graph);
   const recipes = useMemo(
@@ -325,6 +459,7 @@ export function Flowchart(props: {
             selection={props.selection}
             onSelect={props.onSelect}
             {...(props.onOpenFactory ? { onOpenFactory: props.onOpenFactory } : {})}
+            {...(props.areas ? { areas: props.areas } : {})}
           />
         </ReactFlowProvider>
       )}
@@ -357,8 +492,9 @@ function Canvas(props: {
   selection: Selection | undefined;
   onSelect: (id: string | undefined) => void;
   onOpenFactory?: (id: string) => void;
+  areas?: AreaControls;
 }) {
-  const { layout, recipes, fluids, selection, onSelect, onOpenFactory } = props;
+  const { layout, recipes, fluids, selection, onSelect, onOpenFactory, areas } = props;
   const selected = selection?.id;
   const box = useRef<HTMLDivElement>(null);
   // Measured before the first paint, so the plan opens at its view without a jump.
@@ -410,9 +546,31 @@ function Canvas(props: {
     };
   }, [layout, hoverNode, hoverEdge, selected]);
 
-  const nodes = useMemo<FlowchartNode[]>(
+  const frames = useMemo<FrameNode[]>(
     () =>
-      layout.nodes.map((n) => ({
+      areas
+        ? (layout.areas ?? []).map((a, k): FrameNode => ({
+            id: `frame:${a.id}`,
+            type: 'frame',
+            position: { x: a.x, y: a.y },
+            width: a.width,
+            height: a.height,
+            style: { width: a.width, height: a.height },
+            zIndex: -1,
+            data: { area: a, tone: tone(areas, a.id, k), controls: areas },
+            selectable: false,
+            focusable: false,
+            draggable: false,
+            connectable: false,
+            ariaLabel: `Area: ${a.name}`,
+          }))
+        : [],
+    [layout, areas],
+  );
+  const nodes = useMemo<CanvasNode[]>(
+    () => [
+      ...frames,
+      ...layout.nodes.map((n): FlowchartNode => ({
         id: n.id,
         type: 'flow',
         position: { x: n.x, y: n.y },
@@ -432,10 +590,11 @@ function Canvas(props: {
         connectable: false,
         ariaLabel: `${KIND_LABEL[n.kind]}: ${nodeLines(n).join(', ')}`,
       })),
+    ],
     // A fresh node list when the tooltip closes: React Flow drops a node's
     // selection itself on Esc, and this puts it back when Esc only closed
     // the tooltip.
-    [layout, selected, recipes, focus, form, name, tip],
+    [frames, layout, selected, recipes, focus, form, name, tip],
   );
   const edges = useMemo<FlowchartEdge[]>(() => {
     const trunks = new Map(layout.bundles.map((b) => [`${b.source}\n${b.item}`, b]));
@@ -477,7 +636,7 @@ function Canvas(props: {
         }
       >
         {view && (
-          <ReactFlow<FlowchartNode, FlowchartEdge>
+          <ReactFlow<CanvasNode, FlowchartEdge>
             nodes={nodes}
             edges={edges}
             nodeTypes={nodeTypes}
@@ -485,20 +644,25 @@ function Canvas(props: {
             nodesDraggable={false}
             nodesConnectable={false}
             onNodeClick={(_, n) => {
+              if (n.type !== 'flow') return;
               const again = n.id === selected;
               onSelect(again ? undefined : n.id);
               setTip(again ? undefined : n.id);
             }}
             onNodeDoubleClick={(_, n) => {
-              const sub = n.data.node.factory;
+              if (n.type !== 'flow') return;
+              const { factory: sub, kind, area } = n.data.node;
               if (sub !== undefined) onOpenFactory?.(sub);
+              else if (kind === 'area' && area !== undefined) areas?.setCollapsed(area, false);
             }}
             zoomOnDoubleClick={false}
             onPaneClick={() => {
               onSelect(undefined);
               setTip(undefined);
             }}
-            onNodeMouseEnter={(_, n) => setHoverNode(n.id)}
+            onNodeMouseEnter={(_, n) => {
+              if (n.type === 'flow') setHoverNode(n.id);
+            }}
             onNodeMouseLeave={() => setHoverNode(undefined)}
             onEdgeMouseEnter={(_, e) => setHoverEdge(e.id)}
             onEdgeMouseLeave={() => setHoverEdge(undefined)}
@@ -511,9 +675,14 @@ function Canvas(props: {
             <Controls showInteractive={false} showFitView={false}>
               <FitButton layout={layout} />
             </Controls>
-            {tipNode && <Tooltip node={tipNode} name={name} />}
+            {tipNode && <Tooltip node={tipNode} name={name} areas={areas} />}
             <Follow layout={layout} box={box} selection={selection} />
           </ReactFlow>
+        )}
+        {areas?.collapsed && (
+          <button type="button" className="flow-expand-all" onClick={areas.expandAll}>
+            Expand all areas
+          </button>
         )}
       </div>
       <Legend layout={layout} form={form} />
@@ -561,7 +730,15 @@ function useTooltip(
  * the zoom nor the canvas's edge cuts it: above its node, or below it where
  * there's no room above.
  */
-function Tooltip({ node, name }: { node: PlacedNode; name: (item: string) => string }) {
+function Tooltip({
+  node,
+  name,
+  areas,
+}: {
+  node: PlacedNode;
+  name: (item: string) => string;
+  areas: AreaControls | undefined;
+}) {
   const flow = useReactFlow();
   // Follows the node as the view pans and zooms, and as the page scrolls.
   useStore((s) => s.transform);
@@ -594,7 +771,7 @@ function Tooltip({ node, name }: { node: PlacedNode; name: (item: string) => str
       aria-label={`${node.label}: exact values`}
       style={{ left: x, top: above ? top.y - GAP - size.height : bottom.y + GAP }}
     >
-      <NodeTip node={node} name={name} />
+      <NodeTip node={node} name={name} areas={areas} />
     </div>,
     document.body,
   );

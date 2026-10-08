@@ -40,6 +40,8 @@ describe('solver client', () => {
       fluids: [],
       belts: [],
       pipes: [],
+      areas: [],
+      itemAreas: {},
     };
     reply({ type: 'ready', catalog, dataHash: 'h' });
     await expect(client.ready).resolves.toEqual({ catalog, dataHash: 'h' });

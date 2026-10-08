@@ -25,6 +25,9 @@ interface Props {
 export function SettingsPanel({ store, scope, catalog }: Props) {
   const world = useStore(store, (s) => s.world);
   const setSetting = useStore(store, (s) => s.setSetting);
+  const setFactoryAreas = useStore(store, (s) => s.setFactoryAreas);
+  const factory =
+    scope.kind === 'factory' ? world.factories.find((f) => f.id === scope.id) : undefined;
   const { values, overridden } =
     scope.kind === 'factory'
       ? effectiveSettings(world, scope.id)
@@ -89,6 +92,22 @@ export function SettingsPanel({ store, scope, catalog }: Props) {
           No leftover fluids except Steam, Flue Gas and Energetic Dark Matter, which can be dumped.
         </p>
       </SettingField>
+      {factory && (
+        <div className="setting" data-setting="areas">
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={factory.areas?.off === true}
+              onChange={(e) => setFactoryAreas(factory.id, { off: e.target.checked })}
+            />
+            Disable factory component grouping
+          </label>
+          <p className="hint">
+            Draws a large plan as one flowchart instead of areas such as Ore Processing and
+            Steelworks.
+          </p>
+        </div>
+      )}
       <SettingField {...meta('maxTier')}>
         <label>
           Max tier

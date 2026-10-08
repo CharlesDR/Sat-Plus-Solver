@@ -1,5 +1,5 @@
 /** Messages between the main thread and the solver worker. */
-import type { BeltCapacity, NodePurity } from '@sps/data';
+import type { Area, BeltCapacity, NodePurity } from '@sps/data';
 import type { FactoryGraph } from '@sps/graph';
 import type { Diagnostic, PlanSummary, SummaryFlow } from '@sps/solver';
 import type { FactoryResult, ModelerReportLine, World, WorldResult } from '@sps/world';
@@ -69,6 +69,10 @@ export interface Catalog {
   belts: BeltCapacity[];
   /** Pipe capacity per tier, m³/min (A10). */
   pipes: BeltCapacity[];
+  /** Flowchart areas in production order (A64). */
+  areas: Area[];
+  /** Each item's area id (A64). */
+  itemAreas: Record<string, string>;
 }
 
 /** A factory's world result without its full solve result, which stays in the worker. */

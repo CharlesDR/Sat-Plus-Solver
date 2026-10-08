@@ -127,6 +127,24 @@ export const OverridesConfig = z.object({
 });
 export type OverridesConfig = z.infer<typeof OverridesConfig>;
 
+/** data/areas.json: the flowchart's areas and the parts listed in each (A62). */
+export const AreasConfig = z.object({
+  /** Resources left out when signatures are compared (Water, Air). */
+  utility: z.array(z.string()),
+  areas: z.array(
+    z.object({
+      id: z.string().regex(/^[a-z0-9-]+$/),
+      name: z.string().min(1),
+      /** `raw`: raw resources and one step on. `targets`: recipes making a target. `fallback`: the rest. */
+      rule: z.enum(['raw', 'targets', 'fallback']).optional(),
+      /** Unlisted items whose raw resources are exactly these (utility aside) join this area. */
+      signature: z.array(z.string()).optional(),
+      items: z.array(z.string()),
+    }),
+  ),
+});
+export type AreasConfig = z.infer<typeof AreasConfig>;
+
 /** Drops `$`-prefixed documentation keys before schema validation. */
 export function stripComments(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stripComments);

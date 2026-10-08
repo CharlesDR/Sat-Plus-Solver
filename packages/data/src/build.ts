@@ -1,3 +1,4 @@
+import { buildAreas, type AreasResult } from './areas';
 import { MW_PART, PURITIES, type Ctx, type DraftRecipe } from './context';
 import { buildExtraction, type ExtractionResult } from './extraction';
 import { assignIds, shortHash, slug } from './ids';
@@ -15,7 +16,7 @@ import {
 import { parseNodesCsv } from './nodes';
 import { normalizeDatasetRecipes } from './normalize';
 import { ZERO, isNegative, isZero, parseRational, toNumber, type Rational } from './rational';
-import { MinerModelConfig, OverridesConfig, RawGameData, stripComments } from './raw';
+import { AreasConfig, MinerModelConfig, OverridesConfig, RawGameData, stripComments } from './raw';
 
 /** Raw text of every pipeline input (docs/ARCHITECTURE.md §6). */
 export interface BuildInputs {
@@ -23,6 +24,8 @@ export interface BuildInputs {
   nodesCsv: string;
   minerModel: string;
   overrides: string;
+  /** data/areas.json (A62). */
+  areas: string;
 }
 
 export interface BuildResult {
@@ -40,6 +43,8 @@ export interface BuildDetails {
   unusedParts: string[];
   /** Largest fluid rate seen, for the magnitude check. */
   maxFluidRate: number;
+  /** Where every item's recipes are drawn, and why (A62). */
+  areas?: AreasResult;
 }
 
 /** Fluid rates above this are assumed to be in litres, not m³ (§6). */
@@ -73,11 +78,15 @@ export function buildModel(inputs: BuildInputs): BuildResult {
   const rawOverrides = OverridesConfig.safeParse(
     stripComments(parseJson(issues, inputs.overrides, 'data/overrides.json')),
   );
+  const rawAreas = AreasConfig.safeParse(
+    stripComments(parseJson(issues, inputs.areas, 'data/areas.json')),
+  );
   if (!rawGame.success) schemaErrors(issues, 'game_data.json', rawGame.error);
   if (!rawMiner.success) schemaErrors(issues, 'data/miner-model.json', rawMiner.error);
   if (!rawOverrides.success) schemaErrors(issues, 'data/overrides.json', rawOverrides.error);
+  if (!rawAreas.success) schemaErrors(issues, 'data/areas.json', rawAreas.error);
   const nodeRows = parseNodesCsv(inputs.nodesCsv, issues);
-  if (!rawGame.success || !rawMiner.success || !rawOverrides.success)
+  if (!rawGame.success || !rawMiner.success || !rawOverrides.success || !rawAreas.success)
     return { issues: issues.list };
 
   const data = rawGame.data;
@@ -297,6 +306,16 @@ export function buildModel(inputs: BuildInputs): BuildResult {
   if (beltCapacities.length === 0)
     issues.warn('belts.missing', 'No belt capacities found in MultiMachines');
 
+  // ---- Areas (A62): where each item's recipes are drawn. ----
+  const areas = buildAreas(rawAreas.data, items, recipes, issues);
+  if (areas) {
+    const at = new Map(areas.items.map((a) => [a.item, a.area]));
+    for (const it of items) {
+      const area = at.get(it.id);
+      if (area !== undefined) it.area = area;
+    }
+  }
+
   // ---- Unused parts (warning only). ----
   const used = new Set(recipes.flatMap((r) => [...r.inputs, ...r.outputs].map((f) => f.item)));
   const unusedParts = items.filter((i) => i.form !== 'power' && !used.has(i.id)).map((i) => i.name);
@@ -307,6 +326,7 @@ export function buildModel(inputs: BuildInputs): BuildResult {
     exclusions: ctx.exclusions,
     unusedParts,
     maxFluidRate,
+    ...(areas ? { areas } : {}),
   };
   if (issues.errors.length > 0) return { issues: issues.list, details };
 
@@ -314,7 +334,9 @@ export function buildModel(inputs: BuildInputs): BuildResult {
     meta: {
       schemaVersion: MODEL_SCHEMA_VERSION,
       dataHash: shortHash(
-        [inputs.gameData, inputs.nodesCsv, inputs.minerModel, inputs.overrides].join('\u0000'),
+        [inputs.gameData, inputs.nodesCsv, inputs.minerModel, inputs.overrides, inputs.areas].join(
+          '\u0000',
+        ),
         16,
       ),
       minerMk: ctx.miner.modularMiner.mk,
@@ -324,6 +346,7 @@ export function buildModel(inputs: BuildInputs): BuildResult {
     recipes,
     nodes,
     beltCapacities,
+    ...(areas ? { areas: areas.areas } : {}),
   };
   return { model, issues: issues.list, details };
 }

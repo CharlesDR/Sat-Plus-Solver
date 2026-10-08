@@ -41,6 +41,15 @@
   --form-fluid: #0e8aa0;
   --form-gas: #8b5cf6;
   --flow-multi: #c0267f;
+  /* Flowchart area frame tints, cycled in production order (A64). */
+  --area-0: #2459d6;
+  --area-1: #0e8aa0;
+  --area-2: #1a7f45;
+  --area-3: #b7791f;
+  --area-4: #8b5cf6;
+  --area-5: #c0267f;
+  --area-fill: 5%;
+  --area-head: 13%;
   --radius: 10px;
   --radius-sm: 7px;
   --shadow-sm: 0 1px 2px rgb(16 24 40 / 6%), 0 1px 3px rgb(16 24 40 / 8%);
@@ -96,6 +105,14 @@
     --form-fluid: #4cc9dc;
     --form-gas: #b79cff;
     --flow-multi: #f472b6;
+    --area-0: #7ea6ff;
+    --area-1: #4cc9dc;
+    --area-2: #6fd39a;
+    --area-3: #f0c060;
+    --area-4: #b79cff;
+    --area-5: #f472b6;
+    --area-fill: 7%;
+    --area-head: 18%;
     --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
     --shadow-md: 0 4px 10px -2px rgb(0 0 0 / 50%);
     --shadow-lg: 0 16px 36px -8px rgb(0 0 0 / 70%);
@@ -137,6 +154,14 @@
   --form-fluid: #4cc9dc;
   --form-gas: #b79cff;
   --flow-multi: #f472b6;
+  --area-0: #7ea6ff;
+  --area-1: #4cc9dc;
+  --area-2: #6fd39a;
+  --area-3: #f0c060;
+  --area-4: #b79cff;
+  --area-5: #f472b6;
+  --area-fill: 7%;
+  --area-head: 18%;
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
   --shadow-md: 0 4px 10px -2px rgb(0 0 0 / 50%);
   --shadow-lg: 0 16px 36px -8px rgb(0 0 0 / 70%);
@@ -1650,6 +1675,121 @@ section.diagnostics li p {
 }
 .flow-tip-stages {
   color: var(--flow-multi);
+}
+.flow-tip-action {
+  margin-top: 8px;
+}
+.flow-tip-area {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+/* Area frames (A64): a light tint behind the boxes; only the title bar takes the pointer. */
+.react-flow__node-frame {
+  pointer-events: none !important;
+}
+.flow-area {
+  --tone: var(--area-0);
+  width: 100%;
+  height: 100%;
+  border: 1px solid color-mix(in srgb, var(--tone) 35%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--tone) var(--area-fill), transparent);
+}
+.flow-area.tone-1 {
+  --tone: var(--area-1);
+}
+.flow-area.tone-2 {
+  --tone: var(--area-2);
+}
+.flow-area.tone-3 {
+  --tone: var(--area-3);
+}
+.flow-area.tone-4 {
+  --tone: var(--area-4);
+}
+.flow-area.tone-5 {
+  --tone: var(--area-5);
+}
+.flow-area-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px 0 10px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: color-mix(in srgb, var(--tone) var(--area-head), transparent);
+  color: var(--fg);
+  font-size: 13px;
+  pointer-events: all;
+  cursor: default;
+}
+.flow-area-name {
+  overflow: hidden;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+input.flow-area-name {
+  min-width: 0;
+  max-width: 220px;
+  padding: 1px 4px;
+  font: inherit;
+  font-weight: 600;
+}
+.flow-area-stats {
+  flex: 1;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.flow-area-toggle {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+}
+.flow-area-toggle:hover,
+.flow-area-toggle:focus-visible {
+  border-color: var(--line-strong);
+  background: var(--surface);
+}
+.flow-area-toggle path {
+  stroke: currentcolor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+/* A collapsed area: one box with what crosses its border. */
+.flow-node.area {
+  --kind: var(--muted);
+  --fill: color-mix(in srgb, var(--area-0) 6%, var(--flow-recipe));
+  cursor: zoom-in;
+}
+/* Shown while the pointer is over the canvas, or it has the focus. */
+.flow-canvas {
+  position: relative;
+}
+.flow-expand-all {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.flow-canvas:hover .flow-expand-all,
+.flow-expand-all:focus-visible {
+  opacity: 1;
 }
 .flow-legend {
   display: flex;
