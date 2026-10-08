@@ -27,6 +27,7 @@ export {
   MAX_TOLERANCE,
   MILP_TIME_LIMIT_SECONDS,
   MIN_BRANCH,
+  MIN_FLOW,
   MIN_RATE,
   MIN_TOLERANCE,
   objectiveStack,
