@@ -58,3 +58,5 @@ export {
   type MixedNumber,
 } from './factory/numbers';
 export type { PlanSummary, SummaryFlow, SummaryNode, SummaryRecipe } from './factory/summary';
+export { sizeNetwork } from './network/size';
+export type { Network, NetworkEdge, NetworkFlow, NetworkNode, NetworkSizing } from './network/size';
