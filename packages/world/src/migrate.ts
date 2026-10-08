@@ -115,6 +115,11 @@ function v8ToV9(doc: Doc): Doc {
   return { ...doc, meta: { ...(doc.meta as Doc), v: 9 } };
 }
 
+/** v9 → v10 (A45, A49): factories may sit inside other factories; none do yet. */
+function v9ToV10(doc: Doc): Doc {
+  return { ...doc, meta: { ...(doc.meta as Doc), v: 10 } };
+}
+
 const MIGRATIONS: Record<number, (doc: Doc) => Doc> = {
   1: v1ToV2,
   2: v2ToV3,
@@ -124,6 +129,7 @@ const MIGRATIONS: Record<number, (doc: Doc) => Doc> = {
   6: v6ToV7,
   7: v7ToV8,
   8: v8ToV9,
+  9: v9ToV10,
 };
 
 /** Returns `doc` upgraded to the current version; throws on a newer or malformed document. */

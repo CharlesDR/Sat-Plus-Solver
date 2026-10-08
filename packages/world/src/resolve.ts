@@ -4,7 +4,7 @@
  * through an injected `solveFactory`, iterates pull cycles to a fixed point,
  * and memoizes every solve. Pure: no I/O, no time, no randomness.
  */
-import type { Model } from '@sps/data';
+import { MW_ITEM_ID, type Model } from '@sps/data';
 import {
   MIN_RATE,
   OBJECTIVE_IDS,
@@ -72,6 +72,11 @@ export interface Pass {
   used: Map<string, number>;
   /** Per link out of a manual factory (A36): what it actually ships, at most what was asked. */
   delivered: Map<string, number>;
+  /**
+   * Surplus draws (A51): per sub-factory, per item, what its parent's plan
+   * took from the sub-factory's surplus on the parent's last solve.
+   */
+  drawn: Map<string, Map<string, number>>;
   diagnostics: WorldDiagnostic[];
 }
 
@@ -84,6 +89,10 @@ interface Context {
   base: Map<string, SolveRequest>;
   /** Factories in manual mode (A36): their plans, which are not solved. */
   manual: Map<string, ManualEntry[]>;
+  /** Sub-factory → its parent (A49), for parents that exist; cycles broken. */
+  parent: Map<string, string>;
+  /** Parent → its sub-factories, sorted. */
+  children: Map<string, string[]>;
   /** Producer → items and objectives its linked consumers are costed under. */
   needs: Map<string, { items: Set<string>; objectives: Set<ObjectiveId> }>;
   run: (request: SolveRequest) => Promise<{ key: string; result: Solved['result'] }>;
@@ -153,6 +162,7 @@ export async function resolveWorld(
     manual: new Map(
       factories.flatMap((f) => (f.manual?.enabled ? [[f.id, manualEntries(f.manual)]] : [])),
     ),
+    ...nesting(world, diagnostics),
     needs: new Map(),
     async run(request) {
       const { key, canonical } = solveKey(model.meta.dataHash, request);
@@ -214,6 +224,54 @@ function group<T>(xs: readonly T[], key: (x: T) => string): Map<string, T[]> {
   return m;
 }
 
+/**
+ * The nesting tree (A49): each sub-factory's parent and each parent's
+ * sub-factories. A parent that is unknown or part of a parent cycle is
+ * dropped (the factory is solved as a top-level one) and reported.
+ */
+function nesting(
+  world: World,
+  diagnostics: WorldDiagnostic[],
+): { parent: Map<string, string>; children: Map<string, string[]> } {
+  const ids = new Set(world.factories.map((f) => f.id));
+  const parent = new Map<string, string>();
+  for (const f of [...world.factories].sort(byId)) {
+    if (f.parentId === undefined) continue;
+    if (!ids.has(f.parentId) || f.parentId === f.id) {
+      diagnostics.push({
+        code: 'invalid-parent',
+        severity: 'warning',
+        factory: f.id,
+        message: `Factory ${f.id} sits inside an unknown factory ${f.parentId}; it is solved on its own.`,
+      });
+      continue;
+    }
+    parent.set(f.id, f.parentId);
+  }
+  // Break parent cycles at their smallest id, as groups do.
+  for (const id of [...parent.keys()].sort()) {
+    const seen: string[] = [];
+    let at: string | undefined = id;
+    while (at !== undefined && !seen.includes(at)) {
+      seen.push(at);
+      at = parent.get(at);
+    }
+    if (at === undefined) continue;
+    const cycle = seen.slice(seen.indexOf(at)).sort();
+    parent.delete(cycle[0]!);
+    diagnostics.push({
+      code: 'invalid-parent',
+      severity: 'warning',
+      factory: cycle[0]!,
+      message: `Factories ${cycle.join(', ')} sit inside each other in a cycle; ${cycle[0]} is solved as a top-level factory.`,
+    });
+  }
+  const children = new Map<string, string[]>();
+  for (const [child, p] of [...parent].sort(([a], [b]) => (a < b ? -1 : 1)))
+    children.set(p, [...(children.get(p) ?? []), child]);
+  return { parent, children };
+}
+
 /** One resolution pass over the whole world with the given linked import costs. */
 async function resolvePass(
   ctx: Context,
@@ -224,13 +282,19 @@ async function resolvePass(
     asked: new Map(),
     used: new Map(),
     delivered: new Map(),
+    drawn: new Map(),
     diagnostics: [],
   };
   const pull = new Map<string, number>();
+  /** Per parent: what each sub-factory's surplus offered on the parent's last solve (A51). */
+  const offered = new Map<string, Offer[]>();
 
   const solveOne = async (id: string) => {
     ctx.started(id);
-    const request = effectiveRequest(ctx, id, pull, linked.get(id));
+    const offers = surplusOffers(ctx, pass, id);
+    offered.set(id, offers);
+    for (const child of ctx.children.get(id) ?? []) pass.drawn.delete(child);
+    const request = effectiveRequest(ctx, id, pull, linked.get(id), offers);
     for (const l of ctx.out.get(id) ?? []) {
       const r = l.mode.kind === 'fixed' ? l.mode.rate : (pull.get(l.id) ?? 0);
       pass.asked.set(l.id, r >= MIN_RATE ? r : 0);
@@ -246,33 +310,44 @@ async function resolvePass(
         pass.delivered.set(l.id, give);
         left.set(l.item, (left.get(l.item) ?? 0) - give);
       }
-      attribute(ctx.in.get(id) ?? [], manual.result, pass.used, pull);
+      attribute(ctx.in.get(id) ?? [], offers, manual.result, pass, pull);
       return;
     }
     const { key, result } = await ctx.run(request);
     pass.solved.set(id, { request, key, result });
-    attribute(ctx.in.get(id) ?? [], result, pass.used, pull);
+    attribute(ctx.in.get(id) ?? [], offers, result, pass, pull);
   };
 
   for (const scc of solveOrder(ctx)) {
+    if (scc.length === 1) {
+      await solveOne(scc[0]!);
+      continue;
+    }
+    // A cycle (§4.3 step 3): pull links, or a parent drawing on its
+    // sub-factories' surplus (A51). Sweep its members until the rates settle.
     const members = new Set(scc);
     const internal = ctx.links.filter(
       (l) => l.mode.kind === 'pull' && members.has(l.from) && members.has(l.to),
     );
-    if (!internal.length) {
-      for (const id of scc) await solveOne(id);
-      continue;
-    }
-    // A pull cycle (§4.3 step 3): sweep its members until the rates settle.
+    const rates = () => {
+      const out = new Map<string, number>();
+      for (const l of internal) out.set(l.id, pull.get(l.id) ?? 0);
+      for (const id of scc)
+        for (const o of offered.get(id) ?? []) out.set(`offer:${o.child}:${o.item}`, o.cap);
+      for (const id of scc)
+        for (const [item, rate] of pass.drawn.get(id) ?? []) out.set(`drawn:${id}:${item}`, rate);
+      return out;
+    };
     let converged = false;
     let iterations = 0;
     while (!converged && iterations < CYCLE_ITERATION_LIMIT) {
       iterations++;
-      const before = internal.map((l) => pull.get(l.id) ?? 0);
+      const before = rates();
       for (const id of scc) await solveOne(id);
-      converged = internal.every((l, k) => {
-        const a = before[k]!;
-        const b = pull.get(l.id) ?? 0;
+      const after = rates();
+      converged = [...new Set([...before.keys(), ...after.keys()])].every((k) => {
+        const a = before.get(k) ?? 0;
+        const b = after.get(k) ?? 0;
         return Math.abs(a - b) <= CYCLE_TOLERANCE * Math.max(1, Math.abs(a));
       });
     }
@@ -283,31 +358,64 @@ async function resolvePass(
         factories: [...scc],
         links: internal.map((l) => l.id),
         iterations,
-        message:
-          `The pull links between ${scc.join(', ')} did not settle after ${iterations} iterations. ` +
-          `Make one of them fixed (${internal.map((l) => l.id).join(', ')}).`,
+        message: internal.length
+          ? `The pull links between ${scc.join(', ')} did not settle after ${iterations} iterations. ` +
+            `Make one of them fixed (${internal.map((l) => l.id).join(', ')}).`
+          : `The surplus drawn between ${scc.join(', ')} did not settle after ${iterations} iterations.`,
       });
   }
   return pass;
 }
 
+/** What one sub-factory's surplus offers its parent (A51). */
+interface Offer {
+  child: string;
+  item: string;
+  cap: number;
+}
+
+/**
+ * What `id`'s sub-factories leave as surplus, per item, on their latest
+ * solve in this pass (A51): the parent may draw on it without a link. A
+ * sub-factory not solved yet, or failed, offers nothing. Sorted by child,
+ * then item.
+ */
+function surplusOffers(ctx: Context, pass: Pass, id: string): Offer[] {
+  const out: Offer[] = [];
+  for (const child of ctx.children.get(id) ?? []) {
+    const r = pass.solved.get(child)?.result;
+    if (r?.status !== 'ok') continue;
+    for (const f of [...r.items].sort(byItem))
+      if (f.surplus >= MIN_RATE && f.item !== MW_ITEM_ID)
+        out.push({ child, item: f.item, cap: f.surplus });
+  }
+  return out;
+}
+
 /**
  * A factory's request in the world: its own request, plus outgoing link
- * rates as demand and incoming links as import caps (§4.2), plus linked
- * import costs and the marginal costs its linked consumers need.
+ * rates as demand and incoming links and sub-factory surplus (A51) as import
+ * caps (§4.2), plus linked import costs and the marginal costs its linked
+ * consumers need. What a sub-factory sends its parent counts toward its own
+ * target of that item (A50).
  */
 function effectiveRequest(
   ctx: Context,
   id: string,
   pull: ReadonlyMap<string, number>,
   costs: ReadonlyMap<string, ImportCost> | undefined,
+  offers: readonly Offer[] = [],
 ): SolveRequest {
   const base = ctx.base.get(id)!;
+  const parent = ctx.parent.get(id);
   const demand = new Map<string, number>();
+  const toParent = new Map<string, number>();
   for (const l of ctx.out.get(id) ?? []) {
     const r = l.mode.kind === 'fixed' ? l.mode.rate : (pull.get(l.id) ?? 0);
     // Below MIN_RATE is solver noise, and the solver rejects it as a demand.
-    if (r >= MIN_RATE) demand.set(l.item, (demand.get(l.item) ?? 0) + r);
+    if (r < MIN_RATE) continue;
+    demand.set(l.item, (demand.get(l.item) ?? 0) + r);
+    if (l.to === parent) toParent.set(l.item, (toParent.get(l.item) ?? 0) + r);
   }
   const caps = new Map<string, number>();
   for (const i of base.imports ?? []) caps.set(i.item, (caps.get(i.item) ?? 0) + i.cap);
@@ -315,8 +423,10 @@ function effectiveRequest(
     const cap = l.mode.kind === 'fixed' ? l.mode.rate : Infinity;
     caps.set(l.item, (caps.get(l.item) ?? 0) + cap);
   }
+  for (const o of offers) caps.set(o.item, (caps.get(o.item) ?? 0) + o.cap);
   const rest: SolveRequest = { ...base };
   delete (rest as { imports?: unknown }).imports;
+  if (toParent.size) rest.targets = countSent(base.targets, toParent);
   const need = ctx.needs.get(id);
   const given = base.costImports && costs ? [...costs.values()].sort(byItem) : [];
   return {
@@ -339,50 +449,83 @@ function effectiveRequest(
   };
 }
 
+/**
+ * A sub-factory's targets less what it already sends its parent (A50): it
+ * makes the larger of the two, not their sum. A target used up is dropped.
+ */
+function countSent(targets: readonly ItemRate[], sent: ReadonlyMap<string, number>): ItemRate[] {
+  const left = new Map(sent);
+  const out: ItemRate[] = [];
+  for (const t of targets) {
+    const take = Math.min(t.rate, left.get(t.item) ?? 0);
+    left.set(t.item, (left.get(t.item) ?? 0) - take);
+    const rate = t.rate - take;
+    if (rate >= MIN_RATE) out.push({ item: t.item, rate });
+  }
+  return out;
+}
+
 const toRates = (m: ReadonlyMap<string, number>): ItemRate[] =>
   [...m].map(([item, rate]) => ({ item, rate })).sort(byItem);
 
 /**
  * Splits a consumer's import of each linked item over its sources: fixed
- * links first (by id, each up to its rate), then the pull links in equal
+ * links first (by id, each up to its rate), then its sub-factories' surplus
+ * (A51, by child, each up to what it offered), then the pull links in equal
  * shares; whatever is left came from unassigned imports. Sets each link's
- * `used` and each pull link's resolved rate.
+ * `used`, each pull link's resolved rate and each surplus draw.
  */
 function attribute(
   incoming: readonly Link[],
+  offers: readonly Offer[],
   result: Solved['result'],
-  used: Map<string, number>,
+  pass: Pass,
   pull: Map<string, number>,
 ): void {
   const imported = new Map(
     result.status === 'ok' ? result.imports.map((i) => [i.item, i.rate]) : [],
   );
-  for (const [item, links] of group(incoming, (l) => l.item)) {
+  const byItemLinks = group(incoming, (l) => l.item);
+  const byItemOffers = group(offers, (o) => o.item);
+  const items = [...new Set([...byItemLinks.keys(), ...byItemOffers.keys()])].sort();
+  for (const item of items) {
+    const links = byItemLinks.get(item) ?? [];
     let left = imported.get(item) ?? 0;
     for (const l of links) {
       if (l.mode.kind !== 'fixed') continue;
       const u = Math.min(l.mode.rate, left);
-      used.set(l.id, u);
+      pass.used.set(l.id, u);
       left -= u;
+    }
+    for (const o of byItemOffers.get(item) ?? []) {
+      const u = Math.min(o.cap, left);
+      left -= u;
+      if (u <= 0) continue;
+      const m = pass.drawn.get(o.child) ?? new Map<string, number>();
+      m.set(item, u);
+      pass.drawn.set(o.child, m);
     }
     const pulls = links.filter((l) => l.mode.kind === 'pull');
     for (const l of pulls) {
       const share = left / pulls.length;
-      used.set(l.id, share);
+      pass.used.set(l.id, share);
       pull.set(l.id, share);
     }
   }
 }
 
 /**
- * Strongly connected components over pull links (Tarjan), in solve order:
- * an SCC comes after every SCC its pull links feed, so consumers go first.
+ * Strongly connected components over pull links and surplus draws (Tarjan),
+ * in solve order: an SCC comes after every SCC its pull links feed, so
+ * consumers go first, and a parent after its sub-factories (A51).
  * Ties go to the smallest factory id; members are sorted. Deterministic.
  */
 function solveOrder(ctx: Context): string[][] {
   const ids = [...ctx.base.keys()].sort();
   const next = new Map<string, string[]>(ids.map((id) => [id, []]));
   for (const l of ctx.links) if (l.mode.kind === 'pull') next.get(l.from)!.push(l.to);
+  // A parent draws on its sub-factories' surplus (A51), so it comes after them.
+  for (const [child, parent] of ctx.parent) next.get(parent)!.push(child);
   for (const v of next.values()) v.sort();
 
   const index = new Map<string, number>();

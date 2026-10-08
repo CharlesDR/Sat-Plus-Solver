@@ -5,7 +5,7 @@ import { describe, expect, test } from 'vitest';
 import vanillaMini from '../../../fixtures/vanilla-mini/model.json';
 import mini from '../../../fixtures/worlds/mini-world.json';
 import v1 from '../../../fixtures/worlds/v1-world.json';
-import v9 from '../../../fixtures/worlds/v9-world.json';
+import v10 from '../../../fixtures/worlds/v10-world.json';
 import { WORLD_VERSION, createWorld, type World } from './document';
 import { migrateWorld } from './migrate';
 import { WorldLoadError, extractFactory, loadWorld, parseWorld, serializeWorld } from './persist';
@@ -50,6 +50,8 @@ const worldArb: fc.Arbitrary<World> = (() => {
       id,
       name: text,
       groupId: id,
+      parentId: id,
+      collapsed: fc.boolean(),
       request,
       unassignedImports: fc.array(fc.record({ item: id, cap: rate }, { requiredKeys: ['item'] }), {
         maxLength: 2,
@@ -117,6 +119,7 @@ const worldArb: fc.Arbitrary<World> = (() => {
         },
         { requiredKeys: ['kind'] },
       ),
+      nested: fc.constant(true as const),
     },
     { requiredKeys: ['id', 'from', 'to', 'item', 'mode'] },
   );
@@ -162,9 +165,9 @@ describe('World → JSON → World', () => {
   });
 
   test('is deep-equal for the current-version fixture, and the fixture is current', () => {
-    expect(v9.meta.v).toBe(WORLD_VERSION);
-    const w = parseWorld(JSON.stringify(v9));
-    expect(w).toStrictEqual(v9);
+    expect(v10.meta.v).toBe(WORLD_VERSION);
+    const w = parseWorld(JSON.stringify(v10));
+    expect(w).toStrictEqual(v10);
     expect(parseWorld(serializeWorld(w, true))).toStrictEqual(w);
   });
 

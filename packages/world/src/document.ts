@@ -11,12 +11,13 @@
  * per-resource limits (A33); v5 moved worlds on the old default objective
  * stack (O1) to the new one (O2); v6 added plan tweaks (A35); v7 added
  * manual mode (A36); v8 added "Avoid fluid byproducts" (A39), on; v9 added
- * build marks (A44). `migrateWorld` upgrades older documents.
+ * build marks (A44); v10 added nested factories (A45, A49). `migrateWorld`
+ * upgrades older documents.
  */
 import type { Model } from '@sps/data';
 import type { ItemRate, ObjectiveId, RecipeFilter, SolveRequest } from '@sps/solver';
 
-export const WORLD_VERSION = 9;
+export const WORLD_VERSION = 10;
 
 /** Lexicographic tolerance bounds (CLAUDE.md): 0.01%–90%, default 0.01%. */
 export const TOLERANCE_MIN = 0.0001;
@@ -90,7 +91,15 @@ export interface ResourceLimit {
 export interface Factory {
   id: string;
   name: string;
+  /** Ignored while the factory sits inside another (`parentId`): it shows inside its parent. */
   groupId?: string;
+  /**
+   * Nested factories (A45, A49): the factory this one sits inside. Any depth,
+   * never a cycle. The child is still solved on its own.
+   */
+  parentId?: string;
+  /** A factory with sub-factories, drawn on the world canvas as one node (A53); missing = a frame. */
+  collapsed?: boolean;
   request: FactoryRequest;
   unassignedImports: UnassignedImport[];
   /**
@@ -185,6 +194,12 @@ export interface Link {
   item: string;
   mode: { kind: 'fixed'; rate: number } | { kind: 'pull' };
   transport?: { kind: Transport; tier?: number };
+  /**
+   * Made by nesting (A50): a child's pull link to its parent for one of its
+   * targets. Editing the link makes it the user's; un-nesting removes the
+   * links still marked.
+   */
+  nested?: true;
 }
 
 export interface World {

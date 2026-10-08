@@ -56,12 +56,30 @@ export interface ScopeTotals {
   machines: number;
 }
 
+/** A parent factory with everything below it (A52): "with sub-factories". */
+export interface SubtreeTotals extends ScopeTotals {
+  /** The parent and every factory below it, sorted. */
+  factories: string[];
+  /** Links between two of them: hidden when the parent is collapsed. */
+  internalLinks: string[];
+  /** Links crossing the subtree's boundary. */
+  boundaryLinks: string[];
+}
+
 export interface FactoryResult extends ScopeTotals {
   id: string;
   /** Raw resources its plan extracts, sorted by item (A33). */
   extraction: ItemRate[];
   name: string;
   groupId?: string;
+  /** The factory it sits inside (A49), when that factory exists. */
+  parentId?: string;
+  /** Its direct sub-factories, sorted (A52); missing when it has none. */
+  children?: string[];
+  /** Totals with every sub-factory below it (A52); missing when it has none. */
+  subtree?: SubtreeTotals;
+  /** The worst build state among it and every factory below it that is marked (A52). */
+  subtreeBuild?: BuildCheck['state'];
   status: FactoryStatus;
   /** The effective request: defaults, overrides, link demand and link imports. */
   request: SolveRequest;
@@ -128,7 +146,11 @@ export interface LinkResult {
   from: string;
   to: string;
   item: string;
-  mode: 'fixed' | 'pull';
+  /**
+   * `surplus` (A51): no document link; a parent drew on a sub-factory's
+   * surplus. Its id is `surplus:<child>:<item>`, and it is never short.
+   */
+  mode: 'fixed' | 'pull' | 'surplus';
   /** What the producer was asked for: the fixed rate, or the resolved pull rate. */
   requested: number;
   /**
@@ -183,6 +205,8 @@ interface Diag {
 export type WorldDiagnostic =
   | (Diag & { code: 'invalid-link'; link: string })
   | (Diag & { code: 'invalid-group'; group: string; factory?: string })
+  /** A factory inside an unknown factory, or in a parent cycle (A49). */
+  | (Diag & { code: 'invalid-parent'; factory: string })
   | (Diag & { code: 'factory-failed'; factory: string; status: SolveStatus })
   | (Diag & { code: 'link-short'; link: string; item: string; deficit: number })
   | (Diag & {
