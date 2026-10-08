@@ -41,6 +41,7 @@ import {
   useMemo,
   useState,
 } from 'react';
+import { itemIcon } from '../icons/icons';
 import { StatusChip } from '../ui/StatusChip';
 
 /** What the canvas's nodes can ask the view to do. */
@@ -63,6 +64,16 @@ type CanvasEdge = Edge<WorldEdgeData, 'routed'>;
 const STATUS = 'Status: ';
 
 const cls = (...xs: (string | false | undefined)[]) => xs.filter(Boolean).join(' ');
+
+/** A part's icon with its name as the tooltip and alt text; a gap where there is no icon. */
+function ItemIcon({ item, name }: { item: string; name: string }) {
+  const src = itemIcon(item);
+  return src ? (
+    <img className="world-icon" src={src} alt={name} title={name} width={16} height={16} />
+  ) : (
+    <span className="world-icon" title={name} />
+  );
+}
 
 const WorldNodeView = memo(function WorldNodeView({ data }: NodeProps<CanvasNode>) {
   const actions = useContext(Actions)!;
@@ -88,6 +99,13 @@ const WorldNodeView = memo(function WorldNodeView({ data }: NodeProps<CanvasNode
       <div className="flow-title" title={title}>
         {title}
       </div>
+      {n.products && n.products.length > 0 && (
+        <div className="world-products" role="group" aria-label="Makes">
+          {n.products.map((p) => (
+            <ItemIcon key={p.item} item={p.item} name={p.name} />
+          ))}
+        </div>
+      )}
       {n.build && (
         <div className="flow-detail">
           <span className={`status-chip ${BUILD_STATE[n.build].tone}`}>
@@ -173,9 +191,15 @@ const RoutedEdge = memo(function RoutedEdge({ id, data, markerEnd }: EdgeProps<C
             height: label.height,
           }}
         >
-          {label.lines.map((l) => (
-            <div key={l}>{l}</div>
-          ))}
+          {label.lines.map((l, k) => {
+            const it = data.edge.items[k];
+            return (
+              <div key={l}>
+                {it && <ItemIcon item={it.item} name={it.name} />}
+                {l}
+              </div>
+            );
+          })}
         </div>
       </EdgeLabelRenderer>
     </>

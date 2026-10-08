@@ -1860,6 +1860,22 @@ input.flow-area-name {
 .canvas-hint p {
   margin: 0 0 8px;
 }
+.world-products {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 2px 0;
+}
+.world-icon {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: -3px;
+  margin-right: 4px;
+}
+.world-products .world-icon {
+  margin-right: 0;
+}
 .start-cards {
   display: grid;
   gap: 6px;
