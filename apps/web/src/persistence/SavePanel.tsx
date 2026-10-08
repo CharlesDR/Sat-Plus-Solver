@@ -3,7 +3,7 @@
  * export and import, and share links. Loading anything keeps the world it
  * replaces as the backup, which "Restore previous world" brings back.
  */
-import { parseWorld, serializeWorld, type World } from '@sps/world';
+import { parseWorld, serializeWorld, type ModelerReportLine, type World } from '@sps/world';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import { Field } from '../controls/Field';
@@ -11,7 +11,7 @@ import type { WorldStore } from '../store';
 import type { Saves, SlotInfo } from './saves';
 import type { Boot } from './session';
 import { isShareHash, readShareHash } from './share';
-import { ShareControls } from './ShareControls';
+import { downloadText, modelerFileName, ShareControls } from './ShareControls';
 import { ChevronDownIcon, FileIcon } from '../ui/icons';
 import { useToast } from '../ui/toasts';
 
@@ -40,8 +40,34 @@ function clearShareHash() {
   }
 }
 
-export function SavePanel(props: { store: WorldStore; saves: Saves; boot: Boot }) {
-  const { store, saves, boot } = props;
+/** Satisfactory Modeler files (M14): both run in the solver worker. */
+export interface ModelerFiles {
+  /** The world with the save imported, and what was made; `null` if a newer solve replaced it. */
+  importText(text: string): Promise<{
+    world: World;
+    factories: string[];
+    report: ModelerReportLine[];
+    inferred: number;
+  } | null>;
+  /** The whole world as a `.sfmd` file's text; `null` if a newer solve replaced it. */
+  exportWorld(): Promise<string | null>;
+}
+
+/** One report line as the File menu lists it. */
+export function reportText(l: ModelerReportLine): string {
+  const where = [l.factory, l.node].filter(Boolean).join(': ');
+  return where ? `${where} ${l.message}` : l.message;
+}
+
+export function SavePanel(props: {
+  store: WorldStore;
+  saves: Saves;
+  boot: Boot;
+  modeler?: ModelerFiles;
+}) {
+  const { store, saves, boot, modeler } = props;
+  const [report, setReport] = useState<ModelerReportLine[]>();
+  const [busy, setBusy] = useState<string>();
   const world = useStore(store, (s) => s.world);
   const [slots, setSlots] = useState<SlotInfo[]>(() => saves.list());
   const [name, setName] = useState('');
@@ -138,6 +164,45 @@ export function SavePanel(props: { store: WorldStore; saves: Saves; boot: Boot }
       },
       (e: unknown) => failed(`“${file.name}” could not be read`, e),
     );
+  };
+  const importModeler = (file: File | undefined) => {
+    if (!file || !modeler) return;
+    setBusy(`Importing “${file.name}”…`);
+    file
+      .text()
+      .then((text) => modeler.importText(text))
+      .then(
+        (out) => {
+          if (!out)
+            return failed(`“${file.name}” could not be imported`, 'the solver was busy; try again');
+          const n = out.factories.length;
+          load(
+            out.world,
+            `Imported ${n} ${n === 1 ? 'factory' : 'factories'} from “${file.name}”, in manual mode and marked as built.` +
+              (out.inferred > 0
+                ? ` ${out.inferred} machine counts were sized from the save's flows.`
+                : ''),
+          );
+          setReport(out.report);
+        },
+        (e: unknown) => failed(`“${file.name}” could not be imported`, e),
+      )
+      .finally(() => setBusy(undefined));
+  };
+  const exportModeler = () => {
+    if (!modeler) return;
+    setBusy('Exporting to Modeler…');
+    modeler
+      .exportWorld()
+      .then(
+        (text) => {
+          if (text === null)
+            return failed('The export did not finish', 'the solver was busy; try again');
+          downloadText(modelerFileName('world'), text);
+        },
+        (e: unknown) => failed('The Modeler export failed', e),
+      )
+      .finally(() => setBusy(undefined));
   };
   const restore = () => {
     const text = saves.readBackup();
@@ -243,6 +308,49 @@ export function SavePanel(props: { store: WorldStore; saves: Saves; boot: Boot }
             )}
           </Field>
         </fieldset>
+        {modeler && (
+          <fieldset>
+            <legend>Satisfactory Modeler</legend>
+            <p className="hint">
+              A Modeler save imports as factories in manual mode, marked as built. The export opens
+              in Modeler with its calculator set to Manual.
+            </p>
+            <div className="row">
+              <button type="button" onClick={exportModeler} disabled={busy !== undefined}>
+                Export world to Modeler
+              </button>
+            </div>
+            <Field label="Import Modeler file (.sfmd)">
+              {(id) => (
+                <input
+                  id={id}
+                  type="file"
+                  accept=".sfmd"
+                  disabled={busy !== undefined}
+                  onChange={(e) => {
+                    importModeler(e.target.files?.[0]);
+                    e.target.value = '';
+                  }}
+                />
+              )}
+            </Field>
+            {busy && (
+              <p role="status" aria-busy="true">
+                {busy}
+              </p>
+            )}
+            {report && report.length > 0 && (
+              <details className="modeler-report" open>
+                <summary>Import report ({report.length})</summary>
+                <ul aria-label="Modeler import report">
+                  {report.map((l, k) => (
+                    <li key={k}>{reportText(l)}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </fieldset>
+        )}
       </div>
     </details>
   );

@@ -4,6 +4,7 @@
  */
 import type { Model } from '@sps/data';
 import { createHighsBackend } from '@sps/solver';
+import ELK from 'elkjs/lib/elk-api.js';
 import modelUrl from '../../../../data/generated/model.json?url';
 import type { FromWorker, ToWorker } from './protocol';
 import { createSolverService, type SolverService } from './service';
@@ -15,7 +16,12 @@ async function init(): Promise<SolverService> {
   if (!res.ok) throw new Error(`Could not load the model (${res.status}).`);
   const model = (await res.json()) as Model;
   // highs.mjs finds highs.wasm next to itself; the bundler emits it as an asset.
-  return createSolverService(model, createHighsBackend());
+  // ELK lays out flowcharts for the Modeler export (A58), in a worker of its own.
+  const layout = new ELK({
+    workerFactory: () =>
+      new Worker(new URL('../flowchart/layout.worker.ts', import.meta.url), { type: 'module' }),
+  });
+  return createSolverService(model, createHighsBackend(), layout);
 }
 
 const service = init().then(

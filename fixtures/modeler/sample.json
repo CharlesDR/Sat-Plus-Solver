@@ -1,0 +1,85 @@
+{
+  "Version": "1.0",
+  "Solver": "Manual",
+  "Zoom": 1.0,
+  "PanX": 0,
+  "PanY": 0,
+  "Outpost": 0,
+  "Data": [
+    { "Name": "Outpost", "X": 0, "Y": 0, "Zoom": 1.0, "PanX": 0, "PanY": 0, "Title": "Main" },
+    {
+      "Name": "Iron Ore",
+      "X": -400,
+      "Y": 0,
+      "Parent": 0,
+      "ShowPpm": false,
+      "Machine": "Miner Mk.2"
+    },
+    { "Name": "Iron Ingot", "X": -240, "Y": 0, "Parent": 0, "Inputs": { "Iron Ore": [1] } },
+    { "Name": "Splurger", "X": -100, "Y": 0, "Parent": 0, "Inputs": [[[2, "Iron Ingot"]]] },
+    {
+      "Name": "Iron Plate",
+      "X": 40,
+      "Y": -100,
+      "Parent": 0,
+      "Max": "3/2",
+      "Inputs": { "Iron Ingot": [[3, 0]] }
+    },
+    {
+      "Name": "Iron Rod",
+      "X": 40,
+      "Y": 100,
+      "Parent": 0,
+      "Inputs": { "Iron Ingot": [[3, 0, [[0, 100]]]] }
+    },
+    {
+      "Name": "Outpost",
+      "X": 200,
+      "Y": 100,
+      "Parent": 0,
+      "Inputs": [[[5, "Iron Rod"]]],
+      "InteriorInputs": [[[7, "Screw"]]],
+      "Zoom": 1.0,
+      "PanX": 0,
+      "PanY": 0,
+      "Title": "Screws"
+    },
+    {
+      "Name": "Screw",
+      "X": 0,
+      "Y": 0,
+      "Parent": 6,
+      "Max": "1 1/2",
+      "Inputs": { "Iron Rod": [[6, 0]] }
+    },
+    {
+      "Name": "Reinforced Iron Plate",
+      "X": 360,
+      "Y": 0,
+      "Parent": 0,
+      "Inputs": { "Iron Plate": [4], "Screw": [[6, 0]] },
+      "InputOrder": [1]
+    },
+    {
+      "Name": "Dimensional Depot",
+      "X": 520,
+      "Y": 0,
+      "Parent": 0,
+      "ShowPpm": false,
+      "Capacity": "60/min",
+      "Max": "1/12",
+      "Inputs": [[[8, "Reinforced Iron Plate"]]]
+    },
+    { "Name": "Mystery Machine", "X": 520, "Y": 200, "Parent": 0 },
+    {
+      "Name": "Iron Ore - Iron Ingot (MM Smelter Module)",
+      "X": -400,
+      "Y": 200,
+      "Parent": 0,
+      "ShowPpm": false
+    },
+    { "Name": "Outpost", "X": 800, "Y": 0, "Zoom": 1.0, "PanX": 0, "PanY": 0, "Title": "Copper" },
+    { "Name": "Copper Ingot", "X": 0, "Y": 0, "Parent": 12, "Max": "2" },
+    { "Name": "Wire", "X": 160, "Y": 0, "Parent": 12, "Inputs": { "Copper Ingot": [13] } }
+  ]
+}
