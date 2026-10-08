@@ -1,8 +1,7 @@
 /**
  * Where the user is (A42): the world, or a chain of factories from the
- * outermost in. Today a factory view is always one deep; nested factories
- * (WF-1) will open a child below its parent, and Esc and the breadcrumb step
- * back one level at a time.
+ * outermost in. A sub-factory (A49) opens below its parents, so Esc and the
+ * breadcrumb step back one level at a time: grandchild, child, parent, world.
  */
 export interface View {
   readonly path: readonly string[];
@@ -10,8 +9,19 @@ export interface View {
 
 export const WORLD_VIEW: View = { path: [] };
 
-/** A factory opened from the world, the palette or the factory switcher. */
-export const factoryView = (id: string): View => ({ path: [id] });
+/**
+ * A factory opened from the world, the palette, the breadcrumb or its
+ * parent's flowchart: its parents first, outermost in (`parentOf` gives each
+ * factory's parent). A parent cycle stops the chain.
+ */
+export function factoryView(
+  id: string,
+  parentOf: (id: string) => string | undefined = () => undefined,
+): View {
+  const path = [id];
+  for (let p = parentOf(id); p !== undefined && !path.includes(p); p = parentOf(p)) path.unshift(p);
+  return { path };
+}
 
 /** One level out: the factory's parent, or the world. */
 export function backOut(view: View): View {
@@ -22,4 +32,15 @@ export function backOut(view: View): View {
 export function focusOf(view: View, exists: (id: string) => boolean): string | undefined {
   const id = view.path.at(-1);
   return id !== undefined && exists(id) ? id : undefined;
+}
+
+/** A world's parent lookup for `factoryView`. */
+export function parentLookup(world: {
+  factories: readonly { id: string; parentId?: string }[];
+}): (id: string) => string | undefined {
+  const m = new Map(world.factories.map((f) => [f.id, f.parentId]));
+  return (id) => {
+    const p = m.get(id);
+    return p !== undefined && m.has(p) ? p : undefined;
+  };
 }

@@ -4,7 +4,7 @@
  */
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useStore } from 'zustand';
-import { factoryView, WORLD_VIEW, type View } from './viewPath';
+import { factoryView, parentLookup, WORLD_VIEW, type View } from './viewPath';
 import { itemIcon } from './icons/icons';
 import type { Catalog } from './solver/protocol';
 import type { WorldStore } from './store';
@@ -56,7 +56,7 @@ export function CommandPalette(props: {
           id: `factory:${f.id}`,
           label: f.name,
           hint: 'Open factory',
-          run: () => onView(factoryView(f.id)),
+          run: () => onView(factoryView(f.id, parentLookup(world))),
         });
     if (has('New factory'))
       out.push({

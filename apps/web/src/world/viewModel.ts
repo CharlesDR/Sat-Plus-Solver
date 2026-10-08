@@ -4,7 +4,13 @@
  * tested without a browser.
  */
 import type { PowerSummary } from '@sps/solver';
-import { groupAncestors, type LedgerRow, type Transport, type World } from '@sps/world';
+import {
+  factoryAncestors,
+  groupAncestors,
+  type LedgerRow,
+  type Transport,
+  type World,
+} from '@sps/world';
 import type { Catalog, WorldSummary } from '../solver/protocol';
 
 /** Ledger scopes: the whole save, each group, each factory. */
@@ -61,16 +67,28 @@ export function powerRows(summary: WorldSummary): {
   };
 }
 
-/** World › outer group › … › factory, as names (unknown groups are skipped). */
-export function breadcrumb(world: World, factoryId: string): { groups: string[]; factory: string } {
+/**
+ * World › outer group › … › parent factories › factory, as names. The groups
+ * are the outermost parent's (a sub-factory shows inside its parent, A49);
+ * unknown groups are skipped.
+ */
+export function breadcrumb(
+  world: World,
+  factoryId: string,
+): { groups: string[]; parents: { id: string; name: string }[]; factory: string } {
   const f = world.factories.find((x) => x.id === factoryId);
-  if (!f) return { groups: [], factory: factoryId };
+  if (!f) return { groups: [], parents: [], factory: factoryId };
+  const byId = new Map(world.factories.map((x) => [x.id, x]));
+  const parents = factoryAncestors(world, factoryId)
+    .reverse()
+    .map((id) => ({ id, name: byId.get(id)!.name }));
+  const top = parents.length ? byId.get(parents[0]!.id)! : f;
   const known = new Map(world.groups.map((g) => [g.id, g.name]));
   const chain =
-    f.groupId !== undefined && known.has(f.groupId)
-      ? [...groupAncestors(world, f.groupId).reverse(), f.groupId]
+    top.groupId !== undefined && known.has(top.groupId)
+      ? [...groupAncestors(world, top.groupId).reverse(), top.groupId]
       : [];
-  return { groups: chain.map((g) => known.get(g)!), factory: f.name };
+  return { groups: chain.map((g) => known.get(g)!), parents, factory: f.name };
 }
 
 /** The transport tiers a link can pick for a kind, with their capacities. */

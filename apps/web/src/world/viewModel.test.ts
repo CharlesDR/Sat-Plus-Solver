@@ -7,6 +7,7 @@ import {
   addLink,
   createWorld,
   setFactoryGroup,
+  setFactoryParent,
   type World,
 } from '@sps/world';
 import { beforeAll, describe, expect, test } from 'vitest';
@@ -104,8 +105,27 @@ describe('navigation and transport', () => {
   test('breadcrumb names the groups from the top down', () => {
     const inner = addGroup(world, 'Plates', 'group-1');
     const w = setFactoryGroup(inner.world, 'factory-2', inner.id);
-    expect(breadcrumb(w, 'factory-2')).toEqual({ groups: ['Iron', 'Plates'], factory: 'B' });
-    expect(breadcrumb(w, 'factory-3')).toEqual({ groups: [], factory: 'P' });
+    expect(breadcrumb(w, 'factory-2')).toEqual({
+      groups: ['Iron', 'Plates'],
+      parents: [],
+      factory: 'B',
+    });
+    expect(breadcrumb(w, 'factory-3')).toEqual({ groups: [], parents: [], factory: 'P' });
+  });
+
+  test("a sub-factory's breadcrumb names its parents, inside the top parent's groups (A49)", () => {
+    const inner = addGroup(world, 'Plates', 'group-1');
+    let w = setFactoryGroup(inner.world, 'factory-2', inner.id);
+    w = setFactoryParent(w, 'factory-3', 'factory-2');
+    const sub = addFactory(w, 'Deep', undefined, 'factory-3');
+    expect(breadcrumb(sub.world, sub.id)).toEqual({
+      groups: ['Iron', 'Plates'],
+      parents: [
+        { id: 'factory-2', name: 'B' },
+        { id: 'factory-3', name: 'P' },
+      ],
+      factory: 'Deep',
+    });
   });
 
   test('belt and pipe counts use the dataset belts and the A10 pipes', () => {
