@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { escapeStack } from './escape';
-import { backOut, factoryView, focusOf, WORLD_VIEW } from './viewPath';
+import { backOut, factoryView, focusOf, parentLookup, WORLD_VIEW } from './viewPath';
 
 describe('Esc stack (A42)', () => {
   test('closes the most recently opened layer first, one per press', () => {
@@ -49,5 +49,25 @@ describe('view path (A42)', () => {
     expect(focusOf({ path: ['outer', 'inner'] }, () => true)).toBe('inner');
     expect(focusOf(factoryView('gone'), () => false)).toBeUndefined();
     expect(focusOf(WORLD_VIEW, () => true)).toBeUndefined();
+  });
+
+  test('Esc from a grandchild returns to the child, then the parent, then the world (A49)', () => {
+    const parentOf = parentLookup({
+      factories: [{ id: 'p' }, { id: 'c', parentId: 'p' }, { id: 'gc', parentId: 'c' }],
+    });
+    let view = factoryView('gc', parentOf);
+    expect(view.path).toEqual(['p', 'c', 'gc']);
+    const seen = [];
+    while (view.path.length) seen.push((view = backOut(view)).path.at(-1) ?? 'world');
+    expect(seen).toEqual(['c', 'p', 'world']);
+    // A parent cycle or an unknown parent stops the chain.
+    const loop = parentLookup({
+      factories: [
+        { id: 'a', parentId: 'b' },
+        { id: 'b', parentId: 'a' },
+      ],
+    });
+    expect(factoryView('a', loop).path).toEqual(['b', 'a']);
+    expect(parentLookup({ factories: [{ id: 'x', parentId: 'nope' }] })('x')).toBeUndefined();
   });
 });

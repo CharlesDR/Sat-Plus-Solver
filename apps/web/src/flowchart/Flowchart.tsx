@@ -86,6 +86,7 @@ const KIND_LABEL = {
   resource: 'Resource node',
   import: 'Import',
   missing: 'Missing input',
+  'sub-factory': 'Sub-factory',
   target: 'Target',
   byproduct: 'Byproduct',
 } as const;
@@ -297,6 +298,8 @@ export function Flowchart(props: {
   catalog: Pick<Catalog, 'recipes' | 'fluids'>;
   selection: Selection | undefined;
   onSelect: (id: string | undefined) => void;
+  /** Double-click on a sub-factory box (A53). */
+  onOpenFactory?: (id: string) => void;
 }) {
   const state = useLayout(props.engine, props.graph);
   const recipes = useMemo(
@@ -321,6 +324,7 @@ export function Flowchart(props: {
             fluids={fluids}
             selection={props.selection}
             onSelect={props.onSelect}
+            {...(props.onOpenFactory ? { onOpenFactory: props.onOpenFactory } : {})}
           />
         </ReactFlowProvider>
       )}
@@ -352,8 +356,9 @@ function Canvas(props: {
   fluids: ReadonlySet<string>;
   selection: Selection | undefined;
   onSelect: (id: string | undefined) => void;
+  onOpenFactory?: (id: string) => void;
 }) {
-  const { layout, recipes, fluids, selection, onSelect } = props;
+  const { layout, recipes, fluids, selection, onSelect, onOpenFactory } = props;
   const selected = selection?.id;
   const box = useRef<HTMLDivElement>(null);
   // Measured before the first paint, so the plan opens at its view without a jump.
@@ -484,6 +489,11 @@ function Canvas(props: {
               onSelect(again ? undefined : n.id);
               setTip(again ? undefined : n.id);
             }}
+            onNodeDoubleClick={(_, n) => {
+              const sub = n.data.node.factory;
+              if (sub !== undefined) onOpenFactory?.(sub);
+            }}
+            zoomOnDoubleClick={false}
             onPaneClick={() => {
               onSelect(undefined);
               setTip(undefined);

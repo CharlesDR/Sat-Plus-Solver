@@ -7,7 +7,9 @@
  * A collapsed group is one node that stands for every factory below it: the
  * links between two of its factories are internal and hidden, and the links
  * crossing its boundary attach to it. An expanded group is a frame around its
- * members. Item trace marks exactly the factories, collapsed groups, links
+ * members. A factory with sub-factories (A53) is drawn the same way: a frame
+ * around it and everything below it, or, collapsed, one node with only the
+ * flows crossing its subtree. Item trace marks exactly the factories, collapsed groups, links
  * and stubs that touch the item. Pure and deterministic: everything is sorted
  * by id.
  */
@@ -20,7 +22,7 @@ export interface WorldGraphInput {
     FactoryResult,
     'id' | 'name' | 'groupId' | 'status' | 'ledger' | 'power' | 'nodes' | 'machines' | 'manual'
   > &
-    Partial<Pick<FactoryResult, 'build'>>)[];
+    Partial<Pick<FactoryResult, 'build' | 'parentId' | 'subtree' | 'subtreeBuild'>>)[];
   groups: readonly Pick<
     GroupResult,
     'id' | 'name' | 'parentId' | 'factories' | 'ledger' | 'power' | 'nodes' | 'machines'
@@ -31,6 +33,8 @@ export interface WorldGraphInput {
 export interface WorldGraphOptions {
   /** Ids of the collapsed groups (the `World` document's `Group.collapsed`). */
   collapsed?: Iterable<string>;
+  /** Ids of the collapsed factories with sub-factories (`Factory.collapsed`, A53). */
+  collapsedFactories?: Iterable<string>;
   /** Item to trace: every node and edge that touches it gets `traced`. */
   traceItem?: string | undefined;
   /** Item display names; the id is shown where a name is missing. */
@@ -46,11 +50,16 @@ export interface StubItem {
 }
 
 export interface WorldNode {
-  /** `group:<id>`, `factory:<id>`, or `stub:in:<node id>` / `stub:out:<node id>`. */
+  /**
+   * `group:<id>`, `nest:<factory id>` (a factory with sub-factories, A53),
+   * `factory:<id>`, or `stub:in:<node id>` / `stub:out:<node id>`.
+   */
   id: string;
   kind: WorldNodeKind;
   /** The group or factory id; for a stub, the node id it hangs off. */
   ref: string;
+  /** A group node that stands for a factory and its sub-factories (A53); `ref` is the factory. */
+  nest?: true;
   label: string;
   /** Node id of the expanded group drawn around this node. */
   parent?: string;
@@ -66,7 +75,7 @@ export interface WorldNode {
   /** Nodes used, summed over node classes. */
   nodesUsed?: number;
   machines?: number;
-  /** Groups: how many factories are below it. */
+  /** Groups: how many factories are below it (a nest counts its factory too). */
   members?: number;
   /** Stubs: unmet imports (`in`) or unclaimed surplus (`out`), sorted by item. */
   direction?: 'in' | 'out';
@@ -116,6 +125,7 @@ const SEVERITY: Record<FactoryStatus, number> = { ok: 0, short: 1, infeasible: 2
 
 export const groupNodeId = (id: string) => `group:${id}`;
 export const factoryNodeId = (id: string) => `factory:${id}`;
+export const nestNodeId = (id: string) => `nest:${id}`;
 
 const touches = (ledger: readonly LedgerRow[], item: string) =>
   ledger.some(
@@ -127,27 +137,48 @@ const touches = (ledger: readonly LedgerRow[], item: string) =>
   );
 
 export function worldGraph(input: WorldGraphInput, options: WorldGraphOptions = {}): WorldGraph {
-  const collapsed = new Set(options.collapsed ?? []);
+  const collapsed = new Set([
+    ...[...(options.collapsed ?? [])].map(groupNodeId),
+    ...[...(options.collapsedFactories ?? [])].map(nestNodeId),
+  ]);
   const trace = options.traceItem;
   const name = (id: string) => options.itemName?.(id) ?? id;
   const groups = new Map(input.groups.map((g) => [g.id, g]));
-  const parentOf = (g: string) => {
-    const p = groups.get(g)?.parentId;
-    return p !== undefined && groups.has(p) ? p : undefined;
+  const factoryById = new Map(input.factories.map((f) => [f.id, f]));
+  const nested = (f: (typeof input.factories)[number]) =>
+    f.parentId !== undefined && factoryById.has(f.parentId) ? f.parentId : undefined;
+  /** Factories with sub-factories: each is a nest (A53). */
+  const nests = new Set(
+    input.factories.flatMap((f) => {
+      const p = nested(f);
+      return p !== undefined ? [p] : [];
+    }),
+  );
+  /** The container node id something sits in directly: a group frame or a nest. */
+  const containerOfFactory = (id: string): string | undefined => {
+    const f = factoryById.get(id);
+    if (!f) return undefined;
+    const p = nested(f);
+    if (p !== undefined) return nestNodeId(p);
+    return f.groupId !== undefined && groups.has(f.groupId) ? groupNodeId(f.groupId) : undefined;
   };
-  /** A group's chain from the top down to itself. */
-  const chain = (g: string): string[] => {
-    const out = [g];
-    for (let p = parentOf(g); p !== undefined && !out.includes(p); p = parentOf(p)) out.unshift(p);
+  const containerOf = (node: string): string | undefined => {
+    if (node.startsWith('nest:')) return containerOfFactory(node.slice('nest:'.length));
+    const g = node.slice('group:'.length);
+    const p = groups.get(g)?.parentId;
+    return p !== undefined && groups.has(p) ? groupNodeId(p) : undefined;
+  };
+  /** A container's chain from the top down to itself. */
+  const chain = (c: string): string[] => {
+    const out = [c];
+    for (let p = containerOf(c); p !== undefined && !out.includes(p); p = containerOf(p))
+      out.unshift(p);
     return out;
   };
-  /** Where something inside `g` shows: its outermost collapsed ancestor-or-self, if any. */
-  const hiddenBy = (path: readonly string[]) => path.find((g) => collapsed.has(g));
-  /** The nearest expanded group around something whose group path is `path`. */
-  const frame = (path: readonly string[]) => {
-    const p = path.at(-1);
-    return p !== undefined ? groupNodeId(p) : undefined;
-  };
+  /** Where something inside the path shows: its outermost collapsed container, if any. */
+  const hiddenBy = (path: readonly string[]) => path.find((c) => collapsed.has(c));
+  /** The nearest expanded container around something whose container path is `path`. */
+  const frame = (path: readonly string[]) => path.at(-1);
 
   const nodes: WorldNode[] = [];
   /** Factory id → the node id it shows as. */
@@ -155,50 +186,57 @@ export function worldGraph(input: WorldGraphInput, options: WorldGraphOptions = 
   /** Scope node id → its ledger, for stubs. */
   const ledgers = new Map<string, readonly LedgerRow[]>();
 
-  // Groups: a visible group is either collapsed or a frame; parents before children.
-  const visibleGroups = [...input.groups]
-    .map((g) => ({ g, path: chain(g.id) }))
-    .filter(({ path }) => {
-      const h = hiddenBy(path.slice(0, -1));
-      return h === undefined;
-    })
-    .sort((a, b) => a.path.length - b.path.length || byKey(a.g.id, b.g.id));
   const statusOf = (ids: readonly string[]) => {
     const fs = input.factories.filter((f) => ids.includes(f.id));
     if (!fs.length) return undefined;
     return fs.map((f) => f.status).reduce((a, b) => (SEVERITY[b] > SEVERITY[a] ? b : a));
   };
-  for (const { g, path } of visibleGroups) {
-    const id = groupNodeId(g.id);
-    const isCollapsed = collapsed.has(g.id);
+  // Containers: a visible one is either collapsed or a frame; parents before children.
+  const containers = [...input.groups.map((g) => groupNodeId(g.id)), ...[...nests].map(nestNodeId)]
+    .map((id) => ({ id, path: chain(id) }))
+    .filter(({ path }) => hiddenBy(path.slice(0, -1)) === undefined)
+    .sort((a, b) => a.path.length - b.path.length || byKey(a.id, b.id));
+  for (const { id, path } of containers) {
+    const isCollapsed = collapsed.has(id);
     const parent = frame(path.slice(0, -1));
-    const status = isCollapsed ? statusOf(g.factories) : undefined;
+    const isNest = id.startsWith('nest:');
+    const ref = id.slice(id.indexOf(':') + 1);
+    const f = isNest ? factoryById.get(ref)! : undefined;
+    const g = isNest ? undefined : groups.get(ref)!;
+    const totals = f
+      ? (f.subtree ?? { ledger: f.ledger, power: f.power, nodes: f.nodes, machines: f.machines })
+      : g!;
+    const members = f ? (f.subtree?.factories ?? [f.id]) : g!.factories;
+    const status = isCollapsed ? statusOf(members) : undefined;
     nodes.push({
       id,
       kind: 'group',
-      ref: g.id,
-      label: g.name,
+      ref,
+      ...(isNest ? { nest: true as const } : {}),
+      label: f ? f.name : g!.name,
       ...(parent ? { parent } : {}),
       collapsed: isCollapsed,
       ...(status ? { status } : {}),
+      ...(isCollapsed && f?.subtreeBuild ? { build: f.subtreeBuild } : {}),
       ...(isCollapsed
         ? {
-            power: { ...g.power },
-            nodesUsed: sumNodes(g.nodes),
-            machines: g.machines,
+            power: { ...totals.power },
+            nodesUsed: sumNodes(totals.nodes),
+            machines: totals.machines,
           }
         : {}),
-      members: g.factories.length,
-      traced: isCollapsed && trace !== undefined && touches(g.ledger, trace),
+      members: members.length,
+      traced: isCollapsed && trace !== undefined && touches(totals.ledger, trace),
     });
-    if (isCollapsed) ledgers.set(id, g.ledger);
+    if (isCollapsed) ledgers.set(id, totals.ledger);
   }
 
   for (const f of [...input.factories].sort((a, b) => byKey(a.id, b.id))) {
-    const path = f.groupId !== undefined && groups.has(f.groupId) ? chain(f.groupId) : [];
+    const own = nests.has(f.id) ? nestNodeId(f.id) : containerOfFactory(f.id);
+    const path = own !== undefined ? chain(own) : [];
     const h = hiddenBy(path);
     if (h !== undefined) {
-      shownAs.set(f.id, groupNodeId(h));
+      shownAs.set(f.id, h);
       continue;
     }
     const id = factoryNodeId(f.id);

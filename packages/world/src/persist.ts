@@ -95,6 +95,8 @@ function shapeProblems(w: World): string[] {
       isStr(f.id) &&
       isStr(f.name) &&
       isOpt(f.groupId, isStr) &&
+      isOpt(f.parentId, isStr) &&
+      isOpt(f.collapsed, isBool) &&
       isRequest(f.request) &&
       Array.isArray(f.unassignedImports) &&
       f.unassignedImports.every((i) => isObj(i) && isStr(i.item) && isOpt(i.cap, isNum)) &&
@@ -119,7 +121,8 @@ function shapeProblems(w: World): string[] {
       isStr(l.item) &&
       isObj(l.mode) &&
       (l.mode.kind === 'pull' || (l.mode.kind === 'fixed' && isNum(l.mode.rate))) &&
-      isOpt(l.transport, (t) => isObj(t) && isStr(t.kind) && isOpt(t.tier, isNum)),
+      isOpt(l.transport, (t) => isObj(t) && isStr(t.kind) && isOpt(t.tier, isNum)) &&
+      isOpt(l.nested, (n) => n === true),
   );
   const d = doc.defaults;
   if (
@@ -196,8 +199,9 @@ function isRequest(r: unknown): boolean {
  * - an outgoing link becomes a target: a fixed link's rate, or a pull link's
  *   resolved rate from `pullRates` (by link id). A pull link with no
  *   resolved rate is dropped.
- * Targets and imports of the same item are merged. The factory leaves its
- * group, since groups are not shared.
+ * Targets and imports of the same item are merged; what a child sends its
+ * parent counts toward its own target (A50). The factory leaves its group
+ * and its parent, since neither is shared.
  */
 export function extractFactory(
   world: World,
@@ -211,10 +215,19 @@ export function extractFactory(
 
   const targets = new Map<string, number>();
   for (const t of factory.request.targets) targets.set(t.item, (targets.get(t.item) ?? 0) + t.rate);
+  // What a child sends its parent counts toward its own target (A50).
+  const toParent = new Map<string, number>();
   for (const l of out) {
     const rate = l.mode.kind === 'fixed' ? l.mode.rate : pullRates[l.id];
     if (rate === undefined || !(rate > 0)) continue;
-    targets.set(l.item, (targets.get(l.item) ?? 0) + rate);
+    if (l.to === factory.parentId) toParent.set(l.item, (toParent.get(l.item) ?? 0) + rate);
+    else targets.set(l.item, (targets.get(l.item) ?? 0) + rate);
+  }
+  for (const [item, rate] of toParent) {
+    const own = factory.request.targets
+      .filter((t) => t.item === item)
+      .reduce((s, t) => s + t.rate, 0);
+    targets.set(item, (targets.get(item) ?? 0) + Math.max(0, rate - own));
   }
 
   const imports = new Map<string, number | undefined>();
@@ -235,6 +248,8 @@ export function extractFactory(
   );
   const shared: Factory = { ...structuredCopy(factory), request, unassignedImports };
   delete shared.groupId;
+  delete shared.parentId;
+  delete shared.collapsed;
   return {
     ...createWorld(world.meta.dataHash),
     factories: [shared],

@@ -13,6 +13,7 @@ export {
   importNodeId,
   missingNodeId,
   recipeNodeId,
+  subFactoryNodeId,
   targetNodeId,
 } from './factory';
 export type {
@@ -22,6 +23,7 @@ export type {
   FlowNode,
   FlowNodeKind,
   GraphLabels,
+  SubFactoryFlow,
 } from './factory';
 export {
   CHAR_WIDTH,
@@ -54,7 +56,7 @@ export type {
   PlacedNode,
   TrayRow,
 } from './layout';
-export { factoryNodeId, groupNodeId, worldGraph } from './world';
+export { factoryNodeId, groupNodeId, nestNodeId, worldGraph } from './world';
 export type {
   StubItem,
   WorldEdge,

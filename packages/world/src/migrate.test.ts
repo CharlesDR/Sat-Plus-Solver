@@ -7,6 +7,7 @@ import v5 from '../../../fixtures/worlds/v5-world.json';
 import v6 from '../../../fixtures/worlds/v6-world.json';
 import v7 from '../../../fixtures/worlds/v7-world.json';
 import v8 from '../../../fixtures/worlds/v8-world.json';
+import v10 from '../../../fixtures/worlds/v10-world.json';
 import v9 from '../../../fixtures/worlds/v9-world.json';
 import { WORLD_VERSION, createWorld, factorySolveRequest } from './document';
 import { WorldMigrationError, migrateWorld } from './migrate';
@@ -207,6 +208,17 @@ describe('migrateWorld', () => {
       factories: x.factories.map(({ built: _, ...f }) => f),
     });
     expect(strip(migrateWorld(v9))).toEqual(w);
+  });
+
+  test('a v9 save carries over unchanged but for its version, with no parents (A49)', () => {
+    const before = JSON.stringify(v9);
+    const w = migrateWorld(v9);
+    expect(w).toEqual({ ...v9, meta: { ...v9.meta, v: WORLD_VERSION } });
+    expect(JSON.stringify(v9)).toBe(before);
+    expect(w.factories.some((f) => f.parentId !== undefined)).toBe(false);
+    expect(w.links.some((l) => l.nested)).toBe(false);
+    // The v10 fixture is the v9 one plus a sub-factory, its link and a collapsed parent.
+    expect(v10.factories.filter((f) => 'parentId' in f)).toHaveLength(1);
   });
 
   test('a current world passes through unchanged', () => {

@@ -9,6 +9,7 @@ import { BUILD_FLAG_LABELS, checkBuild, planEntries } from './built';
 import { tweakedImports, type Link, type World } from './document';
 import type { Pass } from './resolve';
 import type {
+  BuildCheck,
   FactoryResult,
   FactoryStatus,
   GroupResult,
@@ -71,6 +72,23 @@ export function analyze(
       ...(carriers !== undefined ? { carriers } : {}),
     };
   });
+  // Surplus draws (A51): a parent's plan taking a sub-factory's surplus, with no link.
+  for (const [child, items] of [...pass.drawn].sort(([a], [b]) => byKey(a, b)))
+    for (const [item, rate] of [...items].sort(([a], [b]) => byKey(a, b))) {
+      const parent = world.factories.find((f) => f.id === child)?.parentId;
+      if (parent === undefined || !(rate > FLOW_TOL)) continue;
+      linkResults.push({
+        id: surplusLinkId(child, item),
+        from: child,
+        to: parent,
+        item,
+        mode: 'surplus',
+        requested: rate,
+        delivered: rate,
+        used: rate,
+        short: 0,
+      });
+    }
   const linkById = new Map(linkResults.map((l) => [l.id, l]));
   for (const l of linkResults)
     if (l.short > FLOW_TOL) {
@@ -119,7 +137,12 @@ export function analyze(
           // Imports no link accounts for came from unassigned imports: unmet in the save.
           r.unmet = Math.max(0, flow.imported - viaLinks);
         }
-      for (const l of outgoing) row(l.item).exported += l.delivered;
+      for (const l of outgoing) {
+        const r = row(l.item);
+        r.exported += l.delivered;
+        // A surplus draw takes what was left over (A51).
+        if (l.mode === 'surplus') r.surplus = Math.max(0, r.surplus - l.delivered);
+      }
       for (const l of incoming) {
         const r = row(l.item);
         r.imported += l.delivered;
@@ -201,6 +224,9 @@ export function analyze(
         id: f.id,
         name: f.name,
         ...(f.groupId !== undefined ? { groupId: f.groupId } : {}),
+        ...(f.parentId !== undefined && world.factories.some((p) => p.id === f.parentId)
+          ? { parentId: f.parentId }
+          : {}),
         ...(manual
           ? {
               manual: {
@@ -261,6 +287,38 @@ export function analyze(
       machines: fs.reduce((s, f) => s + f.machines, 0),
     };
   };
+
+  // Sub-factories (A52): a parent's totals with everything below it, and the
+  // worst build state in its subtree.
+  const kids = new Map<string, string[]>();
+  for (const f of factories)
+    if (f.parentId !== undefined) kids.set(f.parentId, [...(kids.get(f.parentId) ?? []), f.id]);
+  const below = (id: string, seen = new Set<string>([id])): string[] =>
+    (kids.get(id) ?? []).flatMap((c) => (seen.has(c) ? [] : (seen.add(c), [c, ...below(c, seen)])));
+  for (const [k, f] of factories.entries()) {
+    const children = kids.get(f.id);
+    if (!children) continue;
+    const members = [f.id, ...below(f.id)].sort();
+    const set = new Set(members);
+    const internalLinks: string[] = [];
+    const boundaryLinks: string[] = [];
+    for (const l of linkResults) {
+      const a = set.has(l.from);
+      const b = set.has(l.to);
+      if (a && b) internalLinks.push(l.id);
+      else if (a || b) boundaryLinks.push(l.id);
+    }
+    const states = members.flatMap((m) => {
+      const b = factoryById.get(m)!.build;
+      return b ? [b.state] : [];
+    });
+    factories[k] = {
+      ...f,
+      children: [...children].sort(),
+      subtree: { factories: members, internalLinks, boundaryLinks, ...scope(set) },
+      ...(states.length ? { subtreeBuild: worstBuild(states) } : {}),
+    };
+  }
 
   const groups = resolveGroups(world, diagnostics).map(({ group, factories: members }) => {
     const set = new Set(members);
@@ -329,6 +387,21 @@ export function analyze(
     diagnostics: sortDiagnostics(diagnostics),
     stats,
   };
+}
+
+/** Id of a surplus draw's link result (A51); never a document link id. */
+export const surplusLinkId = (child: string, item: string) => `surplus:${child}:${item}`;
+
+const BUILD_ORDER: Record<BuildCheck['state'], number> = {
+  matches: 0,
+  note: 1,
+  differs: 2,
+  broken: 3,
+};
+
+/** The worst of some build states (A52). */
+export function worstBuild(states: readonly BuildCheck['state'][]): BuildCheck['state'] {
+  return states.reduce((a, b) => (BUILD_ORDER[b] > BUILD_ORDER[a] ? b : a), 'matches');
 }
 
 function toLedger(rows: ReadonlyMap<string, Row>): LedgerRow[] {
@@ -448,6 +521,7 @@ function resolveGroups(
 const ORDER: Record<WorldDiagnostic['code'], number> = {
   'invalid-link': 0,
   'invalid-group': 1,
+  'invalid-parent': 1,
   'factory-failed': 2,
   'cycle-not-converged': 3,
   'link-short': 4,

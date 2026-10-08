@@ -23,6 +23,7 @@ import type { Scope, WorldStore } from './store';
 import { SolvingNote } from './SolvingNote';
 import { SummaryTable } from './SummaryTable';
 import { BuildPanel } from './build/BuildPanel';
+import { NestPanel } from './nest/NestPanel';
 import { ManualPanel, ModeSwitch } from './manual/ManualPanel';
 import { planToFreeze } from './manual/manual';
 import { TweakPanel } from './tweaks/TweakPanel';
@@ -37,7 +38,7 @@ import { ThemeSwitch } from './ui/ThemeSwitch';
 import { ToastProvider, useToast } from './ui/toasts';
 import { WorldView } from './world/WorldView';
 import { EscapeContext, escapeStack, isTextField, useEscapeLayer } from './escape';
-import { backOut, factoryView, focusOf, WORLD_VIEW, type View } from './viewPath';
+import { backOut, factoryView, focusOf, parentLookup, WORLD_VIEW, type View } from './viewPath';
 
 /** Where the user is: the world canvas (home), or one factory drilled into. */
 export type { View } from './viewPath';
@@ -123,7 +124,7 @@ function AppFrame(props: {
             world={world}
             focus={focus}
             onWorld={() => setView(WORLD_VIEW)}
-            onFactory={(id) => setView(factoryView(id))}
+            onFactory={(id) => setView(factoryView(id, parentLookup(world)))}
           />
           <div className="topbar-actions">
             <button
@@ -184,8 +185,8 @@ function AppFrame(props: {
 }
 
 /**
- * Where the user is: World, the factory's groups, then the factory, which is
- * also a switcher to the other factories.
+ * Where the user is: World, the factory's groups, its parent factories (A49),
+ * then the factory, which is also a switcher to the other factories.
  */
 function Breadcrumb(props: {
   world: World;
@@ -213,6 +214,13 @@ function Breadcrumb(props: {
           <li key={k}>
             <button type="button" className="crumb" onClick={onWorld}>
               {g}
+            </button>
+          </li>
+        ))}
+        {crumbs?.parents.map((p) => (
+          <li key={p.id}>
+            <button type="button" className="crumb" onClick={() => onFactory(p.id)}>
+              {p.name}
             </button>
           </li>
         ))}
@@ -267,7 +275,10 @@ function Shell(props: {
   const world = useStore(store, (s) => s.world);
   const { state, run } = useWorldPlan(client, world, focus);
   const [actionError, setActionError] = useState<string>();
-  const openFactory = useCallback((id: string) => onView(factoryView(id)), [onView]);
+  const openFactory = useCallback(
+    (id: string) => onView(factoryView(id, parentLookup(store.getState().world))),
+    [onView, store],
+  );
   const sizePower = (factoryId: string) => {
     setActionError(undefined);
     run({ kind: 'size-power', factoryId }).then(
@@ -297,6 +308,7 @@ function Shell(props: {
             factoryId={focus}
             plan={state}
             run={run}
+            onOpen={openFactory}
           />
         ) : (
           <WorldView
@@ -334,8 +346,10 @@ function FactoryView(props: {
   factoryId: string;
   plan: WorldPlanState;
   run(action: WorldAction): Promise<SolveOutcome | null>;
+  /** Opens a factory along its parent chain (A49). */
+  onOpen(id: string): void;
 }) {
-  const { store, layout, catalog, factoryId } = props;
+  const { store, layout, catalog, factoryId, onOpen } = props;
   const toast = useToast();
   const [sidebarOpen, setSidebarOpen] = useSidebarOpen();
   const [selection, setSelection] = useState<Selection>();
@@ -593,6 +607,25 @@ function FactoryView(props: {
               toast('Cleared the build mark.');
             }}
           />
+          <NestPanel
+            world={world}
+            factory={factory}
+            solved={summary?.factories}
+            onOpen={onOpen}
+            onAdd={() => {
+              const id = actions.addFactory('', undefined, factoryId);
+              toast('Added a sub-factory.');
+              onOpen(id);
+            }}
+            onMove={(parentId) => {
+              try {
+                actions.setFactoryParent(factoryId, parentId);
+                toast(parentId ? 'Moved inside another factory.' : 'Moved to the top level.');
+              } catch (e) {
+                toast((e as Error).message);
+              }
+            }}
+          />
           {manual && factory.manual && (
             <ManualPanel
               factory={factory}
@@ -653,6 +686,7 @@ function FactoryView(props: {
         <PlanView
           plan={plan}
           diagnostics={diagnostics}
+          onOpenFactory={onOpen}
           layout={layout}
           catalog={catalog}
           selection={selection}
@@ -680,6 +714,7 @@ function PlanView(props: {
   selection: Selection | undefined;
   onSelect: (id: string | undefined, from: Selection['from']) => void;
   onFocusTargets(): void;
+  onOpenFactory(id: string): void;
 }) {
   const { plan, layout, catalog, selection, onSelect, diagnostics } = props;
   const solved = (o: Focused, timing: string) => (
@@ -693,6 +728,7 @@ function PlanView(props: {
           catalog={catalog}
           selection={selection}
           onSelect={(id) => onSelect(id, 'graph')}
+          onOpenFactory={props.onOpenFactory}
         />
       </ErrorBoundary>
       <SummaryTable

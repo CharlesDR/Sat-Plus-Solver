@@ -1435,6 +1435,12 @@ section.diagnostics li p {
   --kind: var(--kind-byproduct);
   --fill: var(--flow-byproduct);
 }
+.flow-node.sub-factory {
+  /* A sub-factory box (A53): the accent, so it reads as a place to open. */
+  --kind: var(--accent);
+  --fill: color-mix(in srgb, var(--accent) 7%, var(--flow-import));
+  cursor: zoom-in;
+}
 .flow-node.missing {
   --kind: var(--error);
   --fill: var(--flow-missing);
@@ -1783,6 +1789,11 @@ section.diagnostics li p {
   border-radius: 10px;
   background: color-mix(in srgb, var(--accent) 4%, transparent);
 }
+.group-frame.nest {
+  /* A factory with sub-factories (A53): solid, unlike a group's dashed folder. */
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line-strong));
+}
 .group-header {
   display: flex;
   justify-content: space-between;
@@ -2086,4 +2097,29 @@ section.diagnostics li p {
 .build-flags ul {
   margin: 2px 0 0;
   padding-left: 18px;
+}
+
+/* Sub-factories in the factory view (A49-A53). */
+.nest-bar {
+  display: grid;
+  gap: 6px;
+}
+.nest-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.nest-children {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.nest-children li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }

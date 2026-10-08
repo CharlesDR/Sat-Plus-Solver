@@ -46,7 +46,8 @@ import { StatusChip } from '../ui/StatusChip';
 /** What the canvas's nodes can ask the view to do. */
 export interface CanvasActions {
   openFactory(id: string): void;
-  setCollapsed(groupId: string, collapsed: boolean): void;
+  /** A group, or with `nest` a factory with sub-factories (A53). */
+  setCollapsed(id: string, collapsed: boolean, nest?: boolean): void;
   /** A link drawn from one factory to another. */
   connect(from: string, to: string): void;
 }
@@ -68,10 +69,20 @@ const WorldNodeView = memo(function WorldNodeView({ data }: NodeProps<CanvasNode
   const n = data.node;
   const [title, ...rest] = worldNodeLines(n);
   const factory = n.kind === 'factory';
+  // A collapsed factory with sub-factories opens like a factory (A53).
+  const opens = factory || n.nest === true;
   return (
     <div
-      className={cls('world-node', n.kind, n.status, n.direction, n.manual && 'manual', data.mark)}
-      onDoubleClick={factory ? () => actions.openFactory(n.ref) : undefined}
+      className={cls(
+        'world-node',
+        n.kind,
+        n.nest && 'nest',
+        n.status,
+        n.direction,
+        n.manual && 'manual',
+        data.mark,
+      )}
+      onDoubleClick={opens ? () => actions.openFactory(n.ref) : undefined}
     >
       <Handle type="target" position={Position.Left} isConnectable={factory} />
       <div className="flow-title" title={title}>
@@ -114,7 +125,7 @@ const WorldNodeView = memo(function WorldNodeView({ data }: NodeProps<CanvasNode
         <button
           type="button"
           className="nodrag link-button"
-          onClick={() => actions.setCollapsed(n.ref, false)}
+          onClick={() => actions.setCollapsed(n.ref, false, n.nest)}
         >
           Expand
         </button>
@@ -128,13 +139,13 @@ const FrameView = memo(function FrameView({ data }: NodeProps<CanvasNode>) {
   const actions = useContext(Actions)!;
   const n = data.node;
   return (
-    <div className={cls('group-frame', data.mark)}>
+    <div className={cls('group-frame', n.nest && 'nest', data.mark)}>
       <div className="group-header">
         <span className="flow-title">{n.label}</span>
         <button
           type="button"
           className="nodrag link-button"
-          onClick={() => actions.setCollapsed(n.ref, true)}
+          onClick={() => actions.setCollapsed(n.ref, true, n.nest)}
         >
           Collapse
         </button>
@@ -263,7 +274,7 @@ function Canvas(props: {
           connectable: factory,
           ariaLabel: frame
             ? `Group: ${n.label}`
-            : `${n.kind === 'stub' ? 'Stub' : n.kind === 'group' ? 'Group' : 'Factory'}: ${worldNodeLines(n).join(', ')}`,
+            : `${n.kind === 'stub' ? 'Stub' : n.nest ? 'Factory with sub-factories' : n.kind === 'group' ? 'Group' : 'Factory'}: ${worldNodeLines(n).join(', ')}`,
         };
       }),
     [layout, marks],

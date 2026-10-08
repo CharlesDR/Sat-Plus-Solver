@@ -5,6 +5,7 @@
 import { formatRate as fmt, type PowerSummary } from '@sps/solver';
 import { StatusChip } from '../ui/StatusChip';
 import { groupAncestors, type World } from '@sps/world';
+import { parentOptions } from '../nest/nest';
 import { useState, type ReactNode } from 'react';
 import type { Catalog, WorldSummary } from '../solver/protocol';
 import type { WorldStore } from '../store';
@@ -131,10 +132,11 @@ export function FactoriesPanel(props: {
     <div>
       <Table
         label="Factories"
-        textColumns={7}
+        textColumns={8}
         head={[
           'Name',
           'Group',
+          'Inside',
           'Status',
           'Targets',
           'Link demand',
@@ -169,12 +171,36 @@ export function FactoriesPanel(props: {
                 <select
                   aria-label={`Group of ${f.name}`}
                   value={f.groupId ?? ''}
+                  disabled={f.parentId !== undefined}
+                  title={
+                    f.parentId !== undefined ? 'A sub-factory shows inside its parent.' : undefined
+                  }
                   onChange={(e) => actions.setFactoryGroup(f.id, e.target.value || undefined)}
                 >
                   <option value="">(none)</option>
                   {world.groups.map((g) => (
                     <option key={g.id} value={g.id}>
                       {g.name}
+                    </option>
+                  ))}
+                </select>
+              </td>
+              <td className="text">
+                <select
+                  aria-label={`Factory ${f.name} is inside`}
+                  value={f.parentId ?? ''}
+                  onChange={(e) => {
+                    try {
+                      actions.setFactoryParent(f.id, e.target.value || undefined);
+                    } catch {
+                      // The list never offers a cycle; a stale choice changes nothing.
+                    }
+                  }}
+                >
+                  <option value="">(top level)</option>
+                  {parentOptions(world, f.id).map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name}
                     </option>
                   ))}
                 </select>

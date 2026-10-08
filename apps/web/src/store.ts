@@ -59,8 +59,12 @@ export interface WorldState {
   loadWorld(world: World): void;
 
   // World editing (M8). Bad edits throw `WorldEditError` and leave the world unchanged.
-  /** Returns the new factory's id. */
-  addFactory(name: string, groupId?: string): string;
+  /** Returns the new factory's id; with `parentId`, a sub-factory (A49). */
+  addFactory(name: string, groupId?: string, parentId?: string): string;
+  /** Nests a factory in another, or moves it to the top level (A49); refuses a cycle. */
+  setFactoryParent(id: string, parentId: string | undefined): void;
+  /** Draws a factory with sub-factories as one node on the world canvas (A53). */
+  setFactoryCollapsed(id: string, collapsed: boolean): void;
   removeFactory(id: string): void;
   renameFactory(id: string, name: string): void;
   setFactoryGroup(id: string, groupId: string | undefined): void;
@@ -169,7 +173,22 @@ export function createWorldStore(initial: World = createWorld()) {
     return {
       world: initial,
       setTargets: (factoryId, targets) =>
-        editRequest(factoryId, (r) => ({ ...r, targets: targets.map((t) => ({ ...t })) })),
+        set(({ world }) => {
+          const f = world.factories.find((x) => x.id === factoryId);
+          if (!f) throw new Error(`Unknown factory "${factoryId}".`);
+          const had = new Set(f.request.targets.map((t) => t.item));
+          const next: World = {
+            ...world,
+            factories: world.factories.map((x) =>
+              x.id === factoryId
+                ? { ...x, request: { ...x.request, targets: targets.map((t) => ({ ...t })) } }
+                : x,
+            ),
+          };
+          // A sub-factory's new target items are wired to its parent (A50).
+          const added = targets.map((t) => t.item).filter((item) => !had.has(item));
+          return { world: added.length ? edit.wireChild(next, factoryId, added) : next };
+        }),
       setSetting: (scope, key, value) => {
         if (scope.kind === 'world') {
           if (value === undefined) throw new Error('A world default cannot be unset.');
@@ -212,7 +231,11 @@ export function createWorldStore(initial: World = createWorld()) {
             ? { world, dataHashMismatch: undefined }
             : checkData(world, modelHash),
         ),
-      addFactory: (name, groupId) => create((w) => edit.addFactory(w, name, groupId)),
+      addFactory: (name, groupId, parentId) =>
+        create((w) => edit.addFactory(w, name, groupId, parentId)),
+      setFactoryParent: (id, parentId) => apply((w) => edit.setFactoryParent(w, id, parentId)),
+      setFactoryCollapsed: (id, collapsed) =>
+        apply((w) => edit.setFactoryCollapsed(w, id, collapsed)),
       removeFactory: (id) => apply((w) => edit.removeFactory(w, id)),
       renameFactory: (id, name) => apply((w) => edit.renameFactory(w, id, name)),
       setFactoryGroup: (id, groupId) => apply((w) => edit.setFactoryGroup(w, id, groupId)),

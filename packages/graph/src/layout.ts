@@ -230,6 +230,8 @@ export function nodeLines(n: FlowNode): string[] {
       return [`Target: ${n.label}`, `${rateText(n.rate ?? 0)}/min`];
     case 'byproduct':
       return [`Byproduct: ${n.label}`, `${rateText(n.rate ?? 0)}/min`];
+    case 'sub-factory':
+      return [n.label, 'Sub-factory · double-click to open'];
   }
 }
 

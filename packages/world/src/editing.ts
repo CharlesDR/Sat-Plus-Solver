@@ -37,27 +37,50 @@ function need<T extends { id: string }>(xs: readonly T[], id: string, what: stri
 
 const cleanName = (name: string, fallback: string) => name.trim() || fallback;
 
-/** Adds an empty factory (inheriting every default), optionally inside a group. */
+/**
+ * Adds an empty factory (inheriting every default), optionally inside a group
+ * or inside another factory (A49). A sub-factory ignores the group.
+ */
 export function addFactory(
   world: World,
   name: string,
   groupId?: string,
+  parentId?: string,
 ): { world: World; id: string } {
   if (groupId !== undefined) need(world.groups, groupId, 'group');
+  if (parentId !== undefined) need(world.factories, parentId, 'factory');
   const id = nextId('factory', allIds(world));
   const f = createFactory(id, cleanName(name, `Factory ${world.factories.length + 1}`));
-  if (groupId !== undefined) f.groupId = groupId;
+  if (parentId !== undefined) f.parentId = parentId;
+  else if (groupId !== undefined) f.groupId = groupId;
   return { world: { ...world, factories: [...world.factories, f] }, id };
 }
 
-/** Removes a factory and every link to or from it. */
+/**
+ * Removes a factory and every link to or from it. Its sub-factories move up
+ * to its parent, wired to it (A50), or to the top level in its group.
+ */
 export function removeFactory(world: World, id: string): World {
-  need(world.factories, id, 'factory');
-  return {
+  const gone = need(world.factories, id, 'factory');
+  let out: World = {
     ...world,
-    factories: world.factories.filter((f) => f.id !== id),
+    factories: world.factories
+      .filter((f) => f.id !== id)
+      .map((f) => {
+        if (f.parentId !== id) return f;
+        const next: Factory = { ...f };
+        if (gone.parentId !== undefined) next.parentId = gone.parentId;
+        else {
+          delete next.parentId;
+          if (gone.groupId !== undefined) next.groupId = gone.groupId;
+        }
+        return next;
+      }),
     links: world.links.filter((l) => l.from !== id && l.to !== id),
   };
+  if (gone.parentId !== undefined)
+    for (const f of out.factories) if (f.parentId === gone.parentId) out = wireChild(out, f.id);
+  return out;
 }
 
 export function renameFactory(world: World, id: string, name: string): World {
@@ -77,6 +100,100 @@ export function setFactoryGroup(world: World, id: string, groupId: string | unde
 
 function editFactory(world: World, id: string, next: Factory): World {
   return { ...world, factories: world.factories.map((f) => (f.id === id ? next : f)) };
+}
+
+// Nested factories (A45, A49, A50).
+
+/** The factory's parents, nearest first (stops at a cycle or an unknown parent). */
+export function factoryAncestors(world: World, id: string): string[] {
+  const parent = new Map(world.factories.map((f) => [f.id, f.parentId]));
+  const out: string[] = [];
+  for (let at = parent.get(id); at !== undefined && parent.has(at) && !out.includes(at);) {
+    out.push(at);
+    at = parent.get(at);
+  }
+  return out;
+}
+
+/** Every factory below `id`, sorted by id. */
+export function factoryDescendants(world: World, id: string): string[] {
+  const out = new Set<string>();
+  const walk = (p: string) => {
+    for (const f of world.factories)
+      if (f.parentId === p && !out.has(f.id) && f.id !== id) {
+        out.add(f.id);
+        walk(f.id);
+      }
+  };
+  walk(id);
+  return [...out].sort();
+}
+
+/**
+ * Puts a factory inside another, or back at the top level with `undefined`
+ * (A49). Refuses a cycle. The links nesting made to the old parent go; the
+ * factory's targets are wired to the new one (A50). A nested factory leaves
+ * its group.
+ */
+export function setFactoryParent(world: World, id: string, parentId: string | undefined): World {
+  const f = need(world.factories, id, 'factory');
+  if (parentId !== undefined) {
+    need(world.factories, parentId, 'factory');
+    if (parentId === id || factoryAncestors(world, parentId).includes(id))
+      throw new WorldEditError(`Factory "${id}" cannot be nested inside itself.`);
+  }
+  if (f.parentId === parentId) return world;
+  const next: Factory = { ...f };
+  if (parentId === undefined) delete next.parentId;
+  else {
+    next.parentId = parentId;
+    delete next.groupId;
+  }
+  const old = f.parentId;
+  const out: World = {
+    ...editFactory(world, id, next),
+    links: world.links.filter((l) => !(l.nested && l.from === id && l.to === old)),
+  };
+  return wireChild(out, id);
+}
+
+/**
+ * Automatic wiring (A50): a pull link from a sub-factory to its parent for
+ * each of its target items (or each of `items`) that no link from it to the
+ * parent carries yet. Does nothing for a top-level factory.
+ */
+export function wireChild(world: World, id: string, items?: readonly string[]): World {
+  const f = need(world.factories, id, 'factory');
+  const parent = f.parentId;
+  if (parent === undefined || !world.factories.some((p) => p.id === parent)) return world;
+  const wanted = [...new Set(f.request.targets.map((t) => t.item))]
+    .filter((item) => !items || items.includes(item))
+    .sort();
+  let out = world;
+  for (const item of wanted) {
+    if (out.links.some((l) => l.from === id && l.to === parent && l.item === item)) continue;
+    const linkId = nextId('link', allIds(out));
+    const link: Link = {
+      id: linkId,
+      from: id,
+      to: parent,
+      item,
+      mode: { kind: 'pull' },
+      nested: true,
+    };
+    out = { ...out, links: [...out.links, link] };
+  }
+  return out;
+}
+
+/** Draws a factory with sub-factories as one node on the world canvas, or as a frame (A53). */
+export function setFactoryCollapsed(world: World, id: string, collapsed: boolean): World {
+  const f = need(world.factories, id, 'factory');
+  if ((f.collapsed ?? false) === collapsed) return world;
+  const next: Factory = { ...f };
+  if (collapsed) next.collapsed = true;
+  else delete next.collapsed;
+  return editFactory(world, id, next);
 }
 
 /** Adds an expanded group, optionally nested in another. */

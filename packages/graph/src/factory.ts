@@ -14,11 +14,18 @@
  */
 import type { ItemRate, RecipeUsage, SolveResult } from '@sps/solver';
 
-/** `missing`: what a manual plan (A36) needs beyond its imports. */
-export type FlowNodeKind = 'recipe' | 'resource' | 'import' | 'missing' | 'target' | 'byproduct';
+/**
+ * `missing`: what a manual plan (A36) needs beyond its imports.
+ * `sub-factory`: a factory nested in this one (A53), drawn as one box.
+ */
+export type FlowNodeKind =
+  'recipe' | 'resource' | 'import' | 'missing' | 'sub-factory' | 'target' | 'byproduct';
 
 export interface FlowNode {
-  /** `recipe:<id>`, `import:<item>`, `missing:<item>`, `target:<item>` or `byproduct:<item>`. */
+  /**
+   * `recipe:<id>`, `import:<item>`, `missing:<item>`, `sub:<factory id>`,
+   * `target:<item>` or `byproduct:<item>`.
+   */
   id: string;
   kind: FlowNodeKind;
   /** Recipe name, or the item name for import/target/byproduct nodes. */
@@ -38,6 +45,8 @@ export interface FlowNode {
    * and leave from vertices of their own (A40).
    */
   main?: string;
+  /** Sub-factory nodes: the nested factory's id (A53). */
+  factory?: string;
   /** Node class drawn on (resource nodes). */
   node?: string;
   /** Import/missing/target/byproduct nodes: the item and its rate. */
@@ -81,11 +90,24 @@ export type FlowchartInput = Pick<
 const KIND_ORDER: Record<FlowNodeKind, number> = {
   import: 0,
   missing: 1,
-  resource: 2,
-  recipe: 3,
-  target: 4,
-  byproduct: 5,
+  'sub-factory': 2,
+  resource: 3,
+  recipe: 4,
+  target: 5,
+  byproduct: 6,
 };
+
+/**
+ * A factory nested in the one drawn (A53): what it sends up (`outputs`) and
+ * what it takes from the parent (`inputs`), per minute, through links and
+ * surplus draws.
+ */
+export interface SubFactoryFlow {
+  id: string;
+  name: string;
+  inputs: readonly ItemRate[];
+  outputs: readonly ItemRate[];
+}
 
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
@@ -101,16 +123,19 @@ export const importNodeId = (item: string) => `import:${item}`;
 export const missingNodeId = (item: string) => `missing:${item}`;
 export const targetNodeId = (item: string) => `target:${item}`;
 export const byproductNodeId = (item: string) => `byproduct:${item}`;
+export const subFactoryNodeId = (id: string) => `sub:${id}`;
 
 /**
  * Builds the flowchart of a solved plan. A plan that is not `ok` gives an
  * empty graph. `missing` (a manual plan's shortfall, A36) is taken out of the
- * imports and drawn as its own nodes.
+ * imports and drawn as its own nodes. Each sub-factory (A53) is one box: what
+ * it sends comes out of the imports, and what it takes out of the targets.
  */
 export function factoryGraph(
   result: FlowchartInput,
   labels: GraphLabels = {},
   missing: readonly ItemRate[] = [],
+  children: readonly SubFactoryFlow[] = [],
 ): FactoryGraph {
   if (result.status !== 'ok') return { nodes: [], edges: [] };
   const itemName = (id: string) => labels.item?.(id) ?? id;
@@ -132,16 +157,32 @@ export function factoryGraph(
   });
   for (const r of result.recipes) nodes.push(recipeNode(r));
   const lacking = new Map(merge(missing).map((m) => [m.item, m.rate]));
-  // What is left of an import once its missing part is drawn apart; a rounding sliver is dropped.
+  const sent = new Map(merge(children.flatMap((c) => c.outputs)).map((f) => [f.item, f.rate]));
+  const taken = new Map(merge(children.flatMap((c) => c.inputs)).map((f) => [f.item, f.rate]));
+  // What is left of an import once its missing and sub-factory parts are drawn apart; a rounding sliver is dropped.
   const imported = merge(result.imports)
-    .map((f) => ({ item: f.item, rate: f.rate - (lacking.get(f.item) ?? 0) }))
-    .filter((f) => f.rate > 1e-9 * Math.max(1, f.rate + (lacking.get(f.item) ?? 0)));
+    .map((f) => {
+      const apart = (lacking.get(f.item) ?? 0) + (sent.get(f.item) ?? 0);
+      return { item: f.item, rate: f.rate - apart, total: f.rate };
+    })
+    .filter((f) => f.rate > 1e-9 * Math.max(1, f.total));
   for (const f of imported)
     nodes.push(endpoint('import', importNodeId(f.item), f, itemName(f.item)));
   for (const [item, rate] of lacking)
     nodes.push(endpoint('missing', missingNodeId(item), { item, rate }, itemName(item)));
-  for (const f of merge(result.items.map((i) => ({ item: i.item, rate: i.demand }))))
-    nodes.push(endpoint('target', targetNodeId(f.item), f, itemName(f.item)));
+  for (const c of [...children].sort((a, b) => cmp(a.id, b.id)))
+    nodes.push({
+      id: subFactoryNodeId(c.id),
+      kind: 'sub-factory',
+      label: c.name,
+      factory: c.id,
+      inputs: merge(c.inputs),
+      outputs: merge(c.outputs),
+    });
+  const demand = merge(result.items.map((i) => ({ item: i.item, rate: i.demand })))
+    .map((f) => ({ item: f.item, rate: f.rate - (taken.get(f.item) ?? 0), total: f.rate }))
+    .filter((f) => f.rate > 1e-9 * Math.max(1, f.total));
+  for (const f of demand) nodes.push(endpoint('target', targetNodeId(f.item), f, itemName(f.item)));
   for (const f of merge(result.surplus))
     nodes.push(endpoint('byproduct', byproductNodeId(f.item), f, itemName(f.item)));
   nodes.sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || cmp(a.id, b.id));

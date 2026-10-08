@@ -82,6 +82,12 @@ export function worldNodeLines(n: WorldNode): string[] {
       return [n.label, `Status: ${n.status ?? 'ok'}${n.manual ? ' · Manual' : ''}`, ...badges(n)];
     case 'group':
       if (!n.collapsed) return [n.label];
+      if (n.nest)
+        return [
+          n.label,
+          `With ${(n.members ?? 1) - 1} sub-factories · ${n.status ?? 'ok'}`,
+          ...badges(n),
+        ];
       return [n.label, `Group of ${n.members ?? 0} · ${n.status ?? 'empty'}`, ...badges(n)];
     case 'stub': {
       const items = n.items ?? [];

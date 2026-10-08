@@ -74,21 +74,36 @@ export function WorldView(props: {
         .join('\u0000'),
     [world.groups],
   );
+  // Factories with sub-factories drawn as one node (A53).
+  const collapsedFactories = useMemo(
+    () =>
+      world.factories
+        .filter((f) => f.collapsed)
+        .map((f) => f.id)
+        .join('\u0000'),
+    [world.factories],
+  );
+  const split = (s: string) => (s ? s.split('\u0000') : []);
   const structure = useMemo(
     () =>
       summary &&
-      worldGraph(summary, { collapsed: collapsed ? collapsed.split('\u0000') : [], itemName }),
-    [summary, collapsed, itemName],
+      worldGraph(summary, {
+        collapsed: split(collapsed),
+        collapsedFactories: split(collapsedFactories),
+        itemName,
+      }),
+    [summary, collapsed, collapsedFactories, itemName],
   );
   const traced = useMemo(
     () =>
       summary &&
       worldGraph(summary, {
-        collapsed: collapsed ? collapsed.split('\u0000') : [],
+        collapsed: split(collapsed),
+        collapsedFactories: split(collapsedFactories),
         itemName,
         traceItem,
       }),
-    [summary, collapsed, itemName, traceItem],
+    [summary, collapsed, collapsedFactories, itemName, traceItem],
   );
 
   const names = useNames(catalog, world);
@@ -117,7 +132,10 @@ export function WorldView(props: {
   const actions = useMemo<CanvasActions>(
     () => ({
       openFactory: onOpen,
-      setCollapsed: (id, c) => store.getState().setGroupCollapsed(id, c),
+      setCollapsed: (id, c, nest) =>
+        nest
+          ? store.getState().setFactoryCollapsed(id, c)
+          : store.getState().setGroupCollapsed(id, c),
       connect: (from, to) => {
         setDraft({ from, to });
         setTab('Links');

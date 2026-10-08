@@ -150,6 +150,7 @@ References like §4.3 point into `ARCHITECTURE.md`.
 - `Factory.parentId` (World v10, A45): a factory can sit inside another, to any depth, never in a cycle. Groups stay as folders.
 - Adding a child creates pull links from the child to the parent for each of the child's targets; they can be edited like any link. The parent may also draw on a child's surplus without a link the user made. A child's links to factories outside its parent are drawn through the parent's boundary.
 - The parent's flowchart draws each child as one box, with its flows as edges to and from the parent's recipes. Double-click opens the child, the breadcrumb shows the path, and Esc steps back one level (view path, A42). The world canvas draws a parent with children as a frame, or as one node with boundary flows when collapsed. Parent totals show "this factory" and "with sub-factories". Build flags (M15) roll up to the worst in the subtree.
+- **As built (A49–A53):** a child's target counts what it sends its parent (it makes the larger, not the sum); the parent draws on a child's surplus after fixed links and before pull links, shown as `surplus` link results; a family is ordered and swept as a cycle.
 - **Acceptance:** A child's output reaches its parent through the automatic links and the ledgers conserve. Esc from a grandchild returns to the child, then the parent, then the world. A parent cycle is rejected as an edit. A v9 save migrates with no parents. A collapsed parent shows only flows crossing its subtree.
 
 ### Graph readability track (G1–G5)

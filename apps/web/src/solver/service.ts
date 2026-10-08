@@ -3,7 +3,7 @@
  * Node tests with the same model and backend types.
  */
 import { MW_ITEM_ID, type Model } from '@sps/data';
-import { factoryGraph, type GraphLabels } from '@sps/graph';
+import { factoryGraph, type GraphLabels, type SubFactoryFlow } from '@sps/graph';
 import {
   bestNodeRates,
   compareTiers,
@@ -102,7 +102,7 @@ export function createSolverService(model: Model, backend: LpBackend): SolverSer
         cache.delete(key);
       }
       const f = focus !== undefined ? result.factories.find((x) => x.id === focus) : undefined;
-      const plan: FocusPlan | undefined = f && focusPlan(model, labels, f);
+      const plan: FocusPlan | undefined = f && focusPlan(model, labels, f, result);
       return {
         world: summarizeWorld(result),
         ...(plan ? { focus: plan } : {}),
@@ -115,11 +115,28 @@ export function createSolverService(model: Model, backend: LpBackend): SolverSer
 
 /**
  * The focused factory's plan and flowchart. A manual plan's missing inputs
- * (A36) are listed apart from its imports, as the flowchart draws them.
+ * (A36) are listed apart from its imports, as the flowchart draws them. Its
+ * sub-factories (A53) are boxes, with what flows between them and it in
+ * `world`.
  */
-export function focusPlan(model: Model, labels: GraphLabels, f: FactoryResult): FocusPlan {
+export function focusPlan(
+  model: Model,
+  labels: GraphLabels,
+  f: FactoryResult,
+  world?: Pick<WorldResult, 'factories' | 'links'>,
+): FocusPlan {
   const plan = summarizePlan(model, f.result);
-  const graph = factoryGraph(f.result, labels, f.manual?.missing);
+  const flows = (from: string, to: string) =>
+    (world?.links ?? [])
+      .filter((l) => l.from === from && l.to === to && l.delivered > 0)
+      .map((l) => ({ item: l.item, rate: l.delivered }));
+  const children: SubFactoryFlow[] = (f.children ?? []).map((id) => ({
+    id,
+    name: world?.factories.find((x) => x.id === id)?.name ?? id,
+    inputs: flows(f.id, id),
+    outputs: flows(id, f.id),
+  }));
+  const graph = factoryGraph(f.result, labels, f.manual?.missing, children);
   if (!f.manual) return { factoryId: f.id, plan, graph };
   const lacking = new Map(f.manual.missing.map((m) => [m.item, m.rate]));
   const name = new Map(plan.imports.map((i) => [i.item, i.name]));

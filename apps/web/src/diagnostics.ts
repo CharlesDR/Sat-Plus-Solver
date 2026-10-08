@@ -132,6 +132,14 @@ export function worldDiagnostics(ds: readonly WorldDiagnostic[], names: Names): 
         ]);
       case 'invalid-group':
         return view('A group is misplaced');
+      case 'invalid-parent':
+        return view(`${names.factory(d.factory)} is outside its parent`, [
+          {
+            kind: 'open-factory',
+            factory: d.factory,
+            label: `Open ${names.factory(d.factory)}`,
+          },
+        ]);
       case 'factory-failed':
         return view(`${names.factory(d.factory)} has no plan`, [
           {
