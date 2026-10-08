@@ -3,11 +3,18 @@
  * Node tests with the same model and backend types.
  */
 import { MW_ITEM_ID, type Model } from '@sps/data';
-import { factoryGraph, type GraphLabels, type SubFactoryFlow } from '@sps/graph';
+import {
+  factoryGraph,
+  layoutFactoryGraph,
+  type GraphLabels,
+  type LayoutEngine,
+  type SubFactoryFlow,
+} from '@sps/graph';
 import {
   bestNodeRates,
   compareTiers,
   rawResources,
+  sizeNetwork,
   solve,
   summarizePlan,
   type LpBackend,
@@ -16,7 +23,13 @@ import {
   addTweak,
   createSolveCache,
   DEFAULT_PIPE_CAPACITIES,
+  importModeler,
+  manualEntries,
+  markAllBuilt,
+  modelerNetwork,
+  parseModeler,
   resolveWorld,
+  writeModeler,
   sizePowerPlant,
   type FactoryResult,
   type ResolveOptions,
@@ -24,11 +37,13 @@ import {
   type World,
   type WorldResult,
 } from '@sps/world';
+import { modelerSheet } from './modeler';
 import type {
   Catalog,
   CatalogItem,
   CatalogResource,
   FocusPlan,
+  ModelerImported,
   SolveProgress,
   SwapPreview,
   WorldSolved,
@@ -50,7 +65,15 @@ export interface SolverService {
 /** Memoized factory solves kept between world solves; the oldest go first. */
 export const CACHE_LIMIT = 500;
 
-export function createSolverService(model: Model, backend: LpBackend): SolverService {
+/**
+ * `layout` lays out flowcharts for the Modeler export (A58); the worker
+ * passes its own ELK, so the main thread never runs it.
+ */
+export function createSolverService(
+  model: Model,
+  backend: LpBackend,
+  layout?: LayoutEngine,
+): SolverService {
   const labels = modelLabels(model);
   const cache = createSolveCache();
   const solveFactory: SolveFactory = (r) => solve(model, r, backend);
@@ -65,7 +88,25 @@ export function createSolverService(model: Model, backend: LpBackend): SolverSer
       let result: WorldResult;
       let edited: World | undefined;
       let previews: SwapPreview[] | undefined;
-      if (action?.kind === 'size-power') {
+      let imported: ModelerImported | undefined;
+      let sfmd: string | undefined;
+      if (action?.kind === 'import-modeler') {
+        // A57: parse (a malformed file throws, so the world is left as it was), size, import, mark as built.
+        const save = parseModeler(action.text);
+        const sizing = await sizeNetwork(modelerNetwork(save, model), backend);
+        if (sizing.status !== 'ok')
+          throw new Error(`The Modeler save could not be sized (${sizing.status}).`);
+        const made = importModeler(world, save, model, { sizing });
+        result = await resolveWorld(made.world, model, solveFactory, cache, options);
+        const ids = new Set(made.factories);
+        edited = markAllBuilt(
+          made.world,
+          result.factories.filter((f) => ids.has(f.id)),
+          model.meta.dataHash,
+          action.at,
+        ).world;
+        imported = { factories: made.factories, report: made.report, inferred: made.inferred };
+      } else if (action?.kind === 'size-power') {
         const sized = await sizePowerPlant(
           world,
           model,
@@ -97,6 +138,25 @@ export function createSolverService(model: Model, backend: LpBackend): SolverSer
           });
         }
       }
+      if (action?.kind === 'export-modeler') {
+        if (!layout) throw new Error('Modeler export needs a layout engine.');
+        const nested = action.factoryId === undefined;
+        const chosen = nested
+          ? result.factories
+          : result.factories.filter((f) => f.id === action.factoryId);
+        if (chosen.length === 0) throw new Error(`Unknown factory "${action.factoryId}".`);
+        const sheets = [];
+        for (const f of chosen) {
+          const graph = focusPlan(model, labels, f, result).graph;
+          // A manual plan's own counts (A36); its result rounds a heater's to whole heaters.
+          const manual = world.factories.find((x) => x.id === f.id)?.manual;
+          const entries = manual?.enabled ? manualEntries(manual) : f.plan;
+          const counts = new Map(entries.map((e) => [e.recipe, e.machines]));
+          const placed = await layoutFactoryGraph(graph, layout);
+          sheets.push(modelerSheet(f.id, graph, placed, nested, counts));
+        }
+        sfmd = writeModeler(world, sheets, model);
+      }
       for (const key of cache.keys()) {
         if (cache.size <= CACHE_LIMIT) break;
         cache.delete(key);
@@ -108,6 +168,8 @@ export function createSolverService(model: Model, backend: LpBackend): SolverSer
         ...(plan ? { focus: plan } : {}),
         ...(edited ? { edited } : {}),
         ...(previews ? { previews } : {}),
+        ...(imported ? { imported } : {}),
+        ...(sfmd !== undefined ? { sfmd } : {}),
       };
     },
   };

@@ -20,9 +20,14 @@ import { TargetsEditor } from './controls/TargetsEditor';
 import { areaCatalog, areaChoices } from './flowchart/areas';
 import { Flowchart, type AreaControls } from './flowchart/Flowchart';
 import type { Saves } from './persistence/saves';
-import { SavePanel } from './persistence/SavePanel';
+import { SavePanel, type ModelerFiles } from './persistence/SavePanel';
 import type { Boot } from './persistence/session';
-import { downloadText, fileName, ShareControls } from './persistence/ShareControls';
+import {
+  downloadText,
+  fileName,
+  modelerFileName,
+  ShareControls,
+} from './persistence/ShareControls';
 import type { Selection } from './selection';
 import type { SolveOutcome, SolverClient } from './solver/client';
 import type { Catalog, FocusPlan, SolveProgress, WorldAction } from './solver/protocol';
@@ -79,6 +84,23 @@ function AppFrame(props: {
   const [view, setView] = useState<View>(WORLD_VIEW);
   const [palette, setPalette] = useState(false);
   const escape = useMemo(() => escapeStack(), []);
+  // Modeler files (M14) run in the solver worker, on the world as it is now.
+  const modeler = useMemo<ModelerFiles>(
+    () => ({
+      async importText(text) {
+        const at = new Date().toISOString();
+        const world = store.getState().world;
+        const o = await client.solve({ world, action: { kind: 'import-modeler', text, at } });
+        return o?.edited && o.imported ? { world: o.edited, ...o.imported } : null;
+      },
+      async exportWorld() {
+        const world = store.getState().world;
+        const o = await client.solve({ world, action: { kind: 'export-modeler' } });
+        return o?.sfmd ?? null;
+      },
+    }),
+    [client, store],
+  );
   // A view of a factory that no longer exists (deleted, or a load replaced the world) is the world.
   const focus = focusOf(view, (id) => world.factories.some((f) => f.id === id));
 
@@ -145,7 +167,7 @@ function AppFrame(props: {
               <span>Search</span>
               <kbd>Ctrl K</kbd>
             </button>
-            <SavePanel store={store} saves={saves} boot={boot} />
+            <SavePanel store={store} saves={saves} boot={boot} modeler={modeler} />
             <ThemeSwitch />
           </div>
         </header>
@@ -543,6 +565,21 @@ function FactoryView(props: {
             !summary && world.links.some((l) => l.from === factoryId && l.mode.kind === 'pull')
           }
         />
+        <div className="row">
+          <button
+            type="button"
+            onClick={() =>
+              props.run({ kind: 'export-modeler', factoryId }).then(
+                (o) => {
+                  if (o?.sfmd !== undefined) downloadText(modelerFileName(factory.name), o.sfmd);
+                },
+                (e: unknown) => toast(`Modeler export failed: ${(e as Error).message}`),
+              )
+            }
+          >
+            Export to Modeler
+          </button>
+        </div>
       </details>
     </fieldset>
   );
