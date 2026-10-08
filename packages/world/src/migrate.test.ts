@@ -252,11 +252,10 @@ describe('migrateWorld', () => {
       minerFluidSupply: 'outside',
     });
     // The v12 fixture is the migrated v11 one with the settings set in the world and one factory.
-    const unset = JSON.parse(JSON.stringify(v12)) as typeof v12 & {
-      defaults: Partial<typeof v12.defaults>;
-    };
-    delete unset.defaults.minerFluids;
-    delete unset.defaults.minerFluidSupply;
+    const unset = JSON.parse(JSON.stringify(v12)) as typeof v12;
+    const defaults: { minerFluids?: string; minerFluidSupply?: string } = unset.defaults;
+    delete defaults.minerFluids;
+    delete defaults.minerFluidSupply;
     delete (unset.factories[0]!.request as { minerFluidSupply?: string }).minerFluidSupply;
     expect(unset).toEqual(w);
     expect(factorySolveRequest(v12 as typeof w, { nodes: [] }, 'factory-1')).toMatchObject({
