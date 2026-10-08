@@ -95,6 +95,7 @@ function shapeProblems(w: World): string[] {
     if (dup !== undefined) out.push(`${key} repeat the id "${String(dup)}"`);
   };
   if (!isStr(w.meta.dataHash)) out.push('"meta.dataHash" is not a string');
+  if (!isOpt(w.meta.name, isStr)) out.push('"meta.name" is not a string');
   list(
     'factories',
     (f) =>

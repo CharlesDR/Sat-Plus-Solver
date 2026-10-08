@@ -10,6 +10,7 @@ import v8 from '../../../fixtures/worlds/v8-world.json';
 import v10 from '../../../fixtures/worlds/v10-world.json';
 import v11 from '../../../fixtures/worlds/v11-world.json';
 import v12 from '../../../fixtures/worlds/v12-world.json';
+import v13 from '../../../fixtures/worlds/v13-world.json';
 import v9 from '../../../fixtures/worlds/v9-world.json';
 import { WORLD_VERSION, createWorld, factorySolveRequest } from './document';
 import { WorldMigrationError, migrateWorld } from './migrate';
@@ -257,13 +258,25 @@ describe('migrateWorld', () => {
     delete defaults.minerFluids;
     delete defaults.minerFluidSupply;
     delete (unset.factories[0]!.request as { minerFluidSupply?: string }).minerFluidSupply;
-    expect(unset).toEqual(w);
+    expect({ ...unset, meta: { ...unset.meta, v: WORLD_VERSION } }).toEqual(w);
     expect(factorySolveRequest(v12 as typeof w, { nodes: [] }, 'factory-1')).toMatchObject({
       minerFluids: 'water',
     });
     expect(factorySolveRequest(v12 as typeof w, { nodes: [] }, 'factory-1')).not.toHaveProperty(
       'minerFluidSupply',
     );
+  });
+
+  test('a v12 save carries over unchanged but for its version, unnamed (N8)', () => {
+    const before = JSON.stringify(v12);
+    const w = migrateWorld(v12);
+    expect(w).toEqual({ ...v12, meta: { ...v12.meta, v: WORLD_VERSION } });
+    expect(JSON.stringify(v12)).toBe(before);
+    expect(w.meta.name).toBeUndefined();
+    // The v13 fixture is the v12 one plus a name.
+    const { name, ...meta } = v13.meta;
+    expect(name).toBe('Phase 2');
+    expect({ ...v13, meta }).toEqual(w);
   });
 
   test('a current world passes through unchanged', () => {

@@ -9,6 +9,8 @@ import {
   createFactory,
   createWorld,
   factorySolveRequest,
+  freshWorld,
+  renameWorld,
   type World,
 } from './document';
 
@@ -59,6 +61,43 @@ describe('World document', () => {
     expect(clampTolerance(5)).toBe(TOLERANCE_MAX);
     expect(clampTolerance(0.05)).toBe(0.05);
     expect(clampTolerance(Number.NaN)).toBe(TOLERANCE_DEFAULT);
+  });
+});
+
+describe('fresh worlds and names (N1, N2, N8)', () => {
+  const busy = (): World => {
+    const w = createWorld('h');
+    w.defaults.alternates = true;
+    w.defaults.recipes = { a: false };
+    w.nodePool = { 'node:iron-ore:pure': 1 };
+    w.factories[0]!.request.targets.push({ item: 'iron-plate', rate: 60 });
+    w.factories.push(createFactory('f2', 'Second'));
+    w.meta.name = 'Old';
+    return w;
+  };
+
+  test('keeping settings keeps defaults and the node pool, and nothing else', () => {
+    const old = busy();
+    const w = freshWorld(old, true, ' Phase 2 ');
+    expect(w).toEqual({
+      ...createWorld('h'),
+      meta: { ...createWorld('h').meta, name: 'Phase 2' },
+      defaults: old.defaults,
+      nodePool: old.nodePool,
+    });
+    // A copy: editing the new world leaves the old one alone.
+    w.defaults.recipes.b = true;
+    expect(old.defaults.recipes).toEqual({ a: false });
+  });
+
+  test('an empty start is a new world on the same data, unnamed when blank', () => {
+    expect(freshWorld(busy(), false, '  ')).toEqual(createWorld('h'));
+  });
+
+  test('renaming sets or clears the name', () => {
+    const w = renameWorld(createWorld('h'), ' Base ');
+    expect(w.meta).toEqual({ v: WORLD_VERSION, dataHash: 'h', name: 'Base' });
+    expect(renameWorld(w, '').meta).toEqual({ v: WORLD_VERSION, dataHash: 'h' });
   });
 });
 

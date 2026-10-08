@@ -1857,6 +1857,49 @@ input.flow-area-name {
   border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
   border-radius: var(--radius);
 }
+.canvas-hint p {
+  margin: 0 0 8px;
+}
+.start-cards {
+  display: grid;
+  gap: 6px;
+}
+.start-cards button {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  padding: 8px 12px;
+}
+.start-cards span {
+  font-size: 13px;
+  color: var(--muted);
+}
+.world-name {
+  padding: 2px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 14px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.palette-dialog.new-world {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+}
+.new-world h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.new-world label:not(.check) {
+  display: grid;
+  gap: 4px;
+}
+.dialog-actions {
+  justify-content: flex-end;
+}
 .world-canvas .flow-canvas {
   height: 560px;
 }

@@ -64,13 +64,23 @@ export function SavePanel(props: {
   saves: Saves;
   boot: Boot;
   modeler?: ModelerFiles;
+  /** Opens the New world dialog (N1). */
+  onNewWorld(): void;
 }) {
-  const { store, saves, boot, modeler } = props;
+  const { store, saves, boot, modeler, onNewWorld } = props;
   const [report, setReport] = useState<ModelerReportLine[]>();
   const [busy, setBusy] = useState<string>();
   const world = useStore(store, (s) => s.world);
   const [slots, setSlots] = useState<SlotInfo[]>(() => saves.list());
-  const [name, setName] = useState('');
+  const [name, setName] = useState(world.meta.name ?? '');
+  const [worldName, setWorldName] = useState(world.meta.name ?? '');
+  // A load or a new world brings its own name.
+  const [seenName, setSeenName] = useState(world.meta.name);
+  if (seenName !== world.meta.name) {
+    setSeenName(world.meta.name);
+    setWorldName(world.meta.name ?? '');
+    setName(world.meta.name ?? '');
+  }
   const [notice, setNotice] = useState<Notice | undefined>(() => bootNotice(boot, saves));
   const menu = useRef<HTMLDetailsElement>(null);
   const toast = useToast();
@@ -134,7 +144,6 @@ export function SavePanel(props: {
     const out = saves.save(name, serializeWorld(world));
     if (!out.ok) return setNotice({ kind: 'error', text: out.message });
     setSlots(saves.list());
-    setName('');
     setNotice({ kind: 'info', text: `Saved “${out.slot.name}”.` });
   };
   const loadSlot = (slot: SlotInfo) => {
@@ -215,7 +224,14 @@ export function SavePanel(props: {
   };
 
   return (
-    <details className="saves controls menu" ref={menu}>
+    <details
+      className="saves controls menu"
+      ref={menu}
+      // A save made elsewhere (New world's "save first") shows when the menu opens.
+      onToggle={() => {
+        if (menu.current?.open) setSlots(saves.list());
+      }}
+    >
       <summary title="Save, load, export and share">
         <FileIcon />
         <span>File</span>
@@ -223,6 +239,31 @@ export function SavePanel(props: {
       </summary>
       <div className="menu-panel">
         <h2 className="menu-title">Save and share</h2>
+        <div className="row toolbar">
+          <button
+            type="button"
+            onClick={() => {
+              menu.current?.removeAttribute('open');
+              onNewWorld();
+            }}
+          >
+            New world…
+          </button>
+          <Field label="World name">
+            {(id) => (
+              <input
+                id={id}
+                value={worldName}
+                placeholder="Unnamed"
+                onChange={(e) => setWorldName(e.target.value)}
+                onBlur={() => store.getState().renameWorld(worldName)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') store.getState().renameWorld(worldName);
+                }}
+              />
+            )}
+          </Field>
+        </div>
         {notice && (
           <p className={notice.kind === 'error' ? 'error' : 'notice'} role="status">
             {notice.text}{' '}

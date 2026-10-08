@@ -13,7 +13,8 @@
  * manual mode (A36); v8 added "Avoid fluid byproducts" (A39), on; v9 added
  * build marks (A44); v10 added nested factories (A45, A49); v11 added
  * flowchart areas (A64); v12 added the miner fluid settings (A69), which an
- * older world leaves out (fluid modules modelled, fluid made here).
+ * older world leaves out (fluid modules modelled, fluid made here); v13 added
+ * the world name (N8), which an older world has none of.
  * `migrateWorld` upgrades older documents.
  */
 import type { Model } from '@sps/data';
@@ -26,7 +27,7 @@ import type {
   SolveRequest,
 } from '@sps/solver';
 
-export const WORLD_VERSION = 12;
+export const WORLD_VERSION = 13;
 
 /** Lexicographic tolerance bounds (CLAUDE.md): 0.01%–90%, default 0.01%. */
 export const TOLERANCE_MIN = 0.0001;
@@ -40,6 +41,8 @@ export interface WorldMeta {
   v: typeof WORLD_VERSION;
   /** `model.meta.dataHash` the world was last edited against; '' until known. */
   dataHash: string;
+  /** The world's name, shown in the top bar and offered as its save name (N8). */
+  name?: string;
 }
 
 /** Settings every factory inherits unless it overrides them. */
@@ -285,6 +288,31 @@ export function createWorld(dataHash = ''): World {
     defaults: defaultWorldDefaults(),
     nodePool: {},
   };
+}
+
+/**
+ * A fresh world (N1, N2): one blank factory and no groups or links. With
+ * `keepSettings` it keeps `world`'s defaults and node pool edits; a blank
+ * `name` leaves it unnamed.
+ */
+export function freshWorld(world: World, keepSettings: boolean, name = ''): World {
+  const out = createWorld(world.meta.dataHash);
+  const trimmed = name.trim();
+  if (trimmed) out.meta.name = trimmed;
+  if (!keepSettings) return out;
+  const copy = JSON.parse(JSON.stringify({ d: world.defaults, p: world.nodePool })) as {
+    d: WorldDefaults;
+    p: World['nodePool'];
+  };
+  return { ...out, defaults: copy.d, nodePool: copy.p };
+}
+
+/** The world renamed; a blank name removes it. */
+export function renameWorld(world: World, name: string): World {
+  const meta = { ...world.meta };
+  delete meta.name;
+  const trimmed = name.trim();
+  return { ...world, meta: trimmed ? { ...meta, name: trimmed } : meta };
 }
 
 export function clampTolerance(t: number): number {
