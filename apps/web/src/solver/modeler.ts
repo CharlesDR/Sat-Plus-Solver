@@ -36,7 +36,8 @@ export function modelerSheet(
       });
     } else if (n.kind === 'import' || n.kind === 'missing') {
       nodes.push({ key: n.id, kind: 'in', item: n.item!, x, y });
-    } else if (n.kind === 'target') {
+    } else if (n.kind === 'target' || n.kind === 'byproduct') {
+      // A byproduct leaves too, so Modeler doesn't expect its takers to use all of it.
       nodes.push({ key: n.id, kind: 'out', item: n.item!, x, y });
     } else if (n.kind === 'sub-factory' && !nested) {
       // Not nested: what it sends is an input, what it takes an output.
