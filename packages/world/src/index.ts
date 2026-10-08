@@ -43,3 +43,4 @@ export {
   type BuildNow,
   type BuildSource,
 } from './built';
+export * from './modeler';
