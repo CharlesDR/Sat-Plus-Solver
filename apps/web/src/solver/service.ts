@@ -258,5 +258,9 @@ export function modelCatalog(model: Model): Catalog {
       tier: Number(tier),
       perMin,
     })),
+    areas: (model.areas ?? []).map((a) => ({ ...a })),
+    itemAreas: Object.fromEntries(
+      model.items.flatMap((i) => (i.area !== undefined ? [[i.id, i.area]] : [])),
+    ),
   };
 }

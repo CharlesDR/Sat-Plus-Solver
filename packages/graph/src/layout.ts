@@ -14,7 +14,7 @@
  * order with the fewest crossings, then with the ports fixed in that order.
  */
 import type { ElkExtendedEdge, ElkNode, ElkPoint, ElkPort } from 'elkjs/lib/elk-api';
-import type { FactoryGraph, FlowEdge, FlowNode, FlowNodeKind } from './factory';
+import type { FactoryGraph, FlowEdge, FlowNode, FlowNodeKind, GraphArea } from './factory';
 
 /** What `layoutFactoryGraph` needs from ELK (the `ELK` instance's `layout`). */
 export interface LayoutEngine {
@@ -88,12 +88,17 @@ export interface Bundle {
   label: Box & { text: string };
 }
 
+/** An area's frame (A57): its box, with the title bar along its top. */
+export type PlacedArea = GraphArea & Box;
+
 export interface FactoryLayout {
   width: number;
   height: number;
   nodes: PlacedNode[];
   edges: PlacedEdge[];
   bundles: Bundle[];
+  /** Frames of the open areas of a grouped plan (A57). */
+  areas?: PlacedArea[];
 }
 
 export interface LayoutOptions {
@@ -189,6 +194,44 @@ export const elkOptions = (nodes: number): Record<string, string> =>
     ? { ...ELK_OPTIONS, 'elk.layered.compaction.postCompaction.strategy': 'EDGE_LENGTH' }
     : { ...ELK_OPTIONS, 'elk.layered.thoroughness': '6' };
 
+/** Height of an area's title bar (A57), inside its frame. */
+export const AREA_TITLE = 28;
+/** Space between area frames, and around the lines between them. */
+const AREA_GAP = 24;
+
+/**
+ * The layout of the areas themselves (A57): blocks left to right in
+ * production order, wrapped into rows between areas (B9) so the drawing is
+ * about twice as wide as it is tall, like the canvas.
+ */
+const AREA_ROOT_OPTIONS = {
+  ...ELK_OPTIONS,
+  'elk.spacing.nodeNode': String(AREA_GAP),
+  'elk.layered.spacing.nodeNodeBetweenLayers': String(AREA_GAP),
+  'elk.layered.wrapping.strategy': 'MULTI_EDGE',
+  'elk.aspectRatio': '2',
+};
+/**
+ * A grouped plan's first pass only learns each node's port order, which
+ * crossing reduction settles; placing and compacting nodes can wait, and a
+ * lighter sweep is enough (A57).
+ */
+const ORDER_ONLY = {
+  'elk.layered.nodePlacement.strategy': 'SIMPLE',
+  'elk.layered.compaction.postCompaction.strategy': 'NONE',
+  'elk.layered.thoroughness': '3',
+};
+/**
+ * The second pass keeps the first pass's order of nodes in each layer, read
+ * from where it put them, instead of sweeping again (A57).
+ */
+const KEEP_ORDER = { 'elk.layered.crossingMinimization.strategy': 'INTERACTIVE' };
+/** A gate's size: a point, but ELK wants a box. */
+const GATE = 1;
+const frameId = (area: string) => `frame:${area}`;
+const areaOfFrame = (id: string) =>
+  id.startsWith('frame:') ? id.slice('frame:'.length) : undefined;
+
 const LAYER: Partial<Record<FlowNodeKind, string>> = {
   target: 'LAST',
   byproduct: 'LAST',
@@ -232,7 +275,15 @@ export function nodeLines(n: FlowNode): string[] {
       return [`Byproduct: ${n.label}`, `${rateText(n.rate ?? 0)}/min`];
     case 'sub-factory':
       return [n.label, 'Sub-factory · double-click to open'];
+    case 'area':
+      return [n.label, areaStats(n.machines ?? 0, n.power ?? 0)];
   }
+}
+
+/** An area's machines and power, as its title bar and collapsed box show them (A57). */
+export function areaStats(machines: number, power: number): string {
+  const mw = power < 0 ? `${rateText(-power)} MW made` : `${rateText(power)} MW`;
+  return `${rateText(machines)} machines · ${mw}`;
 }
 
 /**
@@ -474,78 +525,276 @@ export async function layoutFactoryGraph(
     return ys;
   };
 
-  const elkGraph = (orders: Map<string, Order> | undefined): ElkNode => ({
-    id: 'root',
-    layoutOptions: elkOptions(graph.nodes.length),
-    edges: [
-      ...graph.edges.map((e): ElkExtendedEdge => ({
-        id: e.id,
-        sources: [splitOf(e) ? `${splitOf(e)!}#out` : outPort(e.source, e.item)],
-        targets: [inPort(e.target, e.item)],
-      })),
-      ...trunks.map((t): ElkExtendedEdge => ({
-        id: t.split,
-        sources: [outPort(t.first.source, t.first.item)],
-        targets: [`${t.split}#in`],
-      })),
-    ],
-    children: [
-      ...graph.nodes.map((n): ElkNode => {
-        const s = sized.get(n.id)!;
-        const layer = LAYER[n.kind];
-        const order = orders?.get(n.id);
-        const width = s.pad + s.width + s.tray;
-        const ys = order ? portYs(s, order) : undefined;
-        const port = (id: string, side: 'EAST' | 'WEST'): ElkPort => ({
-          id,
-          width: 0,
-          height: 0,
-          ...(ys ? { x: side === 'EAST' ? width : 0, y: ys.get(id)! } : {}),
-          layoutOptions: { 'elk.port.side': side },
-        });
-        return {
-          id: n.id,
-          width,
-          height: s.height,
-          layoutOptions: {
-            'elk.portConstraints': order ? 'FIXED_POS' : 'FIXED_SIDE',
-            ...(layer ? { 'elk.layered.layering.layerConstraint': layer } : {}),
-          },
-          ports: [
-            ...(order?.ins ?? n.inputs.map((f) => f.item)).map((i) =>
-              port(inPort(n.id, i), 'WEST'),
-            ),
-            ...(order?.outs ?? n.outputs.map((f) => f.item)).map((o) =>
-              port(outPort(n.id, o), 'EAST'),
-            ),
-          ],
-        };
-      }),
-      ...trunks.map((t): ElkNode => ({
-        id: t.split,
-        width: t.width,
-        height: t.height,
-        layoutOptions: { 'elk.portConstraints': orders ? 'FIXED_POS' : 'FIXED_SIDE' },
-        ports: (['in', 'out'] as const).map((dir) => ({
-          id: `${t.split}#${dir}`,
-          width: 0,
-          height: 0,
-          ...(orders ? { x: dir === 'in' ? 0 : t.width, y: t.height / 2 } : {}),
-          layoutOptions: { 'elk.port.side': dir === 'in' ? 'WEST' : 'EAST' },
-        })),
-      })),
+  // Areas (A57): each open area is laid out on its own, then placed as a
+  // block. A line crossing an area's border leaves through a gate, one per
+  // output, at the area's right edge, and enters through a gate, one per
+  // output, at the left edge of each area it feeds. ELK's own compound nodes
+  // misplace ports on the edge of a compound node, so the two levels are
+  // laid out separately and joined here.
+  const open = new Map((graph.areas ?? []).filter((a) => !a.collapsed).map((a) => [a.id, a]));
+  const ROOT = '';
+  const containerOf = new Map<string, string>();
+  for (const n of graph.nodes)
+    containerOf.set(
+      n.id,
+      n.kind !== 'area' && n.area !== undefined && open.has(n.area) ? n.area : ROOT,
+    );
+  for (const t of trunks) containerOf.set(t.split, containerOf.get(t.first.source)!);
+  const segments = [
+    ...graph.edges.map((e) => ({
+      id: e.id,
+      source: splitOf(e) ? `${splitOf(e)!}#out` : outPort(e.source, e.item),
+      target: inPort(e.target, e.item),
+      from: splitOf(e) ?? e.source,
+      to: e.target,
+    })),
+    ...trunks.map((t) => ({
+      id: t.split,
+      source: outPort(t.first.source, t.first.item),
+      target: `${t.split}#in`,
+      from: t.first.source,
+      to: t.split,
+    })),
+  ];
+  const edgesIn = new Map<string, ElkExtendedEdge[]>([[ROOT, []]]);
+  /** Gates per area: exits on its right edge, entries on its left. */
+  const gatesOf = new Map<string, { id: string; exit: boolean }[]>();
+  const made = new Set<string>();
+  const addEdge = (container: string, id: string, source: string, target: string) => {
+    if (made.has(id)) return;
+    made.add(id);
+    const list = edgesIn.get(container) ?? [];
+    list.push({ id, sources: [source], targets: [target] });
+    edgesIn.set(container, list);
+  };
+  const addGate = (area: string, id: string, exit: boolean) => {
+    if (made.has(id)) return;
+    made.add(id);
+    gatesOf.set(area, [...(gatesOf.get(area) ?? []), { id, exit }]);
+  };
+  /**
+   * The ELK edges a segment is drawn along, in order. `exit`: the edge ends
+   * at a gate, and the line runs on to the right edge of that area; `entry`:
+   * it starts at a gate, and the line comes in from the left edge.
+   */
+  type Part = { id: string; exit?: string; entry?: string };
+  const parts = new Map<string, Part[]>();
+  for (const seg of segments) {
+    const a = containerOf.get(seg.from) ?? ROOT;
+    const b = containerOf.get(seg.to) ?? ROOT;
+    if (a === b) {
+      addEdge(a, seg.id, seg.source, seg.target);
+      parts.set(seg.id, [{ id: seg.id }]);
+      continue;
+    }
+    const list: Part[] = [];
+    let from = seg.source;
+    if (a !== ROOT) {
+      const exit = `${a}>${seg.source}`;
+      addGate(a, exit, true);
+      addEdge(a, `x:${exit}`, seg.source, `${exit}#p`);
+      list.push({ id: `x:${exit}`, exit: a });
+      from = exit;
+    }
+    let to = seg.target;
+    if (b !== ROOT) {
+      const entry = `${b}<${seg.source}`;
+      addGate(b, entry, false);
+      to = entry;
+    }
+    addEdge(ROOT, `r:${from}→${to}`, from, to);
+    list.push({ id: `r:${from}→${to}` });
+    if (b !== ROOT) {
+      addEdge(b, `i:${seg.id}`, `${to}#p`, seg.target);
+      list.push({ id: `i:${seg.id}`, entry: b });
+    }
+    parts.set(seg.id, list);
+  }
+
+  const leaf = (n: FlowNode, orders: Map<string, Order> | undefined): ElkNode => {
+    const s = sized.get(n.id)!;
+    const layer = LAYER[n.kind];
+    const order = orders?.get(n.id);
+    const width = s.pad + s.width + s.tray;
+    const ys = order ? portYs(s, order) : undefined;
+    const port = (id: string, side: 'EAST' | 'WEST'): ElkPort => ({
+      id,
+      width: 0,
+      height: 0,
+      ...(ys ? { x: side === 'EAST' ? width : 0, y: ys.get(id)! } : {}),
+      layoutOptions: { 'elk.port.side': side },
+    });
+    return {
+      id: n.id,
+      width,
+      height: s.height,
+      layoutOptions: {
+        'elk.portConstraints': order ? 'FIXED_POS' : 'FIXED_SIDE',
+        ...(layer ? { 'elk.layered.layering.layerConstraint': layer } : {}),
+      },
+      ports: [
+        ...(order?.ins ?? n.inputs.map((f) => f.item)).map((i) => port(inPort(n.id, i), 'WEST')),
+        ...(order?.outs ?? n.outputs.map((f) => f.item)).map((o) => port(outPort(n.id, o), 'EAST')),
+      ],
+    };
+  };
+  const splitBox = (t: (typeof trunks)[number], fixed: boolean): ElkNode => ({
+    id: t.split,
+    width: t.width,
+    height: t.height,
+    layoutOptions: { 'elk.portConstraints': fixed ? 'FIXED_POS' : 'FIXED_SIDE' },
+    ports: (['in', 'out'] as const).map((dir) => ({
+      id: `${t.split}#${dir}`,
+      width: 0,
+      height: 0,
+      ...(fixed ? { x: dir === 'in' ? 0 : t.width, y: t.height / 2 } : {}),
+      layoutOptions: { 'elk.port.side': dir === 'in' ? 'WEST' : 'EAST' },
+    })),
+  });
+  /** A gate: a point in the area's first or last layer that a crossing line passes. */
+  const gate = (g: { id: string; exit: boolean }): ElkNode => ({
+    id: g.id,
+    width: GATE,
+    height: GATE,
+    layoutOptions: {
+      'elk.portConstraints': 'FIXED_POS',
+      'elk.layered.layering.layerConstraint': g.exit ? 'LAST_SEPARATE' : 'FIRST_SEPARATE',
+    },
+    ports: [
+      {
+        id: `${g.id}#p`,
+        width: 0,
+        height: 0,
+        x: g.exit ? 0 : GATE,
+        y: GATE / 2,
+        layoutOptions: { 'elk.port.side': g.exit ? 'WEST' : 'EAST' },
+      },
     ],
   });
+  const childrenOf = (container: string, orders: Map<string, Order> | undefined) => [
+    ...graph.nodes.filter((n) => containerOf.get(n.id) === container).map((n) => leaf(n, orders)),
+    ...trunks
+      .filter((t) => containerOf.get(t.split) === container)
+      .map((t) => splitBox(t, orders !== undefined)),
+    ...(gatesOf.get(container) ?? []).map(gate),
+  ];
+
+  type Drawn = {
+    width: number;
+    height: number;
+    nodes: Map<string, ElkNode>;
+    edges: Map<string, ElkExtendedEdge>;
+    frames: Map<string, Box>;
+    /** Nodes in their areas' own coordinates. */
+    local: Map<string, ElkNode>;
+  };
+  const shift = (e: ElkExtendedEdge, dx: number, dy: number): ElkExtendedEdge => ({
+    ...e,
+    sections: (e.sections ?? []).map((s) => {
+      const at = (p: ElkPoint) => ({ x: p.x + dx, y: p.y + dy });
+      return {
+        ...s,
+        startPoint: at(s.startPoint),
+        endPoint: at(s.endPoint),
+        ...(s.bendPoints ? { bendPoints: s.bendPoints.map(at) } : {}),
+      };
+    }),
+  });
+  /** One layout of the whole chart: each area, then the areas as blocks. */
+  const pass = async (
+    orders: Map<string, Order> | undefined,
+    seen?: Map<string, ElkNode>,
+  ): Promise<Drawn> => {
+    const inner = new Map<string, ElkNode>();
+    for (const a of open.values()) {
+      // The second pass starts each node where the first left it.
+      const children = childrenOf(a.id, orders).map((c) => {
+        const at = seen?.get(c.id);
+        return at ? { ...c, x: at.x ?? 0, y: at.y ?? 0 } : c;
+      });
+      inner.set(
+        a.id,
+        await engine.layout({
+          id: frameId(a.id),
+          layoutOptions: {
+            ...elkOptions(children.length),
+            ...(orders ? {} : ORDER_ONLY),
+            ...(seen ? KEEP_ORDER : {}),
+            'elk.padding': `[top=${PAD + AREA_TITLE},left=${PAD},bottom=${PAD},right=${PAD}]`,
+          },
+          children,
+          edges: edgesIn.get(a.id) ?? [],
+        }),
+      );
+    }
+    const blocks = [...open.keys()].map((id): ElkNode => {
+      const box = inner.get(id)!;
+      const width = box.width ?? 0;
+      return {
+        id: frameId(id),
+        width,
+        height: box.height ?? 0,
+        layoutOptions: { 'elk.portConstraints': 'FIXED_POS' },
+        ports: (gatesOf.get(id) ?? []).map((g): ElkPort => {
+          const at = box.children?.find((c) => c.id === g.id);
+          return {
+            id: g.id,
+            width: 0,
+            height: 0,
+            x: g.exit ? width : 0,
+            y: (at?.y ?? 0) + GATE / 2,
+            layoutOptions: { 'elk.port.side': g.exit ? 'EAST' : 'WEST' },
+          };
+        }),
+      };
+    });
+    const roots = childrenOf(ROOT, orders);
+    // The first pass only learns each node's port order; with no node outside
+    // an area, the blocks' places don't matter yet.
+    const top: ElkNode =
+      !orders && open.size && !roots.length
+        ? { id: 'root', children: blocks }
+        : await engine.layout({
+            id: 'root',
+            layoutOptions: open.size ? AREA_ROOT_OPTIONS : elkOptions(graph.nodes.length),
+            children: [...blocks, ...roots],
+            edges: edgesIn.get(ROOT)!,
+          });
+    const drawn: Drawn = {
+      width: top.width ?? 0,
+      height: top.height ?? 0,
+      nodes: new Map(),
+      edges: new Map(),
+      frames: new Map(),
+      local: new Map([...inner.values()].flatMap((b) => (b.children ?? []).map((k) => [k.id, k]))),
+    };
+    for (const e of (top.edges ?? []) as ElkExtendedEdge[]) drawn.edges.set(e.id, e);
+    for (const c of top.children ?? []) {
+      const area = areaOfFrame(c.id);
+      const box = area !== undefined ? inner.get(area) : undefined;
+      if (area === undefined || !box) {
+        drawn.nodes.set(c.id, c);
+        continue;
+      }
+      const dx = c.x ?? 0;
+      const dy = c.y ?? 0;
+      drawn.frames.set(area, { x: dx, y: dy, width: c.width ?? 0, height: c.height ?? 0 });
+      for (const k of box.children ?? [])
+        drawn.nodes.set(k.id, { ...k, x: (k.x ?? 0) + dx, y: (k.y ?? 0) + dy });
+      for (const e of (box.edges ?? []) as ElkExtendedEdge[])
+        drawn.edges.set(e.id, shift(e, dx, dy));
+    }
+    return drawn;
+  };
 
   // Pass 1: ELK orders each node's ports. Pass 2: the ports keep that order,
   // spaced for their labels and tray rows, the main product in the middle.
-  let out: ElkNode | undefined;
+  let drawn: Drawn | undefined;
   if (graph.nodes.length) {
-    const first = await engine.layout(elkGraph(undefined));
-    const firstPorts = new Map((first.children ?? []).map((c) => [c.id, c.ports ?? []]));
+    const first = await pass(undefined);
     const orders = new Map<string, Order>();
     for (const n of graph.nodes) {
-      const ys = new Map((firstPorts.get(n.id) ?? []).map((p) => [p.id, p.y ?? 0]));
+      const ys = new Map((first.nodes.get(n.id)?.ports ?? []).map((p) => [p.id, p.y ?? 0]));
       const order = (items: readonly { item: string }[], id: (item: string) => string) =>
         items
           .map((f, k) => ({ item: f.item, y: ys.get(id(f.item)) ?? 0, k }))
@@ -559,10 +808,10 @@ export async function layoutFactoryGraph(
         ),
       });
     }
-    out = await engine.layout(elkGraph(orders));
+    drawn = await pass(orders, first.local);
   }
-  const placed = new Map((out?.children ?? []).map((c) => [c.id, c]));
-  const routed = new Map(((out?.edges ?? []) as ElkExtendedEdge[]).map((e) => [e.id, e]));
+  const placed = drawn?.nodes ?? new Map<string, ElkNode>();
+  const routed = drawn?.edges ?? new Map<string, ElkExtendedEdge>();
 
   // The hexagon sits right of its label room; inputs meet its slanted side,
   // outputs leave from the tray's right edge.
@@ -597,10 +846,25 @@ export async function layoutFactoryGraph(
     const p = nodePorts.get(node)?.find((q) => q.dir === dir && q.item === item);
     return h && p ? [{ x: h.x + p.x, y: h.y + p.y }] : [];
   };
-  const route = (r: ElkExtendedEdge | undefined) =>
-    orthogonal(
-      (r?.sections ?? []).flatMap((s) => [s.startPoint, ...(s.bendPoints ?? []), s.endPoint]),
-    );
+  const route = (segment: string) =>
+    (parts.get(segment) ?? []).flatMap((part) => {
+      const points = orthogonal(
+        (routed.get(part.id)?.sections ?? []).flatMap((s) => [
+          s.startPoint,
+          ...(s.bendPoints ?? []),
+          s.endPoint,
+        ]),
+      );
+      const exit = part.exit !== undefined ? drawn?.frames.get(part.exit) : undefined;
+      const entry = part.entry !== undefined ? drawn?.frames.get(part.entry) : undefined;
+      const last = points.at(-1);
+      const first = points[0];
+      return [
+        ...(entry && first ? [{ x: entry.x, y: first.y }] : []),
+        ...points,
+        ...(exit && last ? [{ x: exit.x + exit.width, y: last.y }] : []),
+      ];
+    });
 
   const nodes = graph.nodes.map((n): PlacedNode => {
     const s = sized.get(n.id)!;
@@ -626,7 +890,7 @@ export async function layoutFactoryGraph(
   const edges = graph.edges.map((e): PlacedEdge => {
     const l = labels.get(e.id)!;
     const split = splitOf(e);
-    const points = [...(split ? route(routed.get(split)) : []), ...route(routed.get(e.id))];
+    const points = [...(split ? route(split) : []), ...route(e.id)];
     const end = portAt(e.target, 'in', e.item);
     const key = inPort(e.target, e.item);
     const row = stacked.get(key) ?? 0;
@@ -663,7 +927,11 @@ export async function layoutFactoryGraph(
       },
     };
   });
-  return { width: out?.width ?? 0, height: out?.height ?? 0, nodes, edges, bundles };
+  const areas = [...open.values()].flatMap((a): PlacedArea[] => {
+    const box = drawn?.frames.get(a.id);
+    return box ? [{ ...a, ...box }] : [];
+  });
+  return { width: drawn?.width ?? 0, height: drawn?.height ?? 0, nodes, edges, bundles, areas };
 }
 
 const EPS = 1e-6;

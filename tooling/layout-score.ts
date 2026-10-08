@@ -13,8 +13,10 @@ import { fileURLToPath } from 'node:url';
 import type { Model } from '@sps/data';
 import {
   factoryGraph,
+  groupAreas,
   layoutFactoryGraph,
   layoutScore,
+  type AreaCatalog,
   type GraphLabels,
   type LayoutScore,
 } from '@sps/graph';
@@ -32,15 +34,28 @@ const appDefaults = (item: string, rate: number) => (model: Model) => {
   world.factories[0]!.request.targets = [{ item, rate }];
   return factorySolveRequest(world, model, world.factories[0]!.id);
 };
+const warpDrive = (): SolveRequest => ({
+  targets: [{ item: 'ballistic-warp-drive', rate: 1 }],
+  recipes: { alternates: true },
+  minBranch: 0,
+});
 export const SCORE_PLANS: Record<string, (model: Model) => SolveRequest> = {
   'plastic-20': appDefaults('plastic', 20),
   'reinforced-iron-plate-5': appDefaults('reinforced-iron-plate', 5),
-  'ballistic-warp-drive-1': () => ({
-    targets: [{ item: 'ballistic-warp-drive', rate: 1 }],
-    recipes: { alternates: true },
-    minBranch: 0,
-  }),
+  'ballistic-warp-drive-1': warpDrive,
+  // The same plans drawn in areas (A57), as the app draws them by default;
+  // the plain ones above are drawn with grouping off.
+  'plastic-20-areas': appDefaults('plastic', 20),
+  'ballistic-warp-drive-1-areas': warpDrive,
 };
+const grouped = (name: string) => name.endsWith('-areas');
+
+/** The data build's areas (A57), as the app reads them. */
+export function areaCatalog(model: Model): AreaCatalog | undefined {
+  if (!model.areas) return undefined;
+  const at = new Map(model.items.map((i) => [i.id, i.area]));
+  return { areas: model.areas, itemArea: (id) => at.get(id) };
+}
 
 /**
  * The app's flowchart icon sizes (apps/web `ICON_SIZE` and `LABEL_ICON_SIZE`),
@@ -72,7 +87,9 @@ export async function scorePlans(
   for (const [name, request] of Object.entries(SCORE_PLANS)) {
     const result = await solve(model, request(model), backend);
     if (result.status !== 'ok') throw new Error(`${name} did not solve: ${result.status}`);
-    const graph = factoryGraph(result, labels);
+    const flat = factoryGraph(result, labels);
+    const graph = grouped(name) ? groupAreas(flat, areaCatalog(model)) : flat;
+    if (grouped(name) && !graph.areas) throw new Error(`${name} is not drawn in areas`);
     const layout = await layoutFactoryGraph(graph, new ELK(), {
       iconSize: ICON_SIZE,
       labelIconSize: LABEL_ICON_SIZE,

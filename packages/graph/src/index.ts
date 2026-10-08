@@ -22,10 +22,21 @@ export type {
   FlowEdge,
   FlowNode,
   FlowNodeKind,
+  GraphArea,
   GraphLabels,
   SubFactoryFlow,
 } from './factory';
 export {
+  AREA_MIN_NODES,
+  areaNodeId,
+  defaultAreas,
+  groupAreas,
+  type AreaCatalog,
+  type AreaSettings,
+} from './areas';
+export {
+  AREA_TITLE,
+  areaStats,
   CHAR_WIDTH,
   elkOptions,
   ICON_GAP,
@@ -52,6 +63,7 @@ export type {
   LayoutOptions,
   NodePort,
   NodeText,
+  PlacedArea,
   PlacedEdge,
   PlacedNode,
   TrayRow,

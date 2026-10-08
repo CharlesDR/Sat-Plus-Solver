@@ -120,6 +120,11 @@ function v9ToV10(doc: Doc): Doc {
   return { ...doc, meta: { ...(doc.meta as Doc), v: 10 } };
 }
 
+/** v10 → v11 (A57): factories may carry flowchart area settings; none do yet. */
+function v10ToV11(doc: Doc): Doc {
+  return { ...doc, meta: { ...(doc.meta as Doc), v: 11 } };
+}
+
 const MIGRATIONS: Record<number, (doc: Doc) => Doc> = {
   1: v1ToV2,
   2: v2ToV3,
@@ -130,6 +135,7 @@ const MIGRATIONS: Record<number, (doc: Doc) => Doc> = {
   7: v7ToV8,
   8: v8ToV9,
   9: v9ToV10,
+  10: v10ToV11,
 };
 
 /** Returns `doc` upgraded to the current version; throws on a newer or malformed document. */

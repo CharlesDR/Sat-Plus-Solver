@@ -65,6 +65,8 @@ export interface WorldState {
   setFactoryParent(id: string, parentId: string | undefined): void;
   /** Draws a factory with sub-factories as one node on the world canvas (A53). */
   setFactoryCollapsed(id: string, collapsed: boolean): void;
+  /** A factory's flowchart areas (A57): grouping off, area names, and nodes moved between areas. */
+  setFactoryAreas(id: string, change: Parameters<typeof edit.setFactoryAreas>[2]): void;
   removeFactory(id: string): void;
   renameFactory(id: string, name: string): void;
   setFactoryGroup(id: string, groupId: string | undefined): void;
@@ -236,6 +238,7 @@ export function createWorldStore(initial: World = createWorld()) {
       setFactoryParent: (id, parentId) => apply((w) => edit.setFactoryParent(w, id, parentId)),
       setFactoryCollapsed: (id, collapsed) =>
         apply((w) => edit.setFactoryCollapsed(w, id, collapsed)),
+      setFactoryAreas: (id, change) => apply((w) => edit.setFactoryAreas(w, id, change)),
       removeFactory: (id) => apply((w) => edit.removeFactory(w, id)),
       renameFactory: (id, name) => apply((w) => edit.renameFactory(w, id, name)),
       setFactoryGroup: (id, groupId) => apply((w) => edit.setFactoryGroup(w, id, groupId)),

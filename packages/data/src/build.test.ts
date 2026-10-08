@@ -10,6 +10,7 @@ const inputs: BuildInputs = {
   nodesCsv: read('data/nodes.csv'),
   minerModel: read('data/miner-model.json'),
   overrides: read('data/overrides.json'),
+  areas: read('data/areas.json'),
 };
 
 const errorsOf = (r: BuildResult) => r.issues.filter((i) => i.severity === 'error');

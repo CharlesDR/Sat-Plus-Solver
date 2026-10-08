@@ -8,6 +8,7 @@ import v6 from '../../../fixtures/worlds/v6-world.json';
 import v7 from '../../../fixtures/worlds/v7-world.json';
 import v8 from '../../../fixtures/worlds/v8-world.json';
 import v10 from '../../../fixtures/worlds/v10-world.json';
+import v11 from '../../../fixtures/worlds/v11-world.json';
 import v9 from '../../../fixtures/worlds/v9-world.json';
 import { WORLD_VERSION, createWorld, factorySolveRequest } from './document';
 import { WorldMigrationError, migrateWorld } from './migrate';
@@ -219,6 +220,20 @@ describe('migrateWorld', () => {
     expect(w.links.some((l) => l.nested)).toBe(false);
     // The v10 fixture is the v9 one plus a sub-factory, its link and a collapsed parent.
     expect(v10.factories.filter((f) => 'parentId' in f)).toHaveLength(1);
+  });
+
+  test('a v10 save carries over unchanged but for its version, with default areas (A57)', () => {
+    const before = JSON.stringify(v10);
+    const w = migrateWorld(v10);
+    expect(w).toEqual({ ...v10, meta: { ...v10.meta, v: WORLD_VERSION } });
+    expect(JSON.stringify(v10)).toBe(before);
+    expect(w.factories.some((f) => f.areas)).toBe(false);
+    // The v11 fixture is the v10 one plus area settings on two factories.
+    const strip = (x: typeof w) => ({
+      ...x,
+      factories: x.factories.map(({ areas: _, ...f }) => f),
+    });
+    expect(strip(migrateWorld(v11 as unknown as typeof w))).toEqual(w);
   });
 
   test('a current world passes through unchanged', () => {

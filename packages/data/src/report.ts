@@ -264,6 +264,41 @@ export function renderReport(result: BuildResult, extra: ReportSection[] = []): 
         ]),
       ),
     );
+    if (details.areas && model) {
+      const name = new Map(model.items.map((i) => [i.id, i.name]));
+      const why = {
+        listed: 'listed',
+        raw: 'raw or one step on',
+        signature: 'signature',
+        nearest: 'closest family',
+        fallback: 'no match',
+      } as const;
+      s.push('', '## Flowchart areas (data/areas.json, A57)', '');
+      s.push(
+        'Where each item’s recipes are drawn, and why. The signature is the raw resources of ' +
+          'the item’s simplest route; depth is its steps from raw (– when no route reaches it). ' +
+          'Recipes that make a plan’s target are drawn in the targets area instead.',
+      );
+      for (const a of details.areas.areas) {
+        const list = details.areas.items.filter((i) => i.area === a.id);
+        s.push('', `### ${a.name} (${list.length})`, '');
+        if (!list.length) {
+          s.push(a.rule === 'targets' ? '_Recipes making a target._' : '_None._');
+          continue;
+        }
+        s.push(
+          table(
+            ['Item', 'Why', 'Depth', 'Signature'],
+            list.map((i) => [
+              name.get(i.item) ?? i.item,
+              why[i.reason],
+              i.depth < 0 ? '–' : i.depth,
+              i.signature.map((r) => name.get(r) ?? r).join(', ') || '–',
+            ]),
+          ),
+        );
+      }
+    }
     s.push(
       '',
       `## Unused parts (${details.unusedParts.length})`,

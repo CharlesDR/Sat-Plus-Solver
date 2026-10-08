@@ -9,6 +9,7 @@
 import {
   createFactory,
   type Factory,
+  type FactoryAreas,
   type Group,
   type Link,
   type Tweak,
@@ -86,6 +87,48 @@ export function removeFactory(world: World, id: string): World {
 export function renameFactory(world: World, id: string, name: string): World {
   const f = need(world.factories, id, 'factory');
   return editFactory(world, id, { ...f, name: cleanName(name, f.name) });
+}
+
+/**
+ * Changes a factory's flowchart areas (A57): `off` turns grouping off,
+ * `names` renames areas (an empty name restores the default), `moves` puts
+ * nodes in another area (`undefined` sends one back to its default area).
+ * Settings left at their defaults are dropped.
+ */
+export function setFactoryAreas(
+  world: World,
+  id: string,
+  change: {
+    off?: boolean;
+    names?: Record<string, string | undefined>;
+    moves?: Record<string, string | undefined>;
+  },
+): World {
+  const f = need(world.factories, id, 'factory');
+  const merged = (
+    now: Record<string, string> | undefined,
+    edits: Record<string, string | undefined> | undefined,
+  ) => {
+    const out = { ...now };
+    for (const [k, v] of Object.entries(edits ?? {})) {
+      const value = v?.trim();
+      if (value) out[k] = value;
+      else delete out[k];
+    }
+    return Object.keys(out).length ? out : undefined;
+  };
+  const off = change.off ?? f.areas?.off === true;
+  const names = merged(f.areas?.names, change.names);
+  const moves = merged(f.areas?.moves, change.moves);
+  const areas: FactoryAreas = {
+    ...(off ? { off: true as const } : {}),
+    ...(names ? { names } : {}),
+    ...(moves ? { moves } : {}),
+  };
+  const next: Factory = { ...f };
+  if (Object.keys(areas).length) next.areas = areas;
+  else delete next.areas;
+  return editFactory(world, id, next);
 }
 
 /** Moves a factory into a group, or out of every group with `undefined`. */

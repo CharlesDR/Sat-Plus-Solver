@@ -4,7 +4,7 @@
  * Every rate in `inputs`/`outputs` is positive and per machine.
  */
 
-export const MODEL_SCHEMA_VERSION = 3;
+export const MODEL_SCHEMA_VERSION = 4;
 
 /** Id of the power pseudo-item output by generator recipes. Its rate unit is MW. */
 export const MW_ITEM_ID = 'mw';
@@ -17,6 +17,19 @@ export interface Item {
   form: ItemForm;
   sinkPoints: number;
   tier: string;
+  /**
+   * Solid and fluid items: the flowchart area its recipes are drawn in
+   * (A57). Absent in models built before areas.
+   */
+  area?: string;
+}
+
+/** A flowchart area (A57), in production order in `Model.areas`. */
+export interface Area {
+  id: string;
+  name: string;
+  /** `targets`: where recipes making a plan's target go; `fallback`: anything else unplaced. */
+  rule?: 'raw' | 'targets' | 'fallback';
 }
 
 export interface Machine {
@@ -110,4 +123,6 @@ export interface Model {
   recipes: Recipe[];
   nodes: ResourceNode[];
   beltCapacities: BeltCapacity[];
+  /** Flowchart areas in production order (A57). Absent in models built before areas. */
+  areas?: Area[];
 }

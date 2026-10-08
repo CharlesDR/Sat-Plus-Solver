@@ -1,5 +1,11 @@
-import { recipeNodeId, type LayoutEngine } from '@sps/graph';
-import { allocateRemaining, extractFactory, serializeWorld, type World } from '@sps/world';
+import { groupAreas, recipeNodeId, type FactoryGraph, type LayoutEngine } from '@sps/graph';
+import {
+  allocateRemaining,
+  extractFactory,
+  serializeWorld,
+  type FactoryAreas,
+  type World,
+} from '@sps/world';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useStore } from 'zustand';
 import { DiagnosticsList, useNames } from './Diagnostics';
@@ -11,7 +17,8 @@ import { limitsLabel, rawResourcesOf } from './controls/resourceLimits';
 import { RecipeToggles } from './controls/RecipeToggles';
 import { SettingsPanel } from './controls/SettingsPanel';
 import { TargetsEditor } from './controls/TargetsEditor';
-import { Flowchart } from './flowchart/Flowchart';
+import { areaCatalog, areaChoices } from './flowchart/areas';
+import { Flowchart, type AreaControls } from './flowchart/Flowchart';
 import type { Saves } from './persistence/saves';
 import { SavePanel } from './persistence/SavePanel';
 import type { Boot } from './persistence/session';
@@ -353,6 +360,9 @@ function FactoryView(props: {
   const toast = useToast();
   const [sidebarOpen, setSidebarOpen] = useSidebarOpen();
   const [selection, setSelection] = useState<Selection>();
+  // Collapsed flowchart areas (A57), for this visit to this factory only.
+  const [collapsed, setCollapsed] = useState<{ factory: string; areas: ReadonlySet<string> }>();
+  const shut = collapsed?.factory === factoryId ? collapsed.areas : NONE;
   // Esc clears the selection before it leaves the factory (A42).
   useEscapeLayer(selection !== undefined, () => setSelection(undefined));
   const world = useStore(store, (s) => s.world);
@@ -685,6 +695,12 @@ function FactoryView(props: {
         </div>
         <PlanView
           plan={plan}
+          areas={{
+            settings: factory?.areas,
+            collapsed: shut,
+            onCollapse: (areas) => setCollapsed({ factory: factoryId, areas }),
+            onChange: (change) => actions.setFactoryAreas(factoryId, change),
+          }}
           diagnostics={diagnostics}
           onOpenFactory={onOpen}
           layout={layout}
@@ -704,10 +720,25 @@ function FactoryView(props: {
   );
 }
 
+const NONE: ReadonlySet<string> = new Set();
+
+/** A factory's flowchart areas (A57): its settings, and which areas are collapsed. */
+interface PlanAreas {
+  settings: FactoryAreas | undefined;
+  collapsed: ReadonlySet<string>;
+  onCollapse(areas: ReadonlySet<string>): void;
+  onChange(change: AreaChange): void;
+}
+type AreaChange = {
+  names?: Record<string, string | undefined>;
+  moves?: Record<string, string | undefined>;
+};
+
 const cls = (...xs: (string | false | undefined)[]) => xs.filter(Boolean).join(' ');
 
 function PlanView(props: {
   plan: PlanState;
+  areas: PlanAreas;
   diagnostics: ReactNode;
   layout: LayoutEngine;
   catalog: Catalog;
@@ -722,10 +753,11 @@ function PlanView(props: {
       <PlanStats plan={o.plan} manual={o.manual !== undefined} timing={timing} />
       {diagnostics}
       <ErrorBoundary what="the flowchart" resetKey={o.graph}>
-        <Flowchart
+        <PlanFlowchart
           engine={layout}
           graph={o.graph}
           catalog={catalog}
+          areas={props.areas}
           selection={selection}
           onSelect={(id) => onSelect(id, 'graph')}
           onOpenFactory={props.onOpenFactory}
@@ -774,4 +806,53 @@ function PlanView(props: {
         </div>
       );
   }
+}
+
+/** The plan's flowchart, grouped in areas when it is large enough (A57). */
+function PlanFlowchart(props: {
+  engine: LayoutEngine;
+  graph: FactoryGraph;
+  catalog: Catalog;
+  areas: PlanAreas;
+  selection: Selection | undefined;
+  onSelect: (id: string | undefined) => void;
+  onOpenFactory(id: string): void;
+}) {
+  const { graph, catalog, areas } = props;
+  const { settings, collapsed, onCollapse, onChange } = areas;
+  const lookup = useMemo(() => areaCatalog(catalog), [catalog]);
+  const grouped = useMemo(
+    () => groupAreas(graph, lookup, settings, collapsed),
+    [graph, lookup, settings, collapsed],
+  );
+  const controls = useMemo<AreaControls | undefined>(() => {
+    if (!grouped.areas) return undefined;
+    const defaults = new Map(catalog.areas.map((a) => [a.id, a.name]));
+    return {
+      choices: areaChoices(catalog, settings),
+      moves: settings?.moves ?? {},
+      setCollapsed: (area, shut) => {
+        const next = new Set(collapsed);
+        if (shut) next.add(area);
+        else next.delete(area);
+        onCollapse(next);
+      },
+      expandAll: () => onCollapse(NONE),
+      // A name back to the default drops the rename.
+      rename: (area, name) =>
+        onChange({ names: { [area]: name.trim() === defaults.get(area) ? undefined : name } }),
+      move: (node, area) => onChange({ moves: { [node]: area } }),
+    };
+  }, [grouped, catalog, settings, collapsed, onCollapse, onChange]);
+  return (
+    <Flowchart
+      engine={props.engine}
+      graph={grouped}
+      catalog={catalog}
+      selection={props.selection}
+      onSelect={props.onSelect}
+      onOpenFactory={props.onOpenFactory}
+      {...(controls ? { areas: controls } : {})}
+    />
+  );
 }
