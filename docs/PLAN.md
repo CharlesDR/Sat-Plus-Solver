@@ -182,6 +182,15 @@ Charles, 2026-10-07: the flowchart and number-format ideas are built in five ste
 - **Focus and tooltip (A48):** hovering or selecting a node dims all but its neighbourhood; clicking a node opens its exact values, which Esc closes before the selection.
 - **Acceptance:** on Reinforced Iron Plate 5/min, Water is marked "2 stages", the Iron Ingot trunk reads 30.0 with two 15.0 branches, and every label names its item on hover. Hovering Screws dims Water. Clicking Water opens its exact values with a fraction; the first Esc closes them and keeps the selection, the second clears it. The layout score test passes, with every scored number at or below G2's baseline.
 
+#### G4 — Layout tuning
+
+- **Measured, kept only where the score improves (A55):** each idea in B5–B8 was tried against the layout score on all three plans; a change is kept only if no number gets worse and the 6 px gap holds.
+- **Small plans (under 60 nodes):** ELK compacts the layers along their edges after placing them.
+- **Large plans:** a crossing sweep of 6 instead of 5; the 150-node plan still lays out in under 2 s.
+- **All plans:** lanes between layers sit 4 px apart, as lanes beside a box do.
+- **Dropped:** network-simplex and balanced Brandes–Köpf placement, a sweep of 7 to 20 or the two-sided switch on small plans, compaction on large plans, wider layer gaps, and an edge gap of 6 each made bends, crossings or area worse on some plan.
+- **Acceptance:** the layout score test passes with a lower baseline: Plastic 20 bends 101→99, Ballistic Warp Drive 1 crossings 2,782→2,777, edge length and area down on all three, no number up, gap 6 everywhere. The 150-node layout test passes under 2 s.
+
 ---
 
 **Review checkpoints:** after M1 (miner and fracking numbers in `report.md`), after M3 (try the slice), and after M5 (world semantics, using the CLI on a sample of your own save layout).

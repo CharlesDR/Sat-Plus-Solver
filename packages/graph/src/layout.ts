@@ -162,6 +162,9 @@ const ELK_OPTIONS = {
   'elk.spacing.edgeEdge': '4',
   'elk.layered.spacing.nodeNodeBetweenLayers': '12',
   'elk.layered.spacing.edgeNodeBetweenLayers': '6',
+  // Lanes between layers as close as lanes beside a box (A55): shorter lines
+  // and a smaller chart on every scored plan, with no new crossing or bend.
+  'elk.layered.spacing.edgeEdgeBetweenLayers': '4',
   // Network-simplex placement takes minutes on a 150-node plan; Brandes–Köpf
   // and a lighter crossing sweep keep it well under the 2 s budget (PLAN M7).
   // Without labels in the chart (A48), a sweep of 5 costs little more than 3
@@ -171,6 +174,20 @@ const ELK_OPTIONS = {
   'elk.portConstraints': 'FIXED_SIDE',
   'elk.padding': `[top=${PAD},left=${PAD},bottom=${PAD},right=${PAD}]`,
 };
+
+/** Below this many nodes a plan counts as small for layout tuning (A55). */
+export const SMALL_PLAN = 60;
+
+/**
+ * ELK options for a plan of `nodes` nodes (A55). Small plans get a
+ * post-compaction pass that pulls layers together along their edges; on a
+ * large plan the same pass adds crossings, so it gets a deeper crossing
+ * sweep instead, which still fits the 2 s budget.
+ */
+export const elkOptions = (nodes: number): Record<string, string> =>
+  nodes < SMALL_PLAN
+    ? { ...ELK_OPTIONS, 'elk.layered.compaction.postCompaction.strategy': 'EDGE_LENGTH' }
+    : { ...ELK_OPTIONS, 'elk.layered.thoroughness': '6' };
 
 const LAYER: Partial<Record<FlowNodeKind, string>> = {
   target: 'LAST',
@@ -459,7 +476,7 @@ export async function layoutFactoryGraph(
 
   const elkGraph = (orders: Map<string, Order> | undefined): ElkNode => ({
     id: 'root',
-    layoutOptions: ELK_OPTIONS,
+    layoutOptions: elkOptions(graph.nodes.length),
     edges: [
       ...graph.edges.map((e): ElkExtendedEdge => ({
         id: e.id,

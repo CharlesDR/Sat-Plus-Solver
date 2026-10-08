@@ -27,6 +27,7 @@ export type {
 } from './factory';
 export {
   CHAR_WIDTH,
+  elkOptions,
   ICON_GAP,
   layoutFactoryGraph,
   LINE_HEIGHT,
@@ -38,6 +39,7 @@ export {
   multiStageInputs,
   TRAY_PAD,
   rateText,
+  SMALL_PLAN,
   wrapText,
 } from './layout';
 export { flowForm, GASES, type FlowForm } from './forms';

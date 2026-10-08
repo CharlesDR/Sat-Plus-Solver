@@ -2,6 +2,7 @@ import ELK from 'elkjs/lib/elk.bundled.js';
 import { describe, expect, test } from 'vitest';
 import type { FactoryGraph, FlowNode } from './factory';
 import {
+  elkOptions,
   ICON_GAP,
   LABEL_ICON_GAP,
   isRaw,
@@ -11,6 +12,7 @@ import {
   orthogonal,
   overlaps,
   rateText,
+  SMALL_PLAN,
   wrapText,
   type FactoryLayout,
 } from './layout';
@@ -418,5 +420,26 @@ describe('layoutFactoryGraph', () => {
       'node import:ore × node b',
       'label import:ore→recipe:ingot:ore × trunk import:ore:ore',
     ]);
+  });
+});
+
+describe('elkOptions (A55)', () => {
+  const COMPACT = 'elk.layered.compaction.postCompaction.strategy';
+  test('small plans compact along their edges', () => {
+    expect(elkOptions(SMALL_PLAN - 1)[COMPACT]).toBe('EDGE_LENGTH');
+    expect(elkOptions(SMALL_PLAN - 1)['elk.layered.thoroughness']).toBe('5');
+  });
+  test('large plans sweep deeper instead of compacting', () => {
+    expect(elkOptions(SMALL_PLAN)[COMPACT]).toBeUndefined();
+    expect(elkOptions(SMALL_PLAN)['elk.layered.thoroughness']).toBe('6');
+  });
+  test('every plan keeps the box gaps and Brandes–Köpf placement', () => {
+    for (const n of [1, SMALL_PLAN - 1, SMALL_PLAN, 500]) {
+      const o = elkOptions(n);
+      expect(o['elk.spacing.nodeNode']).toBe('12');
+      expect(o['elk.spacing.edgeEdge']).toBe('4');
+      expect(o['elk.layered.spacing.edgeEdgeBetweenLayers']).toBe('4');
+      expect(o['elk.layered.nodePlacement.strategy']).toBe('BRANDES_KOEPF');
+    }
   });
 });
