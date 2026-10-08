@@ -69,9 +69,9 @@ export interface Catalog {
   belts: BeltCapacity[];
   /** Pipe capacity per tier, m³/min (A10). */
   pipes: BeltCapacity[];
-  /** Flowchart areas in production order (A61). */
+  /** Flowchart areas in production order (A64). */
   areas: Area[];
-  /** Each item's area id (A61). */
+  /** Each item's area id (A64). */
   itemAreas: Record<string, string>;
 }
 

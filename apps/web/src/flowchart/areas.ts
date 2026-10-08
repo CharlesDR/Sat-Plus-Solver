@@ -1,5 +1,5 @@
 /**
- * Flowchart areas in the app (A61): the data build's areas from the
+ * Flowchart areas in the app (A64): the data build's areas from the
  * catalog, and the factory's own names for them.
  */
 import type { AreaCatalog, AreaSettings } from '@sps/graph';

@@ -24,7 +24,7 @@ export interface BuildInputs {
   nodesCsv: string;
   minerModel: string;
   overrides: string;
-  /** data/areas.json (A59). */
+  /** data/areas.json (A62). */
   areas: string;
 }
 
@@ -43,7 +43,7 @@ export interface BuildDetails {
   unusedParts: string[];
   /** Largest fluid rate seen, for the magnitude check. */
   maxFluidRate: number;
-  /** Where every item's recipes are drawn, and why (A59). */
+  /** Where every item's recipes are drawn, and why (A62). */
   areas?: AreasResult;
 }
 
@@ -306,7 +306,7 @@ export function buildModel(inputs: BuildInputs): BuildResult {
   if (beltCapacities.length === 0)
     issues.warn('belts.missing', 'No belt capacities found in MultiMachines');
 
-  // ---- Areas (A59): where each item's recipes are drawn. ----
+  // ---- Areas (A62): where each item's recipes are drawn. ----
   const areas = buildAreas(rawAreas.data, items, recipes, issues);
   if (areas) {
     const at = new Map(areas.items.map((a) => [a.item, a.area]));

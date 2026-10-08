@@ -9,7 +9,7 @@ const catalog = {
   itemAreas: { 'iron-ore': 'ore', 'steel-beam': 'steel' },
 };
 
-describe('flowchart areas (A61)', () => {
+describe('flowchart areas (A64)', () => {
   test('looks items up in the catalog', () => {
     const c = areaCatalog(catalog);
     expect(c.areas).toBe(catalog.areas);

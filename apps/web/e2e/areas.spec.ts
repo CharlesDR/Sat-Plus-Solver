@@ -23,7 +23,7 @@ test('a small plan stays one flowchart', async ({ page }) => {
   await expect(frames(page)).toHaveCount(0);
 });
 
-test('Plastic 20/min is drawn in areas that collapse, expand and rename (A60, A61)', async ({
+test('Plastic 20/min is drawn in areas that collapse, expand and rename (A63, A64)', async ({
   page,
 }) => {
   await openFactory(page);

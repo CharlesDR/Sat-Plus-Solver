@@ -66,12 +66,12 @@ type FlowNodeData = {
   name: (item: string) => string;
 };
 type FlowchartNode = Node<FlowNodeData, 'flow'>;
-/** An area's frame (A61), drawn behind its boxes and lines. */
+/** An area's frame (A64), drawn behind its boxes and lines. */
 type FrameData = { area: PlacedArea; tone: number; controls: AreaControls };
 type FrameNode = Node<FrameData, 'frame'>;
 type CanvasNode = FlowchartNode | FrameNode;
 
-/** What the area frames and boxes can do (A61); absent when the plan is not grouped. */
+/** What the area frames and boxes can do (A64); absent when the plan is not grouped. */
 export interface AreaControls {
   /** Every area a box can move to, by the factory's names. */
   choices: readonly { id: string; name: string }[];
@@ -224,7 +224,7 @@ const areaName = (areas: AreaControls, id: string) =>
   areas.choices.find((a) => a.id === id)?.name ?? id;
 
 /**
- * An area's frame (A61): a light tint behind its boxes, with a title bar
+ * An area's frame (A64): a light tint behind its boxes, with a title bar
  * showing its name, machines and power. Double-click the name to rename the
  * area in this factory; the button collapses it to one box.
  */
@@ -432,7 +432,7 @@ export function Flowchart(props: {
   onSelect: (id: string | undefined) => void;
   /** Double-click on a sub-factory box (A53). */
   onOpenFactory?: (id: string) => void;
-  /** The plan is grouped in areas (A61). */
+  /** The plan is grouped in areas (A64). */
   areas?: AreaControls;
 }) {
   const state = useLayout(props.engine, props.graph);

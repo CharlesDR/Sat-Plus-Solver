@@ -126,12 +126,12 @@ export interface Factory {
    * every resolution; missing = not marked.
    */
   built?: BuiltSnapshot;
-  /** How its flowchart is grouped into areas (A61); missing = the defaults. */
+  /** How its flowchart is grouped into areas (A64); missing = the defaults. */
   areas?: FactoryAreas;
 }
 
 /**
- * A factory's flowchart areas (A61). Area ids come from the data build
+ * A factory's flowchart areas (A64). Area ids come from the data build
  * (data/areas.json); node ids are the flowchart's (`recipe:<id>`,
  * `sub:<factory id>`).
  */

@@ -1,5 +1,5 @@
 /**
- * Flowchart areas (A59): which area each item's recipes are drawn in, from
+ * Flowchart areas (A62): which area each item's recipes are drawn in, from
  * the curated list in data/areas.json and each item's base-resource
  * signature.
  *

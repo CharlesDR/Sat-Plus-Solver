@@ -19,12 +19,12 @@ export interface Item {
   tier: string;
   /**
    * Solid and fluid items: the flowchart area its recipes are drawn in
-   * (A59). Absent in models built before areas.
+   * (A62). Absent in models built before areas.
    */
   area?: string;
 }
 
-/** A flowchart area (A59), in production order in `Model.areas`. */
+/** A flowchart area (A62), in production order in `Model.areas`. */
 export interface Area {
   id: string;
   name: string;
@@ -123,6 +123,6 @@ export interface Model {
   recipes: Recipe[];
   nodes: ResourceNode[];
   beltCapacities: BeltCapacity[];
-  /** Flowchart areas in production order (A59). Absent in models built before areas. */
+  /** Flowchart areas in production order (A62). Absent in models built before areas. */
   areas?: Area[];
 }

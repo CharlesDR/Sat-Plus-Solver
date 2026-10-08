@@ -1,5 +1,5 @@
 /**
- * Areas of a large factory flowchart (A60): framed groups such as Ore
+ * Areas of a large factory flowchart (A63): framed groups such as Ore
  * Processing, Steelworks or Final Assembly. Which area an item's recipes
  * belong to is decided at data-build time (data/areas.json); this module
  * places a plan's nodes in areas, applies the factory's own renames and
@@ -91,7 +91,7 @@ export function defaultAreas(graph: FactoryGraph, catalog: AreaCatalog): Map<str
 }
 
 /**
- * The plan grouped into areas (A60), or the plan as it is when grouping is
+ * The plan grouped into areas (A63), or the plan as it is when grouping is
  * off, the plan has fewer than `AREA_MIN_NODES` recipe boxes, or everything
  * lands in one area. A node moved to an area that no other node is in gets
  * that area too. `collapsed` areas become one box each, with what crosses

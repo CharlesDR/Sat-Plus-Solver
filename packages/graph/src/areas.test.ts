@@ -108,7 +108,7 @@ const catalog: AreaCatalog = {
 };
 const areaOf = (g: FactoryGraph, id: string) => g.nodes.find((n) => n.id === id)?.area;
 
-describe('groupAreas (A60)', () => {
+describe('groupAreas (A63)', () => {
   test('places each node: recipes by main product, the target maker and target in Final Assembly, ends with their neighbours', () => {
     const g = groupAreas(graph(), catalog);
     expect(g.areas?.map((a) => a.id)).toEqual(['ore', 'parts', 'final']);
@@ -159,7 +159,7 @@ describe('groupAreas (A60)', () => {
   });
 });
 
-describe('a grouped layout (A60)', () => {
+describe('a grouped layout (A63)', () => {
   test('frames hold their own nodes and labels, nothing overlaps, lines are square, and it repeats', async () => {
     const g = groupAreas(graph(), catalog);
     const layout = await layoutFactoryGraph(g, new ELK(), { iconSize: 32, labelIconSize: 16 });

@@ -90,7 +90,7 @@ export function renameFactory(world: World, id: string, name: string): World {
 }
 
 /**
- * Changes a factory's flowchart areas (A61): `off` turns grouping off,
+ * Changes a factory's flowchart areas (A64): `off` turns grouping off,
  * `names` renames areas (an empty name restores the default), `moves` puts
  * nodes in another area (`undefined` sends one back to its default area).
  * Settings left at their defaults are dropped.

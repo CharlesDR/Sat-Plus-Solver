@@ -273,7 +273,7 @@ export function renderReport(result: BuildResult, extra: ReportSection[] = []): 
         nearest: 'closest family',
         fallback: 'no match',
       } as const;
-      s.push('', '## Flowchart areas (data/areas.json, A59)', '');
+      s.push('', '## Flowchart areas (data/areas.json, A62)', '');
       s.push(
         'Where each item’s recipes are drawn, and why. The signature is the raw resources of ' +
           'the item’s simplest route; depth is its steps from raw (– when no route reaches it). ' +

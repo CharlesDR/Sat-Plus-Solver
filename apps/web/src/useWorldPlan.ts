@@ -87,7 +87,7 @@ export function useWorldPlan(
 
 /**
  * The world without what only changes how a plan is drawn (a factory's
- * flowchart areas, A61), kept the same object while the rest stays the same,
+ * flowchart areas, A64), kept the same object while the rest stays the same,
  * so renaming an area or moving a box does not solve the world again.
  */
 function useSolvable(world: World): World {

@@ -17,7 +17,7 @@ import type { ItemRate, RecipeUsage, SolveResult } from '@sps/solver';
 /**
  * `missing`: what a manual plan (A36) needs beyond its imports.
  * `sub-factory`: a factory nested in this one (A53), drawn as one box.
- * `area`: a collapsed area (A60), one box for everything in it.
+ * `area`: a collapsed area (A63), one box for everything in it.
  */
 export type FlowNodeKind =
   'recipe' | 'resource' | 'import' | 'missing' | 'sub-factory' | 'area' | 'target' | 'byproduct';
@@ -50,7 +50,7 @@ export interface FlowNode {
   power?: number;
   /** Sub-factory nodes: the nested factory's id (A53). */
   factory?: string;
-  /** The area it is drawn in (A60), when the plan is grouped; a collapsed area's own id. */
+  /** The area it is drawn in (A63), when the plan is grouped; a collapsed area's own id. */
   area?: string;
   /** Node class drawn on (resource nodes). */
   node?: string;
@@ -78,11 +78,11 @@ export interface FactoryGraph {
   nodes: FlowNode[];
   /** Sorted by id. */
   edges: FlowEdge[];
-  /** The plan's areas (A60) in production order, when it is grouped. */
+  /** The plan's areas (A63) in production order, when it is grouped. */
   areas?: GraphArea[];
 }
 
-/** An area of a grouped plan (A60): a frame around its nodes, or one box when collapsed. */
+/** An area of a grouped plan (A63): a frame around its nodes, or one box when collapsed. */
 export interface GraphArea {
   id: string;
   name: string;

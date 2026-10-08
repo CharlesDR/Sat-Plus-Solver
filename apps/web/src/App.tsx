@@ -360,7 +360,7 @@ function FactoryView(props: {
   const toast = useToast();
   const [sidebarOpen, setSidebarOpen] = useSidebarOpen();
   const [selection, setSelection] = useState<Selection>();
-  // Collapsed flowchart areas (A61), for this visit to this factory only.
+  // Collapsed flowchart areas (A64), for this visit to this factory only.
   const [collapsed, setCollapsed] = useState<{ factory: string; areas: ReadonlySet<string> }>();
   const shut = collapsed?.factory === factoryId ? collapsed.areas : NONE;
   // Esc clears the selection before it leaves the factory (A42).
@@ -722,7 +722,7 @@ function FactoryView(props: {
 
 const NONE: ReadonlySet<string> = new Set();
 
-/** A factory's flowchart areas (A61): its settings, and which areas are collapsed. */
+/** A factory's flowchart areas (A64): its settings, and which areas are collapsed. */
 interface PlanAreas {
   settings: FactoryAreas | undefined;
   collapsed: ReadonlySet<string>;
@@ -808,7 +808,7 @@ function PlanView(props: {
   }
 }
 
-/** The plan's flowchart, grouped in areas when it is large enough (A61). */
+/** The plan's flowchart, grouped in areas when it is large enough (A64). */
 function PlanFlowchart(props: {
   engine: LayoutEngine;
   graph: FactoryGraph;
