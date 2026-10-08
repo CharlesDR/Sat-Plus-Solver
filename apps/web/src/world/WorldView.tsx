@@ -4,7 +4,7 @@
  */
 import { MW_ITEM_ID } from '@sps/data';
 import { worldGraph, type LayoutEngine } from '@sps/graph';
-import type { World } from '@sps/world';
+import { MINER_SUPPORT_NAME, unwiredMinerNeeds, wireMinerSupport, type World } from '@sps/world';
 import { useCallback, useId, useMemo, useState } from 'react';
 import { useItemLookup } from '../controls/itemRows';
 import { DiagnosticsList, useNames } from '../Diagnostics';
@@ -114,6 +114,8 @@ export function WorldView(props: {
   );
 
   const names = useNames(catalog, world);
+  // Miner fluid supplied from outside (A69) that no Miner support link brings in yet (A71).
+  const unwired = summary ? unwiredMinerNeeds(world, summary).length : 0;
   // A new world: nothing to plan until a factory gets a target or a link.
   const unplanned =
     world.links.length === 0 && world.factories.every((f) => f.request.targets.length === 0);
@@ -175,6 +177,23 @@ export function WorldView(props: {
         {traceItem !== undefined && (
           <button type="button" onClick={() => setTraceItem(undefined)}>
             Clear trace
+          </button>
+        )}
+        {unwired > 0 && summary && (
+          <button
+            type="button"
+            title="Make the miner fluid that factories get supplied from outside, in one factory linked to each"
+            onClick={() => {
+              const out = wireMinerSupport(world, summary);
+              store.getState().replaceWorld(out.world);
+              toast(
+                `Linked ${out.links.length} miner ${out.links.length === 1 ? 'fluid' : 'fluids'} from ${MINER_SUPPORT_NAME}.`,
+              );
+            }}
+          >
+            {world.factories.some((f) => f.name === MINER_SUPPORT_NAME && !f.parentId)
+              ? `Link ${MINER_SUPPORT_NAME} (${unwired})`
+              : `Add ${MINER_SUPPORT_NAME} factory`}
           </button>
         )}
         <button

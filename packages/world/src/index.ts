@@ -18,7 +18,15 @@ export {
   type ResolveProgress,
 } from './resolve';
 export { createSolveCache, hashString, solveKey, stableStringify, type SolveCache } from './hash';
-export { allocateRemaining, sizePowerPlant, SIZE_POWER_ITERATIONS } from './helpers';
+export {
+  allocateRemaining,
+  MINER_SUPPORT_NAME,
+  sizePowerPlant,
+  SIZE_POWER_ITERATIONS,
+  unwiredMinerNeeds,
+  wireMinerSupport,
+  type MinerNeeds,
+} from './helpers';
 export type * from './types';
 export {
   discardManual,
