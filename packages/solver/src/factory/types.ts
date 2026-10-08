@@ -73,6 +73,13 @@ export interface SolveRequest {
    */
   minBranch?: number;
   /**
+   * Smallest flow worth keeping, per minute (A68): after the prune pass, every
+   * recipe with an input (or every output) below this, and every surplus or import
+   * below it, is held at 0 and the stack solved again, when the plan can do
+   * without them. 0 turns it off. Default MIN_FLOW (0.001/min).
+   */
+  minFlow?: number;
+  /**
    * Cost imported inputs (§3.3): each import carries the cost of making 1/min
    * of it in a standalone plan under this stack, from the map pool.
    */
@@ -221,7 +228,7 @@ export interface SolveStats {
   recipes: number;
   columns: number;
   rows: number;
-  /** Recipes the prune pass removed (A34), sorted; absent when none were. */
+  /** Recipes the prune pass (A34) or the flow prune (A68) removed, sorted; absent when none were. */
   pruned?: string[];
 }
 

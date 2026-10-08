@@ -57,6 +57,12 @@ export const DEFAULT_TOLERANCE = MIN_TOLERANCE;
 export const LEX_EPSILON = 1e-6;
 /** Default smallest branch kept, in machines (A34): 1% of a machine. */
 export const MIN_BRANCH = 0.01;
+/** Default smallest flow kept, per minute (A68): a recipe, surplus or import below it is dropped. */
+export const MIN_FLOW = 0.001;
+/** Most a flow prune drop may worsen any stage of the plan, as a fraction (A68). */
+const MAX_FLOW_COST = 0.01;
+/** Most drops the flow prune may try on one plan (A68), each a whole-stack re-solve. */
+const MAX_FLOW_SOLVES = 6;
 /** Most LP solves the prune pass may spend on one plan (A34). */
 const MAX_PRUNE_ATTEMPTS = 24;
 /** Default time limit of a MILP stage, in seconds (§3.4). */
@@ -95,6 +101,10 @@ interface Problem {
   whole: boolean;
   /** `request.minBranch`, in machines (A34). */
   minBranch: number;
+  /** `request.minFlow`, per minute (A68). */
+  minFlow: number;
+  /** LP variables held at 0 by the flow prune (A68): recipes (with their machine counts), surpluses, imports. */
+  banned: ReadonlySet<string>;
   recipes: Recipe[];
   /** Balance-row items, sorted. */
   items: string[];
@@ -265,6 +275,8 @@ export async function solve(
     tolerance: request.tolerance ?? DEFAULT_TOLERANCE,
     whole: request.wholeMachines ?? false,
     minBranch: request.minBranch ?? MIN_BRANCH,
+    minFlow: request.minFlow ?? MIN_FLOW,
+    banned: new Set(),
     recipes,
     items,
     demand,
@@ -483,6 +495,60 @@ async function solveStack(
   itemName: (id: string) => string,
   diagnostics: Diagnostic[],
 ): Promise<SolveResult> {
+  const before = [...diagnostics];
+  const plan = await solveLex(p, backend, options, itemName, diagnostics);
+  // Banned recipes are left out of the LP altogether: the re-solves keep to
+  // the plan's own recipes, so their LPs are small.
+  const without = (banned: ReadonlySet<string>): Problem => {
+    const kept = (id: string) => !banned.has(recipeVar(id));
+    return {
+      ...p,
+      recipes: p.recipes.filter((r) => kept(r.id)),
+      resources: new Map(
+        [...p.resources].map(([k, e]) => [k, { ...e, recipes: e.recipes.filter(kept) }]),
+      ),
+      banned,
+      turbineCaps: new Map(),
+    };
+  };
+  return pruneFlows(
+    p,
+    plan,
+    (banned) => solveLex(without(banned), backend, options, itemName, [...before]),
+    (banned) => firstStageBound(without(banned), backend, options),
+  );
+}
+
+/**
+ * The first stage's optimum of the LP relaxation, a bound on what the stack
+ * can reach (no worse than the plan's optimum): undefined when it is
+ * infeasible, NaN when it gives no bound (O6, whose indicators round).
+ */
+async function firstStageBound(
+  p: Problem,
+  backend: LpBackend,
+  options: LpOptions,
+): Promise<number | undefined> {
+  const first = p.stack[0]!;
+  if (first === 'resourceTypes') return Number.NaN;
+  const lp = buildLp(p, 'normal', first);
+  const s = await backend.solve(
+    { ...lp, variables: lp.variables.map(({ integer: _, ...v }) => v) },
+    options,
+  );
+  if (s.status === 'infeasible') return undefined;
+  if (s.status !== 'optimal' || !s.values) return Number.NaN;
+  return stageValue(p, first, s.values);
+}
+
+/** One lexicographic solve of the stack, then the prune pass (A34) and the checks. */
+async function solveLex(
+  p: Problem,
+  backend: LpBackend,
+  options: LpOptions,
+  itemName: (id: string) => string,
+  diagnostics: Diagnostic[],
+): Promise<SolveResult> {
   const optima: { objective: ObjectiveId; optimum: number; gap?: number }[] = [];
   let tolerance = p.tolerance;
   let stats: SolveStats = { recipes: p.recipes.length, columns: 0, rows: 0 };
@@ -660,6 +726,107 @@ async function pruneBranches(
     }
   }
   return { sol, banned: [...banned].sort() };
+}
+
+/**
+ * The flow prune (A68). Slivers the prune pass (A34) must keep, because the
+ * earlier stages' optima lean on them, still show as tiny flows: a miner
+ * running 0.00007 machines for 0.0005/min of acid, or 0.0009/min of steam
+ * left over. Every recipe with an input below `minFlow` per minute, or all
+ * of its outputs (a tiny byproduct alone is its surplus's to answer for),
+ * and every surplus or import below it, is held at 0 and the whole stack
+ * solved again, so each stage gets a fresh optimum without them, as long as
+ * no stage ends up more than MAX_FLOW_COST (1%) worse than the plan's. As in
+ * the prune pass, the re-solve keeps to the plan's own recipes, so it doesn't
+ * spend the room on new slivers (and its LPs stay small): all of them
+ * together are tried first, then each alone in order (recipes by id, then
+ * surpluses, then imports). The LP relaxation of the first stage turns most
+ * costly drops away with one LP. A drop whose plan fails, adds a warning,
+ * costs more than that, or has no fewer tiny flows (a tiny surplus traded for
+ * a tiny recipe consuming it) is undone, so a flow the plan needs (a target
+ * below `minFlow`) stays. Repeats on the new plan, at most MAX_FLOW_SOLVES
+ * attempts. Deterministic.
+ */
+async function pruneFlows(
+  p: Problem,
+  plan: SolveResult,
+  resolve: (banned: ReadonlySet<string>) => Promise<SolveResult>,
+  bound: (banned: ReadonlySet<string>) => Promise<number | undefined>,
+): Promise<SolveResult> {
+  if (!(p.minFlow > 0) || plan.status !== 'ok') return plan;
+  /** Variables held at 0 in `best`; recipes always with their machine counts. */
+  let banned = new Set<string>();
+  const needed = new Set<string>();
+  const machines = new Map(p.recipes.map((r) => [recipeVar(r.id), machinesVar(r.id)]));
+  const tiny = (rate: number) => rate > 0 && rate < p.minFlow;
+  /** A plan's tiny flows, as the LP variables that carry them. */
+  const tinies = (r: SolveResult) => [
+    ...r.recipes
+      .filter((u) => u.inputs.some((f) => tiny(f.rate)) || u.outputs.every((f) => tiny(f.rate)))
+      .map((u) => recipeVar(u.id)),
+    ...r.surplus.filter((f) => tiny(f.rate)).map((f) => surplusVar(f.item)),
+    ...r.imports.filter((f) => tiny(f.rate)).map((f) => importVar(f.item)),
+  ];
+  /** Stage `k`'s `value` within MAX_FLOW_COST of the original plan's. */
+  const within = (k: number, value: number) => {
+    const was = plan.stages[k]!.value;
+    const room = MAX_FLOW_COST * Math.max(Math.abs(was), LEX_EPSILON);
+    return plan.stages[k]!.objective === 'output' ? value >= was - room : value <= was + room;
+  };
+  let solves = 0;
+  let best = plan;
+  /**
+   * Re-solves with `drop` banned too, and every recipe `best` doesn't run;
+   * undefined when the plan fails, warns more than before, costs too much,
+   * or has as many tiny flows as `best`.
+   */
+  const attempt = async (drop: readonly string[]) => {
+    solves++;
+    const used = new Set(best.recipes.map((u) => recipeVar(u.id)));
+    const unused = [...machines.keys()].filter((v) => !used.has(v));
+    const vars = new Set(
+      [...banned, ...drop, ...unused].flatMap((v) =>
+        machines.has(v) ? [v, machines.get(v)!] : [v],
+      ),
+    );
+    // The first stage's relaxation rules most drops out with one LP.
+    const first = await bound(vars);
+    if (first === undefined || (!Number.isNaN(first) && !within(0, first))) return undefined;
+    const r = await resolve(vars);
+    if (r.status !== 'ok' || r.diagnostics.length > plan.diagnostics.length) return undefined;
+    if (!r.stages.every((st, k) => within(k, st.value))) return undefined;
+    // Trading a tiny surplus for a tiny recipe that consumes it is no gain.
+    if (tinies(r).length >= tinies(best).length) return undefined;
+    banned = vars;
+    best = r;
+    return r;
+  };
+  while (solves < MAX_FLOW_SOLVES) {
+    const candidates = tinies(best).filter((v) => !needed.has(v));
+    if (!candidates.length) break;
+    if (await attempt(candidates)) continue;
+    if (candidates.length === 1) {
+      needed.add(candidates[0]!);
+      continue;
+    }
+    for (const v of candidates) {
+      if (solves >= MAX_FLOW_SOLVES) break;
+      // The plan changed: the next round recomputes its tiny flows.
+      if (await attempt([v])) break;
+      needed.add(v);
+    }
+  }
+  if (best === plan) return plan;
+  // Recipes the plan ran that it no longer does.
+  const runs = new Set(best.recipes.map((u) => u.id));
+  const dropped = plan.recipes.map((u) => u.id).filter((id) => !runs.has(id));
+  const pruned = [...new Set([...(best.stats.pruned ?? []), ...dropped])].sort();
+  // The size of the model the plan was first solved on, not of the re-solves.
+  const { recipes, columns, rows } = plan.stats;
+  return {
+    ...best,
+    stats: { ...best.stats, recipes, columns, rows, ...(pruned.length ? { pruned } : {}) },
+  };
 }
 
 /**
@@ -1195,7 +1362,14 @@ function buildLp(
     }
   }
   constraints.push(...locks);
-  return { sense: 'min', objective, variables, constraints };
+  return {
+    sense: 'min',
+    objective,
+    variables: p.banned.size
+      ? variables.map((v) => (p.banned.has(v.name) ? { ...v, lo: 0, hi: 0 } : v))
+      : variables,
+    constraints,
+  };
 }
 
 /**
@@ -1421,6 +1595,8 @@ function validate(
     (!Number.isFinite(request.minBranch) || request.minBranch < 0)
   )
     return bad(`Minimum branch must be 0 or more machines (got ${request.minBranch}).`);
+  if (request.minFlow !== undefined && (!Number.isFinite(request.minFlow) || request.minFlow < 0))
+    return bad(`Minimum flow must be 0 or more per minute (got ${request.minFlow}).`);
   for (const t of [...request.targets, ...(request.demand ?? [])]) {
     if (!known.has(t.item)) return bad(`Unknown item "${t.item}".`);
     if (!Number.isFinite(t.rate) || t.rate < 0)

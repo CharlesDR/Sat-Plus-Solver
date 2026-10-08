@@ -2,7 +2,7 @@
  * `pnpm solve`: solves one factory from the command line and prints the plan.
  *
  *   pnpm solve --target "Iron Plate:60" [--target ...] [--import "Iron Ingot:30"]
- *              [--objective resources,machines,...] [--tolerance 0.01%] [--min-branch 0.01] [--whole-machines]
+ *              [--objective resources,machines,...] [--tolerance 0.01%] [--min-branch 0.01] [--min-flow 0.001] [--whole-machines]
  *              [--cost-imports] [--avoid-fluid-byproducts] [--alternates] [--compare-alternates] [--exclude <recipe-id>]
  *              [--enable <recipe-id>] [--max-tier <major-minor>] [--budget "<node-id>=<count>"] [--model <model.json>] [--json]
  *
@@ -11,7 +11,8 @@
  * `--objective` takes a comma-separated stack (resources, scarcity, machines,
  * power, output, types; or o1–o6), solved in order within `--tolerance`
  * (a percentage). `--min-branch` sets the prune pass's threshold in machines
- * (default 0.01; 0 turns it off). Alternates are off unless `--alternates` is given, and
+ * (default 0.01; 0 turns it off), and `--min-flow` the flow prune's, per minute
+ * (default 0.001; 0 turns it off). Alternates are off unless `--alternates` is given, and
  * `--enable` turns on single alternates; `--max-tier` leaves out recipes above
  * a dataset tier (tier 0-0 always stays); `--avoid-fluid-byproducts` lets no
  * fluid but Steam, Flue Gas and Energetic Dark Matter be left over (A39, the app's default);
@@ -44,7 +45,7 @@ import {
 import { ROOT, runPipeline } from './build-data';
 
 export const USAGE = `Usage: pnpm solve --target "Item:rate" [--target ...] [--import "Item[:cap]"]
-                  [--objective resources,machines,...] [--tolerance <percent>] [--min-branch <machines>]
+                  [--objective resources,machines,...] [--tolerance <percent>] [--min-branch <machines>] [--min-flow <per-minute>]
                   [--whole-machines] [--cost-imports] [--avoid-fluid-byproducts] [--alternates] [--compare-alternates] [--exclude <recipe-id>]
                   [--enable <recipe-id>] [--max-tier <major-minor>] [--budget "<node-id>=<count>"] [--model <model.json>] [--json]
 Objectives: resources (o1), scarcity (o2), machines (o3), power (o4), output (o5), types (o6).`;
@@ -87,6 +88,7 @@ export function parseCli(argv: string[], model: Model): CliArgs {
         objective: { type: 'string', short: 'o' },
         tolerance: { type: 'string' },
         'min-branch': { type: 'string' },
+        'min-flow': { type: 'string' },
         'whole-machines': { type: 'boolean' },
         'avoid-fluid-byproducts': { type: 'boolean' },
         'cost-imports': { type: 'boolean' },
@@ -142,6 +144,8 @@ export function parseCli(argv: string[], model: Model): CliArgs {
   // Out-of-range values go to the solver, which rejects them with its own message.
   const minBranch =
     parsed['min-branch'] !== undefined ? number(parsed['min-branch'], '--min-branch') : undefined;
+  const minFlow =
+    parsed['min-flow'] !== undefined ? number(parsed['min-flow'], '--min-flow') : undefined;
   if (parsed.alternates && parsed['no-alternates'])
     throw new CliError('--alternates and --no-alternates contradict each other.');
   const recipeIds = new Set(model.recipes.map((r) => r.id));
@@ -171,6 +175,7 @@ export function parseCli(argv: string[], model: Model): CliArgs {
       ...(stack.length === 1 ? { objective: stack[0]! } : { objectives: stack }),
       ...(tolerance !== undefined ? { tolerance } : {}),
       ...(minBranch !== undefined ? { minBranch } : {}),
+      ...(minFlow !== undefined ? { minFlow } : {}),
       ...(parsed['whole-machines'] ? { wholeMachines: true } : {}),
       ...(parsed['avoid-fluid-byproducts'] ? { avoidFluidByproducts: true } : {}),
       ...(parsed['cost-imports'] ? { costImports: true } : {}),
