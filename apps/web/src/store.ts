@@ -66,6 +66,8 @@ export interface WorldState {
    * warning clears and later saves carry the current hash.
    */
   useCurrentData(): void;
+  /** Names the world; a blank name removes it (N8). */
+  renameWorld(name: string): void;
 
   // World editing (M8). Bad edits throw `WorldEditError` and leave the world unchanged.
   /** Returns the new factory's id; with `parentId`, a sub-factory (A49). */
@@ -251,6 +253,7 @@ export function createWorldStore(initial: World = createWorld()) {
                 dataHashMismatch: undefined,
               },
         ),
+      renameWorld: (name) => apply((w) => edit.renameWorld(w, name)),
       addFactory: (name, groupId, parentId) =>
         create((w) => edit.addFactory(w, name, groupId, parentId)),
       setFactoryParent: (id, parentId) => apply((w) => edit.setFactoryParent(w, id, parentId)),

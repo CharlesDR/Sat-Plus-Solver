@@ -15,12 +15,19 @@ import {
 } from 'react';
 import { CloseIcon } from './icons';
 
+/** A button on a toast, such as Undo; the toast closes when it is used. */
+export interface ToastAction {
+  label: string;
+  run(): void;
+}
+
 interface Toast {
   id: number;
   text: string;
+  action?: ToastAction | undefined;
 }
 
-type Show = (text: string) => void;
+type Show = (text: string, action?: ToastAction) => void;
 
 const ToastContext = createContext<Show>(() => {});
 
@@ -28,6 +35,8 @@ const ToastContext = createContext<Show>(() => {});
 export const useToast = () => useContext(ToastContext);
 
 const LIFETIME_MS = 3500;
+/** A toast with an action stays long enough to use it (N3). */
+const ACTION_LIFETIME_MS = 30_000;
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -39,13 +48,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((ts) => ts.filter((t) => t.id !== id));
   }, []);
   const show = useCallback<Show>(
-    (text) => {
+    (text, action) => {
       const id = ++next.current;
       // At most three at once; the oldest goes first.
-      setToasts((ts) => [...ts.slice(-2), { id, text }]);
+      setToasts((ts) => [...ts.slice(-2), { id, text, action }]);
       timers.current.set(
         id,
-        setTimeout(() => dismiss(id), LIFETIME_MS),
+        setTimeout(() => dismiss(id), action ? ACTION_LIFETIME_MS : LIFETIME_MS),
       );
     },
     [dismiss],
@@ -62,6 +71,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((t) => (
           <div key={t.id} className="toast">
             <span>{t.text}</span>
+            {t.action && (
+              <button
+                type="button"
+                onClick={() => {
+                  dismiss(t.id);
+                  t.action!.run();
+                }}
+              >
+                {t.action.label}
+              </button>
+            )}
             <button
               type="button"
               className="icon-button"

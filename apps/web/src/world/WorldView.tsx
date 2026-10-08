@@ -32,6 +32,12 @@ import { offBuildText } from '../build/build';
 const TABS = ['Ledger', 'Factories', 'Links', 'Power', 'Nodes', 'Groups'] as const;
 type Tab = (typeof TABS)[number];
 
+/** What the empty-world start screen offers besides opening a factory (N7). */
+export interface StartActions {
+  sample(): void;
+  importFile(): void;
+}
+
 export function WorldView(props: {
   world: World;
   store: WorldStore;
@@ -40,8 +46,9 @@ export function WorldView(props: {
   plan: WorldPlanState;
   onOpen(factoryId: string): void;
   onSizePower(factoryId: string): void;
+  start: StartActions;
 }) {
-  const { world, store, catalog, layout, plan, onOpen, onSizePower } = props;
+  const { world, store, catalog, layout, plan, onOpen, onSizePower, start } = props;
   const [tab, setTab] = useState<Tab>('Factories');
   const [traceItem, setTraceId] = useState<string>();
   const [traceText, setTraceText] = useState('');
@@ -238,9 +245,30 @@ export function WorldView(props: {
           </button>
         </form>
         {unplanned && (
-          <div className="canvas-overlay canvas-hint">
-            <strong>Start here.</strong> Open a factory and add a target to plan it. Drag from one
-            factory’s right edge to another’s left edge to link them.
+          <div className="canvas-overlay canvas-hint" role="group" aria-label="Start here">
+            <p>
+              <strong>Start here.</strong> Open a factory and add a target to plan it. Drag from one
+              factory’s right edge to another’s left edge to link them.
+            </p>
+            <div className="start-cards">
+              <button
+                type="button"
+                onClick={() =>
+                  onOpen(world.factories[0]?.id ?? store.getState().addFactory('Factory'))
+                }
+              >
+                <strong>Add a factory</strong>
+                <span>Pick what it makes.</span>
+              </button>
+              <button type="button" onClick={start.sample}>
+                <strong>Open the sample world</strong>
+                <span>Four linked factories.</span>
+              </button>
+              <button type="button" onClick={start.importFile}>
+                <strong>Import a file</strong>
+                <span>A world (.json) or Modeler (.sfmd) file.</span>
+              </button>
+            </div>
           </div>
         )}
       </div>

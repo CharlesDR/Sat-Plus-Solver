@@ -9,7 +9,7 @@ import { itemIcon } from './icons/icons';
 import type { Catalog } from './solver/protocol';
 import type { WorldStore } from './store';
 
-interface Command {
+export interface Command {
   id: string;
   /** What the row says; also what the query matches. */
   label: string;
@@ -27,8 +27,10 @@ export function CommandPalette(props: {
   focus: string | undefined;
   onView(view: View): void;
   onClose(): void;
+  /** World-level commands, such as New world (N6). */
+  actions?: readonly Command[];
 }) {
-  const { store, catalog, focus, onView, onClose } = props;
+  const { store, catalog, focus, onView, onClose, actions } = props;
   const world = useStore(store, (s) => s.world);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
@@ -65,6 +67,7 @@ export function CommandPalette(props: {
         hint: 'Create',
         run: () => onView(factoryView(store.getState().addFactory(''))),
       });
+    for (const a of actions ?? []) if (has(a.label)) out.push(a);
     const factory = world.factories.find((f) => f.id === focus);
     if (factory && q && !factory.manual?.enabled) {
       const items = catalog.targets.filter((i) => i.name.toLowerCase().includes(q));
@@ -90,7 +93,7 @@ export function CommandPalette(props: {
         });
     }
     return out;
-  }, [query, world, focus, catalog.targets, store, onView]);
+  }, [query, world, focus, catalog.targets, store, onView, actions]);
 
   const pick = (c: Command | undefined) => {
     if (!c) return;

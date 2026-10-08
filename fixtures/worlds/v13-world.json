@@ -1,0 +1,269 @@
+{
+  "meta": {
+    "v": 13,
+    "dataHash": "0123456789abcdef",
+    "name": "Phase 2"
+  },
+  "factories": [
+    {
+      "id": "factory-1",
+      "name": "Smelter",
+      "groupId": "group-2",
+      "request": {
+        "targets": [],
+        "minerFluidSupply": "local"
+      },
+      "unassignedImports": [],
+      "resources": {
+        "coal": {
+          "enabled": false
+        },
+        "iron-ore": {
+          "enabled": true,
+          "max": 180
+        },
+        "limestone": {
+          "enabled": false,
+          "max": 45.5
+        }
+      },
+      "priority": 0,
+      "notes": "Ore from the north field",
+      "tweaks": [],
+      "manual": {
+        "enabled": true,
+        "frozen": [
+          {
+            "recipe": "iron-ingot",
+            "machines": 2.5
+          },
+          {
+            "recipe": "mine-iron-ore",
+            "machines": 1
+          }
+        ],
+        "edits": [
+          {
+            "recipe": "iron-ingot",
+            "machines": 3
+          },
+          {
+            "recipe": "iron-plate",
+            "machines": 1.5
+          },
+          {
+            "recipe": "mine-iron-ore",
+            "machines": 0
+          }
+        ]
+      },
+      "areas": {
+        "names": {
+          "steelworks": "Steel Mill"
+        },
+        "moves": {
+          "recipe:iron-plate": "metal-parts"
+        }
+      }
+    },
+    {
+      "id": "factory-2",
+      "name": "Plate Works",
+      "groupId": "group-1",
+      "request": {
+        "targets": [
+          {
+            "item": "reinforced-iron-plate",
+            "rate": 5
+          }
+        ],
+        "objectives": ["resources", "machines"],
+        "tolerance": 0.05,
+        "alternates": true,
+        "wholeMachines": true,
+        "recipes": {
+          "alternate-bolted-iron-plate": true,
+          "iron-wire": false
+        },
+        "maxTier": "2-0",
+        "avoidFluidByproducts": false
+      },
+      "unassignedImports": [
+        {
+          "item": "screw",
+          "cap": 12.5
+        },
+        {
+          "item": "iron-rod"
+        }
+      ],
+      "resources": {},
+      "priority": 0,
+      "notes": "\u00dcn\u00efcode \u2713 and \"quotes\"",
+      "tweaks": [
+        {
+          "kind": "ban",
+          "recipe": "reinforced-iron-plate"
+        },
+        {
+          "kind": "swap",
+          "from": "iron-plate",
+          "to": "alternate-coated-iron-plate"
+        },
+        {
+          "kind": "import",
+          "item": "iron-rod"
+        }
+      ],
+      "built": {
+        "entries": [
+          {
+            "recipe": "iron-plate",
+            "machines": 2
+          },
+          {
+            "recipe": "reinforced-iron-plate",
+            "machines": 1
+          }
+        ],
+        "inputs": [
+          {
+            "item": "iron-ingot",
+            "rate": 60
+          }
+        ],
+        "outputs": [
+          {
+            "item": "reinforced-iron-plate",
+            "rate": 5
+          }
+        ],
+        "dataHash": "0123456789abcdef",
+        "markedAt": "2026-10-07T12:00:00.000Z",
+        "fingerprint": {
+          "factory": "00000000000000aa",
+          "world": "00000000000000bb",
+          "links": "00000000000000cc"
+        }
+      },
+      "collapsed": true,
+      "areas": {
+        "off": true
+      }
+    },
+    {
+      "id": "factory-3",
+      "name": "Power Plant",
+      "request": {
+        "targets": [
+          {
+            "item": "mw",
+            "rate": 75
+          }
+        ],
+        "maxTier": null
+      },
+      "unassignedImports": [],
+      "resources": {},
+      "priority": 0,
+      "notes": "",
+      "tweaks": [],
+      "manual": {
+        "enabled": false,
+        "frozen": [
+          {
+            "recipe": "coal-generator",
+            "machines": 10
+          }
+        ],
+        "edits": []
+      }
+    },
+    {
+      "id": "factory-4",
+      "name": "Plate annex",
+      "parentId": "factory-2",
+      "request": {
+        "targets": [
+          {
+            "item": "iron-plate",
+            "rate": 10
+          }
+        ]
+      },
+      "unassignedImports": [],
+      "resources": {},
+      "priority": 0,
+      "notes": "",
+      "tweaks": []
+    }
+  ],
+  "groups": [
+    {
+      "id": "group-1",
+      "name": "Base",
+      "collapsed": false
+    },
+    {
+      "id": "group-2",
+      "name": "Smelting",
+      "parentId": "group-1",
+      "collapsed": true
+    }
+  ],
+  "links": [
+    {
+      "id": "link-1",
+      "from": "factory-1",
+      "to": "factory-2",
+      "item": "iron-ingot",
+      "mode": {
+        "kind": "pull"
+      },
+      "transport": {
+        "kind": "belt",
+        "tier": 2
+      }
+    },
+    {
+      "id": "link-2",
+      "from": "factory-1",
+      "to": "factory-2",
+      "item": "iron-plate",
+      "mode": {
+        "kind": "fixed",
+        "rate": 30
+      },
+      "transport": {
+        "kind": "train"
+      }
+    },
+    {
+      "id": "link-3",
+      "from": "factory-4",
+      "to": "factory-2",
+      "item": "iron-plate",
+      "mode": {
+        "kind": "pull"
+      },
+      "nested": true
+    }
+  ],
+  "defaults": {
+    "objectives": ["scarcity"],
+    "tolerance": 0.0001,
+    "alternates": false,
+    "wholeMachines": false,
+    "costImports": true,
+    "avoidFluidByproducts": true,
+    "minerFluids": "water",
+    "minerFluidSupply": "outside",
+    "recipes": {
+      "cast-screw": false
+    },
+    "maxTier": "4-0"
+  },
+  "nodePool": {
+    "node:iron-ore:normal": 12
+  }
+}

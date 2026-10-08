@@ -130,6 +130,11 @@ function v11ToV12(doc: Doc): Doc {
   return { ...doc, meta: { ...(doc.meta as Doc), v: 12 } };
 }
 
+/** v12 → v13 (N8): worlds may carry a name; none do yet. */
+function v12ToV13(doc: Doc): Doc {
+  return { ...doc, meta: { ...(doc.meta as Doc), v: 13 } };
+}
+
 const MIGRATIONS: Record<number, (doc: Doc) => Doc> = {
   1: v1ToV2,
   2: v2ToV3,
@@ -142,6 +147,7 @@ const MIGRATIONS: Record<number, (doc: Doc) => Doc> = {
   9: v9ToV10,
   10: v10ToV11,
   11: v11ToV12,
+  12: v12ToV13,
 };
 
 /** Returns `doc` upgraded to the current version; throws on a newer or malformed document. */

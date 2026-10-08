@@ -21,6 +21,8 @@ import { areaCatalog, areaChoices } from './flowchart/areas';
 import { Flowchart, type AreaControls } from './flowchart/Flowchart';
 import type { Saves } from './persistence/saves';
 import { SavePanel, type ModelerFiles } from './persistence/SavePanel';
+import { announceNewWorld, NewWorldDialog } from './persistence/NewWorldDialog';
+import { restorePrevious, startNewWorld } from './persistence/newWorld';
 import type { Boot } from './persistence/session';
 import {
   downloadText,
@@ -42,13 +44,13 @@ import { TweakPanel } from './tweaks/TweakPanel';
 import type { Baseline } from './tweaks/tweaks';
 import { useWorldPlan, type WorldPlanState } from './useWorldPlan';
 import { breadcrumb } from './world/viewModel';
-import { CommandPalette } from './CommandPalette';
+import { CommandPalette, type Command } from './CommandPalette';
 import { PlanStats } from './PlanStats';
 import { LogoMark, SearchIcon, SidebarIcon } from './ui/icons';
 import { useSidebarOpen } from './ui/prefs';
 import { ThemeSwitch } from './ui/ThemeSwitch';
 import { ToastProvider, useToast } from './ui/toasts';
-import { WorldView } from './world/WorldView';
+import { WorldView, type StartActions } from './world/WorldView';
 import { EscapeContext, escapeStack, isTextField, useEscapeLayer } from './escape';
 import { backOut, factoryView, focusOf, parentLookup, WORLD_VIEW, type View } from './viewPath';
 
@@ -83,7 +85,36 @@ function AppFrame(props: {
   const [initError, setInitError] = useState<string | undefined>();
   const [view, setView] = useState<View>(WORLD_VIEW);
   const [palette, setPalette] = useState(false);
+  const [newWorld, setNewWorld] = useState(false);
+  const toast = useToast();
   const escape = useMemo(() => escapeStack(), []);
+  // Starting over (N1–N7): the dialog, Ctrl+K entries and the start screen.
+  const actions: Command[] = [
+    { id: 'new-world', label: 'New world', hint: 'Start over', run: () => setNewWorld(true) },
+  ];
+  // Read on each render, so an open palette sees a backup a load just made.
+  if (palette && saves.readBackup() !== undefined)
+    actions.push({
+      id: 'restore-world',
+      label: 'Restore previous world',
+      hint: 'Undo a load',
+      run: () => toast(restorePrevious(store, saves) ?? 'Restored the previous world.'),
+    });
+  const start = useMemo(
+    () => ({
+      sample: () => {
+        const out = startNewWorld(store, saves, { from: 'sample', name: '' });
+        if (out.ok) announceNewWorld(toast, store, saves, out.undoable);
+      },
+      importFile: () => {
+        const menu = document.querySelector<HTMLDetailsElement>('details.saves');
+        if (!menu) return;
+        menu.open = true;
+        menu.querySelector<HTMLInputElement>('input[type=file]')?.focus();
+      },
+    }),
+    [saves, store, toast],
+  );
   // Modeler files (M14) run in the solver worker, on the world as it is now.
   const modeler = useMemo<ModelerFiles>(
     () => ({
@@ -148,6 +179,11 @@ function AppFrame(props: {
           <div className="brand">
             <LogoMark />
             <h1>Sat-Plus-Solver</h1>
+            {world.meta.name && (
+              <span className="world-name" title="World name">
+                {world.meta.name}
+              </span>
+            )}
           </div>
           <Breadcrumb
             world={world}
@@ -167,7 +203,13 @@ function AppFrame(props: {
               <span>Search</span>
               <kbd>Ctrl K</kbd>
             </button>
-            <SavePanel store={store} saves={saves} boot={boot} modeler={modeler} />
+            <SavePanel
+              store={store}
+              saves={saves}
+              boot={boot}
+              modeler={modeler}
+              onNewWorld={() => setNewWorld(true)}
+            />
             <ThemeSwitch />
           </div>
         </header>
@@ -198,6 +240,7 @@ function AppFrame(props: {
                 catalog={catalog}
                 focus={focus}
                 onView={setView}
+                start={start}
               />
               {palette && (
                 <CommandPalette
@@ -206,7 +249,11 @@ function AppFrame(props: {
                   focus={focus}
                   onView={setView}
                   onClose={() => setPalette(false)}
+                  actions={actions}
                 />
+              )}
+              {newWorld && (
+                <NewWorldDialog store={store} saves={saves} onClose={() => setNewWorld(false)} />
               )}
             </ErrorBoundary>
           )}
@@ -302,8 +349,9 @@ function Shell(props: {
   catalog: Catalog;
   focus: string | undefined;
   onView(view: View): void;
+  start: StartActions;
 }) {
-  const { client, store, layout, catalog, focus, onView } = props;
+  const { client, store, layout, catalog, focus, onView, start } = props;
   const world = useStore(store, (s) => s.world);
   const { state, run } = useWorldPlan(client, world, focus);
   const [actionError, setActionError] = useState<string>();
@@ -351,6 +399,7 @@ function Shell(props: {
             plan={state}
             onOpen={openFactory}
             onSizePower={sizePower}
+            start={start}
           />
         )}
       </ErrorBoundary>
