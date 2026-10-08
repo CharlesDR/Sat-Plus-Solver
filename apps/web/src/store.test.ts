@@ -140,6 +140,18 @@ describe('world store', () => {
     expect(store.getState().dataHashMismatch).toEqual({ world: 'h1', model: 'h2' });
   });
 
+  test('useCurrentData adopts the loaded data hash and clears the warning', () => {
+    const store = createWorldStore(createWorld('old'));
+    store.getState().useCurrentData();
+    // Nothing to adopt before the model is loaded.
+    expect(store.getState().world.meta.dataHash).toBe('old');
+    store.getState().attachData('h1');
+    expect(store.getState().dataHashMismatch).toEqual({ world: 'old', model: 'h1' });
+    store.getState().useCurrentData();
+    expect(store.getState().world.meta.dataHash).toBe('h1');
+    expect(store.getState().dataHashMismatch).toBeUndefined();
+  });
+
   test('loadWorld replaces the document and re-checks its data hash (M9)', () => {
     const store = createWorldStore();
     // Before the model is known, a loaded world is taken as is.
