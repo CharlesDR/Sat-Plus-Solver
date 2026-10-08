@@ -114,7 +114,7 @@ export const MINER_SUPPORT_NAME = 'Miner support';
 
 /** Each factory's miner fluid supplied from outside (A69), from its last solve. */
 export type MinerNeeds = {
-  factories: readonly { id: string; minerSupply?: readonly ItemRate[] }[];
+  factories: readonly { id: string; minerSupply?: readonly ItemRate[] | undefined }[];
 };
 
 /** The Miner support factory: the top-level factory with that name. */
