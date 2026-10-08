@@ -190,11 +190,11 @@ export function parseCount(text: string): number | undefined {
 }
 
 /**
- * `n` as a fraction string that reads back as exactly `n`: `"3"`, `"1/3"`,
+ * `n` as a fraction string; by default one that reads back as exactly `n`: `"3"`, `"1/3"`,
  * `"2734/3"`. Continued fractions, stopped at the first convergent whose
- * quotient is `n` itself as a float.
+ * quotient is `n` itself as a float, or within `tolerance` (relative) of it.
  */
-export function countText(n: number): string {
+export function countText(n: number, tolerance = 0): string {
   if (!Number.isFinite(n) || n < 0) throw new RangeError(`Bad machine count ${n}`);
   if (Number.isInteger(n)) return String(n);
   let [h0, h1, k0, k1] = [0, 1, 1, 0];
@@ -203,7 +203,8 @@ export function countText(n: number): string {
     const a = Math.floor(rest);
     [h0, h1] = [h1, a * h1 + h0];
     [k0, k1] = [k1, a * k1 + k0];
-    if (h1 / k1 === n) return `${h1}/${k1}`;
+    if (h1 / k1 === n || Math.abs(h1 / k1 - n) <= tolerance * Math.max(1, n))
+      return k1 === 1 ? String(h1) : `${h1}/${k1}`;
     const frac = rest - a;
     if (frac === 0 || !Number.isSafeInteger(h1) || !Number.isSafeInteger(k1)) break;
     rest = 1 / frac;
@@ -784,9 +785,9 @@ interface RawNode {
  * sheet is one Outpost holding its nodes; several are Outposts inside a
  * "World" Outpost, nested by `parentId` and wired along `links` (through
  * the Outposts' ports when the two factories sit in different Outposts).
- * Each recipe group is one node named by its recipe, its count in `Max` as
- * an exact fraction; an extractor of ours (no Modeler name) is the
- * resource node, with our recipe and count kept in `Sps`.
+ * Each recipe group is one node named by its recipe, with our recipe and
+ * exact count in `Sps`; an extractor of ours (no Modeler name) is Modeler's
+ * miner of the resource. `Max` goes only where Modeler needs it (A59).
  */
 export function writeModeler(
   world: Pick<World, 'factories' | 'links'>,
@@ -849,8 +850,13 @@ export function writeModeler(
     return k;
   };
 
-  // Nodes.
+  // Nodes. Every recipe node carries our recipe and exact count in `Sps`,
+  // so a file we wrote reads back exactly; `Max` is set later, only where
+  // Modeler's Manual calculator needs it.
   const nodeIndex = new Map<string, number>();
+  const unknowns = new Map<number, Unknown>();
+  /** Extractors Modeler can't wire (it mines only the raw resource): their counts, in parts per minute. */
+  const standalone = new Map<number, number>();
   const key = (factory: string, node: string) => `${factory}\u0000${node}`;
   for (const id of order) {
     const sheet = sheetOf.get(id)!;
@@ -859,54 +865,129 @@ export function writeModeler(
       if (n.kind !== 'recipe') continue;
       const r = names.recipeById.get(n.recipe);
       const modelerName = r && r.source === 'dataset' ? r.name : undefined;
-      const machines = countText(n.machines);
+      const sps = { recipe: n.recipe, machines: countText(n.machines) };
+      const at = { X: Math.round(n.x), Y: Math.round(n.y), Parent: parent };
+      const mined = r?.extracts?.item ?? r?.outputs[0]?.item ?? n.recipe;
       const raw: RawNode = modelerName
-        ? {
-            Name: modelerName,
-            X: Math.round(n.x),
-            Y: Math.round(n.y),
-            Parent: parent,
-            Max: machines,
-          }
-        : {
-            Name: itemName(r?.extracts?.item ?? r?.outputs[0]?.item ?? n.recipe),
-            X: Math.round(n.x),
-            Y: Math.round(n.y),
-            Parent: parent,
-            Title: r?.name ?? n.recipe,
-            Sps: { recipe: n.recipe, machines },
-          };
-      nodeIndex.set(key(id, n.key), data.push(raw) - 1);
+        ? { Name: modelerName, ...at, Sps: sps }
+        : { Name: itemName(mined), ...at, Title: r?.name ?? n.recipe, Sps: sps };
+      const i = data.push(raw) - 1;
+      nodeIndex.set(key(id, n.key), i);
+      if (modelerName) {
+        const rates = (list: Recipe['inputs']) =>
+          new Map(list.map((x) => [itemName(x.item), x.rate] as const));
+        unknowns.set(i, {
+          inputs: rates(r!.inputs),
+          outputs: rates(r!.outputs),
+          value: n.machines,
+          rank: 1,
+        });
+      } else {
+        // An extractor of ours is Modeler's miner of the resource, counted in
+        // parts per minute; it takes nothing and makes only the resource.
+        const ppm = (r?.extracts?.rate ?? r?.outputs[0]?.rate ?? 0) * n.machines;
+        if (r && r.outputs.length === 1 && r.outputs[0]!.item === mined) {
+          unknowns.set(i, {
+            inputs: new Map(),
+            outputs: new Map([[itemName(mined), 1]]),
+            value: ppm,
+            rank: 2,
+          });
+        } else standalone.set(i, ppm);
+      }
     }
   }
   const addInput = (consumer: RawNode, item: string, ref: unknown) => {
     const inputs = (consumer.Inputs ??= {}) as Record<string, unknown[]>;
     (inputs[itemName(item)] ??= []).push(ref);
   };
+  const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-  // Belts inside each sheet.
+  // Belts inside each sheet. What Modeler's node for one of our extractors
+  // doesn't make or take comes in, or goes out, through the Outpost's ports.
   for (const id of order) {
     const sheet = sheetOf.get(id)!;
     const kinds = new Map(sheet.nodes.map((n) => [n.key, n]));
     const o = outpostOf.get(id)!;
+    const wired = (n: SheetNode, item: string, side: 'in' | 'out') => {
+      if (n.kind !== 'recipe') return true;
+      const u = unknowns.get(nodeIndex.get(key(id, n.key))!);
+      return u !== undefined && (side === 'in' ? u.inputs : u.outputs).has(itemName(item));
+    };
+    interface Belt {
+      item: string;
+      src: unknown;
+      to: { node: number } | { port: number };
+      x: number;
+      y: number;
+    }
+    const belts: Belt[] = [];
     for (const b of [...sheet.belts].sort((a, c) =>
       a.from + a.to + a.item < c.from + c.to + c.item ? -1 : 1,
     )) {
       const from = kinds.get(b.from);
       const to = kinds.get(b.to);
-      if (!from || !to) continue;
+      // Modeler has no part for power: a generator's MW stays on its node.
+      if (!from || !to || from.kind === 'out' || to.kind === 'in' || b.item === MW_ITEM_ID)
+        continue;
       const src =
-        from.kind === 'recipe'
-          ? nodeIndex.get(key(id, from.key))
-          : from.kind === 'in'
-            ? [o, port(inPorts, id, b.item, 'in')]
-            : undefined;
-      if (src === undefined) continue;
-      if (to.kind === 'recipe') addInput(data[nodeIndex.get(key(id, to.key))!]!, b.item, src);
-      else if (to.kind === 'out') {
-        const k = port(outPorts, id, b.item, 'out');
-        const ref = typeof src === 'number' ? [src, itemName(b.item)] : src;
-        (data[o]!.InteriorInputs![k] as unknown[]).push(ref);
+        from.kind === 'recipe' && wired(from, b.item, 'out')
+          ? [nodeIndex.get(key(id, from.key))!, itemName(b.item)]
+          : [o, port(inPorts, id, b.item, 'in')];
+      const dest =
+        to.kind === 'recipe' && wired(to, b.item, 'in')
+          ? { node: nodeIndex.get(key(id, to.key))! }
+          : { port: port(outPorts, id, b.item, 'out') };
+      belts.push({ item: b.item, src, to: dest, x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 });
+    }
+    // Where several makers feed several takers of an item, belts alone leave
+    // Modeler unsure how much each one carries: they meet at a Splurger.
+    const groups = new Map<string, Belt[]>();
+    const find = new Map<string, string>();
+    const root = (k: string): string => {
+      const p = find.get(k) ?? k;
+      if (p === k) return k;
+      const r = root(p);
+      find.set(k, r);
+      return r;
+    };
+    const srcKey = (b: Belt) => `s${JSON.stringify(b.src)}`;
+    const toKey = (b: Belt) => `t${JSON.stringify(b.to)}:${b.item}`;
+    for (const b of belts) {
+      const a = root(srcKey(b));
+      const c = root(toKey(b));
+      if (a !== c) find.set(a < c ? c : a, a < c ? a : c);
+    }
+    for (const b of belts) {
+      const g = root(srcKey(b));
+      const list = groups.get(g);
+      if (list) list.push(b);
+      else groups.set(g, [b]);
+    }
+    for (const group of groups.values()) {
+      const srcs: unknown[] = [];
+      for (const b of group) if (!srcs.some((s) => same(s, b.src))) srcs.push(b.src);
+      const tos = new Set(group.map(toKey));
+      let via: ((b: Belt) => unknown) | undefined;
+      if (srcs.length > 1 && tos.size > 1) {
+        const hub =
+          data.push({
+            Name: SPLURGER,
+            X: Math.round(group.reduce((s, b) => s + b.x, 0) / group.length),
+            Y: Math.round(group.reduce((s, b) => s + b.y, 0) / group.length),
+            Parent: o,
+            Inputs: [srcs],
+          }) - 1;
+        via = () => [hub, 0];
+      }
+      const done = new Set<string>();
+      for (const b of group) {
+        const ref = via ? via(b) : b.src;
+        const k = `${toKey(b)}:${JSON.stringify(ref)}`;
+        if (done.has(k)) continue;
+        done.add(k);
+        if ('node' in b.to) addInput(data[b.to.node]!, b.item, ref);
+        else (data[o]!.InteriorInputs![b.to.port] as unknown[]).push(ref);
       }
     }
   }
@@ -932,7 +1013,7 @@ export function writeModeler(
       const maker = sheet.nodes.find(
         (n) =>
           n.kind === 'recipe' &&
-          names.recipeById.get(n.recipe)?.outputs.some((x) => x.item === l.item),
+          unknowns.get(nodeIndex.get(key(l.from, n.key))!)?.outputs.has(itemName(l.item)),
       );
       if (!maker) continue;
       ref = [nodeIndex.get(key(l.from, maker.key)), itemName(l.item)];
@@ -950,7 +1031,7 @@ export function writeModeler(
       for (const n of sheet.nodes)
         if (
           n.kind === 'recipe' &&
-          names.recipeById.get(n.recipe)?.inputs.some((x) => x.item === l.item)
+          unknowns.get(nodeIndex.get(key(l.to, n.key))!)?.inputs.has(itemName(l.item))
         )
           addInput(data[nodeIndex.get(key(l.to, n.key))!]!, l.item, ref);
       continue;
@@ -963,6 +1044,26 @@ export function writeModeler(
     }
   }
 
+  // Modeler reads a second identical connection as unplugging the first, and
+  // then fails to load: each connection is written once.
+  const once = (refs: unknown[]) => refs.filter((r, i) => refs.findIndex((x) => same(x, r)) === i);
+  for (const n of data) {
+    if (Array.isArray(n.Inputs)) n.Inputs = n.Inputs.map(once);
+    else if (n.Inputs)
+      for (const [item, refs] of Object.entries(n.Inputs)) n.Inputs[item] = once(refs);
+    if (n.InteriorInputs) n.InteriorInputs = n.InteriorInputs.map(once);
+  }
+
+  openUnbalanced(data, unknowns);
+
+  // Max: just enough counts for Modeler's Manual calculator to work out
+  // every other one from the belts (A58).
+  for (const i of manualPins(data, unknowns)) {
+    const u = unknowns.get(i)!;
+    data[i]!.Max = countText(u.value, MAX_TOL);
+  }
+  for (const [i, ppm] of standalone) data[i]!.Max = countText(ppm, MAX_TOL);
+
   const save = {
     Version: '1.0',
     Solver: 'Manual',
@@ -973,4 +1074,214 @@ export function writeModeler(
     Data: data,
   };
   return JSON.stringify(save);
+}
+
+const SPLURGER = 'Splurger';
+
+/** A written node Modeler's Manual calculator solves for: its rates per unit of its count. */
+interface Unknown {
+  inputs: Map<string, number>;
+  outputs: Map<string, number>;
+  /** Our count, in Modeler's units. */
+  value: number;
+  /** Pin order: 0 makes a factory output, 1 another machine, 2 an extractor. */
+  rank: number;
+}
+
+/** Below this (relative to a row's largest coefficient) a coefficient is rounding noise. */
+const PIN_TOL = 1e-9;
+
+/** Where belts join makers and takers of one item, as Modeler balances them. */
+interface Junction {
+  /** Slots: `in:i:Item`, `out:i:Item`, `h:i` (Splurger), `ip:o:k` / `op:o:k` (Outpost ports). */
+  members: string[];
+  /** It reaches an Outpost port with nothing on its other side, which takes or brings any amount. */
+  open: boolean;
+}
+
+function junctions(data: readonly RawNode[]): Junction[] {
+  const parent = new Map<string, string>();
+  const find = (k: string): string => {
+    const p = parent.get(k) ?? k;
+    if (p === k) return k;
+    const r = find(p);
+    parent.set(k, r);
+    return r;
+  };
+  const join = (a: string, b: string) => {
+    const x = find(a);
+    const y = find(b);
+    if (x !== y) parent.set(x < y ? y : x, x < y ? x : y);
+  };
+  const slots = new Set<string>();
+  /** Connections each side of each Outpost port has: [outside, inside]. */
+  const sides = new Map<string, [number, number]>();
+  const side = (slot: string, outside: boolean) => {
+    const s = sides.get(slot) ?? [0, 0];
+    s[outside ? 0 : 1]++;
+    sides.set(slot, s);
+  };
+  const producer = (ref: unknown, container: number | undefined): string | undefined => {
+    if (!Array.isArray(ref)) return undefined;
+    const [src, p] = ref as [number, unknown];
+    const n = data[src];
+    if (!n) return undefined;
+    if (n.Name === OUTPOST) {
+      const slot = `${src === container ? 'ip' : 'op'}:${src}:${String(p)}`;
+      side(slot, src !== container);
+      return slot;
+    }
+    if (n.Name === SPLURGER) return `h:${src}`;
+    return typeof p === 'string' ? `out:${src}:${p}` : undefined;
+  };
+  const connect = (slot: string, refs: readonly unknown[], container: number | undefined) => {
+    for (const ref of refs) {
+      const from = producer(ref, container);
+      if (from === undefined) continue;
+      slots.add(slot).add(from);
+      join(slot, from);
+    }
+  };
+  data.forEach((n, i) => {
+    if (n.Name === OUTPOST) {
+      ((n.Inputs ?? []) as unknown[][]).forEach((refs, k) => {
+        for (let j = 0; j < refs.length; j++) side(`ip:${i}:${k}`, true);
+        connect(`ip:${i}:${k}`, refs, n.Parent);
+      });
+      (n.InteriorInputs ?? []).forEach((refs, k) => {
+        for (let j = 0; j < refs.length; j++) side(`op:${i}:${k}`, false);
+        connect(`op:${i}:${k}`, refs, i);
+      });
+    } else if (n.Name === SPLURGER) {
+      connect(`h:${i}`, ((n.Inputs ?? []) as unknown[][]).flat(), n.Parent);
+    } else if (n.Inputs && !Array.isArray(n.Inputs)) {
+      for (const [item, refs] of Object.entries(n.Inputs))
+        connect(`in:${i}:${item}`, refs, n.Parent);
+    }
+  });
+  const groups = new Map<string, string[]>();
+  for (const s of [...slots].sort()) {
+    const r = find(s);
+    const list = groups.get(r);
+    if (list) list.push(s);
+    else groups.set(r, [s]);
+  }
+  return [...groups.values()].map((members) => ({
+    members,
+    open: members.some((s) => {
+      if (!s.startsWith('ip:') && !s.startsWith('op:')) return false;
+      const lr = sides.get(s);
+      return !lr || lr[0] === 0 || lr[1] === 0;
+    }),
+  }));
+}
+
+/** A junction's balance over the counts: what is made minus what is taken, by node; undefined if it can't be told. */
+function balance(j: Junction, unknowns: ReadonlyMap<number, Unknown>) {
+  const row = new Map<number, number>();
+  for (const s of j.members) {
+    const [kind, at, ...rest] = s.split(':');
+    if (kind !== 'in' && kind !== 'out') continue;
+    const i = Number(at);
+    const u = unknowns.get(i);
+    const rate = u && (kind === 'in' ? u.inputs : u.outputs).get(rest.join(':'));
+    if (rate === undefined) return undefined;
+    row.set(i, (row.get(i) ?? 0) + (kind === 'out' ? rate : -rate));
+  }
+  return row;
+}
+
+/**
+ * Leaves every junction balanced over our counts: a manual plan (A36) may
+ * make more of an item than it uses, or less. The extra leaves through an
+ * output port of the Outpost; the shortfall comes in through an input port.
+ * Otherwise Modeler would balance it anyway, at other counts than ours.
+ */
+function openUnbalanced(data: RawNode[], unknowns: ReadonlyMap<number, Unknown>) {
+  for (const j of junctions(data)) {
+    if (j.open) continue;
+    const row = balance(j, unknowns);
+    if (!row) continue;
+    let net = 0;
+    let scale = 0;
+    for (const [i, c] of row) {
+      net += c * unknowns.get(i)!.value;
+      scale = Math.max(scale, Math.abs(c * unknowns.get(i)!.value));
+    }
+    if (Math.abs(net) <= BALANCE_TOL * Math.max(1, scale)) continue;
+    const want = net > 0 ? 'out' : 'in';
+    const slot = j.members.find((s) => s.startsWith(`${want}:`));
+    if (!slot) continue;
+    const [, at, ...rest] = slot.split(':');
+    const i = Number(at);
+    const item = rest.join(':');
+    const o = data[i]!.Parent;
+    if (o === undefined) continue;
+    if (want === 'out') (data[o]!.InteriorInputs ??= []).push([[i, item]]);
+    else {
+      const ports = (data[o]!.Inputs ??= []) as unknown[][];
+      const k = ports.push([]) - 1;
+      ((data[i]!.Inputs as Record<string, unknown[]>)[item] ??= []).push([o, k]);
+    }
+  }
+}
+
+/** A `Max` may be this far (relative) from our count, for a shorter fraction; `Sps` keeps the exact one. */
+const MAX_TOL = 1e-9;
+
+/** A balance this close to zero (relative to its largest flow) holds. */
+const BALANCE_TOL = 1e-6;
+
+/**
+ * The nodes that get a `Max` (A58). Modeler's Manual calculator solves one
+ * linear system: at every junction what is made equals what is taken, and
+ * every `Max` fixes a count. It drops a `Max` that disagrees with the
+ * others (arbitrarily) and shows `?` where nothing fixes a count. So this
+ * picks a smallest set of counts that, with the balances, fixes every other
+ * one: factory outputs' makers first, extractors last, in file order
+ * otherwise. An open junction has no balance.
+ */
+function manualPins(data: readonly RawNode[], unknowns: ReadonlyMap<number, Unknown>): number[] {
+  const rows: Map<number, number>[] = [];
+  const rank = new Map([...unknowns].map(([i, u]) => [i, u.rank]));
+  for (const j of junctions(data)) {
+    const row = balance(j, unknowns);
+    if (row && j.members.some((m) => m.startsWith('op:')))
+      for (const s of j.members) if (s.startsWith('out:')) rank.set(Number(s.split(':')[1]), 0);
+    if (!j.open && row && row.size > 0) rows.push(row);
+  }
+
+  // Forward elimination; then pin counts until every one is fixed.
+  const basis: { pivot: number; row: Map<number, number> }[] = [];
+  const add = (row: Map<number, number>): boolean => {
+    const r = new Map(row);
+    let scale = Math.max(...[...r.values()].map(Math.abs));
+    for (const b of basis) {
+      const c = r.get(b.pivot);
+      if (c === undefined) continue;
+      const f = c / b.row.get(b.pivot)!;
+      for (const [v, x] of b.row) {
+        const y = (r.get(v) ?? 0) - f * x;
+        scale = Math.max(scale, Math.abs(y));
+        r.set(v, y);
+      }
+      r.delete(b.pivot);
+    }
+    let pivot: number | undefined;
+    for (const [v, x] of r) {
+      if (Math.abs(x) <= PIN_TOL * scale) r.delete(v);
+      else if (pivot === undefined || Math.abs(x) > Math.abs(r.get(pivot)!)) pivot = v;
+    }
+    if (pivot === undefined) return false;
+    basis.push({ pivot, row: r });
+    return true;
+  };
+  for (const row of rows) add(row);
+  const pins: number[] = [];
+  const order = [...unknowns.keys()].sort((a, b) => rank.get(a)! - rank.get(b)! || a - b);
+  for (const i of order) {
+    if (basis.length >= unknowns.size) break;
+    if (add(new Map([[i, 1]]))) pins.push(i);
+  }
+  return pins.sort((a, b) => a - b);
 }

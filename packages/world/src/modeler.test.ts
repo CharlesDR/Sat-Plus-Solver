@@ -14,6 +14,7 @@ import {
   parseModeler,
   writeModeler,
   type ModelerSheet,
+  type SheetNode,
 } from './modeler';
 import { buildWorld, pull } from './testing';
 
@@ -243,6 +244,119 @@ describe('writing a Modeler save (A58)', () => {
     expect(r.world.links.map((l) => [l.from, l.to, l.item])).toEqual([
       ['factory-1', 'factory-2', 'iron-rod'],
     ]);
+  });
+
+  // One factory, balanced: ingots go to plates and rods, which both leave.
+  const plates = (ingots: SheetNode[]): ModelerSheet => ({
+    factory: 'a',
+    nodes: [
+      { key: 'ore', kind: 'in', item: 'iron-ore', x: 0, y: 0 },
+      ...ingots,
+      { key: 'plate', kind: 'recipe', recipe: 'iron-plate', machines: 1, x: 200, y: 0 },
+      { key: 'rod', kind: 'recipe', recipe: 'iron-rod', machines: 1, x: 200, y: 100 },
+      { key: 'plates', kind: 'out', item: 'iron-plate', x: 300, y: 0 },
+      { key: 'rods', kind: 'out', item: 'iron-rod', x: 300, y: 100 },
+    ],
+    belts: [
+      ...ingots.flatMap((n) => [
+        { from: 'ore', to: n.key, item: 'iron-ore' },
+        { from: n.key, to: 'plate', item: 'iron-ingot' },
+        { from: n.key, to: 'rod', item: 'iron-ingot' },
+      ]),
+      { from: 'plate', to: 'plates', item: 'iron-plate' },
+      { from: 'rod', to: 'rods', item: 'iron-rod' },
+    ],
+  });
+  const ingot = (key: string, machines: number, y = 0): SheetNode => ({
+    key,
+    kind: 'recipe',
+    recipe: 'iron-ingot',
+    machines,
+    x: 100,
+    y,
+  });
+  const nodes = (text: string) =>
+    (JSON.parse(text) as { Data: Record<string, unknown>[] }).Data.map((n) => ({
+      name: n.Name,
+      max: n.Max ?? null,
+      inputs: n.Inputs ?? null,
+    }));
+
+  test('only the counts Modeler needs to work out the rest get a Max (A58)', () => {
+    // Plates and rods fix the ingots: 30 + 15 a minute is 1.5 smelters.
+    const text = writeModeler(world(), [plates([ingot('ingot', 1.5)])], model);
+    expect(nodes(text)).toEqual([
+      { name: 'Outpost', max: null, inputs: [[]] },
+      { name: 'Iron Ingot', max: null, inputs: { 'Iron Ore': [[0, 0]] } },
+      { name: 'Iron Plate', max: '1', inputs: { 'Iron Ingot': [[1, 'Iron Ingot']] } },
+      { name: 'Iron Rod', max: '1', inputs: { 'Iron Ingot': [[1, 'Iron Ingot']] } },
+    ]);
+    // Each recipe node keeps our exact count for reading back.
+    const raw = JSON.parse(text) as { Data: { Sps?: unknown }[] };
+    expect(raw.Data[1]!.Sps).toEqual({ recipe: 'iron-ingot', machines: '3/2' });
+  });
+
+  test('what a manual plan makes beyond its use leaves through an output port', () => {
+    const text = writeModeler(world(), [plates([ingot('ingot', 2)])], model);
+    const raw = JSON.parse(text) as { Data: Record<string, unknown>[] };
+    // 60 ingots a minute, 45 used: the extra 15 leave, and the ingots need their own Max.
+    expect(raw.Data[0]!.InteriorInputs).toEqual([
+      [[2, 'Iron Plate']],
+      [[3, 'Iron Rod']],
+      [[1, 'Iron Ingot']],
+    ]);
+    expect(nodes(text).map((n) => n.max)).toEqual([null, '2', '1', '1']);
+  });
+
+  test('several makers feeding several takers meet at a Splurger', () => {
+    const text = writeModeler(
+      world(),
+      [plates([ingot('ingot-1', 1), ingot('ingot-2', 0.5, 50)])],
+      model,
+    );
+    const hub = [
+      [1, 'Iron Ingot'],
+      [2, 'Iron Ingot'],
+    ];
+    expect(nodes(text)).toEqual([
+      { name: 'Outpost', max: null, inputs: [[]] },
+      // Two smelters share the ingots: one of them needs a count.
+      { name: 'Iron Ingot', max: '1', inputs: { 'Iron Ore': [[0, 0]] } },
+      { name: 'Iron Ingot', max: null, inputs: { 'Iron Ore': [[0, 0]] } },
+      { name: 'Iron Plate', max: '1', inputs: { 'Iron Ingot': [[5, 0]] } },
+      { name: 'Iron Rod', max: '1', inputs: { 'Iron Ingot': [[5, 0]] } },
+      { name: 'Splurger', max: null, inputs: [hub] },
+    ]);
+  });
+
+  test('a connection two links share is written once', () => {
+    // Rods made in y (inside x) go to z1 and z2: both links leave x through one port.
+    const w = buildWorld(
+      [{ id: 'x' }, { id: 'y' }, { id: 'z1' }, { id: 'z2' }],
+      [pull('l1', 'y', 'z1', 'iron-rod'), pull('l2', 'y', 'z2', 'iron-rod')],
+    );
+    w.factories[1]!.parentId = 'x';
+    const rods = (factory: string, kind: 'in' | 'out'): ModelerSheet => ({
+      factory,
+      nodes: [
+        { key: 'rod', kind: 'recipe', recipe: 'iron-rod', machines: 1, x: 0, y: 0 },
+        { key: 'end', kind, item: 'iron-rod', x: 100, y: 0 },
+      ],
+      belts: [
+        kind === 'out'
+          ? { from: 'rod', to: 'end', item: 'iron-rod' }
+          : { from: 'end', to: 'rod', item: 'iron-rod' },
+      ],
+    });
+    const sheets = [
+      { factory: 'x', nodes: [], belts: [] },
+      rods('y', 'out'),
+      rods('z1', 'in'),
+      rods('z2', 'in'),
+    ];
+    const raw = JSON.parse(writeModeler(w, sheets, model)) as { Data: Record<string, unknown>[] };
+    const x = raw.Data.find((n) => n.Title === 'X')!;
+    expect(x.InteriorInputs).toEqual([[[raw.Data.findIndex((n) => n.Title === 'Y'), 0]]]);
   });
 
   test('one factory is one Outpost', async () => {
