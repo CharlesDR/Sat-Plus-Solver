@@ -34,6 +34,9 @@ const MAX_NODE_CHARS = 40;
 export const GROUP_HEADER = 36;
 /** Room below a factory's or collapsed group's text for its Open/Expand button. */
 export const ACTION_ROW = 24;
+/** A factory's row of product icons (UI-8), and the room an icon takes beside an edge label line. */
+export const ICON_ROW = 22;
+export const LABEL_ICON = 20;
 /** Lines a stub lists before "… n more". */
 const STUB_LINES = 5;
 
@@ -121,8 +124,16 @@ export async function layoutWorldGraph(
       ? { id: n.id, layoutOptions: GROUP_OPTIONS, children: [] }
       : {
           id: n.id,
-          width: Math.max(MIN_NODE_WIDTH, textWidth(lines) + 2 * PADDING_X),
-          height: lines.length * LINE_HEIGHT + 2 * PADDING_Y + (n.kind === 'stub' ? 0 : ACTION_ROW),
+          width: Math.max(
+            MIN_NODE_WIDTH,
+            textWidth(lines) + 2 * PADDING_X,
+            (n.products?.length ?? 0) * ICON_ROW + 2 * PADDING_X,
+          ),
+          height:
+            lines.length * LINE_HEIGHT +
+            2 * PADDING_Y +
+            (n.kind === 'stub' ? 0 : ACTION_ROW) +
+            (n.products?.length ? ICON_ROW : 0),
         };
     if (frame) node.width = Math.max(MIN_NODE_WIDTH, textWidth(lines) + 2 * PADDING_X + 80);
     elk.set(n.id, node);
@@ -136,7 +147,9 @@ export async function layoutWorldGraph(
       id: e.id,
       sources: [e.source],
       targets: [e.target],
-      labels: [{ text: l.join('\n'), width: textWidth(l), height: l.length * LINE_HEIGHT }],
+      labels: [
+        { text: l.join('\n'), width: textWidth(l) + LABEL_ICON, height: l.length * LINE_HEIGHT },
+      ],
     };
   });
   const out = await engine.layout(root);

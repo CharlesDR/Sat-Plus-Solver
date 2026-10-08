@@ -173,6 +173,11 @@ describe('worldGraph', () => {
       { item: 'screw', name: 'Screw', rate: 4 },
     ]);
     expect(worldNodeLines(node('factory:factory-1'))[0]).toBe('Ore');
+    // Factory cards carry icons for what they ship or target (UI-8).
+    expect(node('factory:factory-1').products).toEqual([
+      { item: 'iron-ingot', name: 'Iron Ingot' },
+      { item: 'iron-plate', name: 'Iron Plate' },
+    ]);
   });
 
   test('a collapsed group is one node; its internal links are hidden', () => {

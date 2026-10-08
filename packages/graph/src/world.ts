@@ -80,6 +80,8 @@ export interface WorldNode {
   /** Stubs: unmet imports (`in`) or unclaimed surplus (`out`), sorted by item. */
   direction?: 'in' | 'out';
   items?: StubItem[];
+  /** Factories: what it makes for its targets or ships over links, by item (UI-8). */
+  products?: { item: string; name: string }[];
   traced: boolean;
 }
 
@@ -254,6 +256,10 @@ export function worldGraph(input: WorldGraphInput, options: WorldGraphOptions = 
       power: { ...f.power },
       nodesUsed: sumNodes(f.nodes),
       machines: f.machines,
+      products: f.ledger
+        .filter((r) => r.target > FLOW_TOL || r.exported > FLOW_TOL)
+        .map((r) => ({ item: r.item, name: name(r.item) }))
+        .sort((a, b) => byKey(a.item, b.item)),
       traced: trace !== undefined && touches(f.ledger, trace),
     });
     ledgers.set(id, f.ledger);
