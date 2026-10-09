@@ -899,13 +899,13 @@ label.inline {
 }
 
 /* ---------- Factory view: settings sidebar + plan ---------- */
-.factory {
+.factory-view {
   display: grid;
   grid-template-columns: 500px minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
-.factory.sidebar-closed {
+.factory-view.sidebar-closed {
   grid-template-columns: 44px minmax(0, 1fr);
 }
 .sidebar {
@@ -955,12 +955,12 @@ label.inline {
   border: 2px solid var(--manual);
   background: var(--manual-bg);
 }
-.factory.manual .plan-pane {
+.factory-view.manual .plan-pane {
   padding: 12px;
   border: 2px solid var(--manual);
   border-radius: calc(var(--radius) + 4px);
 }
-.factory.manual .plan-toolbar.manual {
+.factory-view.manual .plan-toolbar.manual {
   border-width: 1px;
 }
 
@@ -2208,8 +2208,8 @@ input.flow-area-name {
 
 /* ---------- Narrow windows ---------- */
 @media (max-width: 1100px) {
-  .factory,
-  .factory.sidebar-closed {
+  .factory-view,
+  .factory-view.sidebar-closed {
     grid-template-columns: minmax(0, 1fr);
   }
   .sidebar {

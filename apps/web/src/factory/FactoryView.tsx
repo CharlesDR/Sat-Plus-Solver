@@ -296,7 +296,7 @@ export function FactoryView(props: {
 
   return (
     <div
-      className={cls('factory', manual && 'manual', !sidebarOpen && 'sidebar-closed')}
+      className={cls('factory-view', manual && 'manual', !sidebarOpen && 'sidebar-closed')}
       data-testid="factory-view"
     >
       <aside className="sidebar controls" aria-label="Factory controls">
