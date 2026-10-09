@@ -230,6 +230,7 @@ export function summarizeWorld(result: WorldResult): WorldSummary {
       return {
         ...rest,
         diagnostics: [...solved.diagnostics],
+        ...(solved.minerSupply ? { minerSupply: solved.minerSupply.map((m) => ({ ...m })) } : {}),
       };
     }),
   };

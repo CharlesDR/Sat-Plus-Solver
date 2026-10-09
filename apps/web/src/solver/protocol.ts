@@ -1,7 +1,7 @@
 /** Messages between the main thread and the solver worker. */
 import type { Area, BeltCapacity, NodePurity } from '@sps/data';
 import type { FactoryGraph } from '@sps/graph';
-import type { Diagnostic, PlanSummary, SummaryFlow } from '@sps/solver';
+import type { Diagnostic, ItemRate, PlanSummary, SummaryFlow } from '@sps/solver';
 import type { FactoryResult, ModelerReportLine, World, WorldResult } from '@sps/world';
 
 /** An item the target picker offers. */
@@ -79,6 +79,8 @@ export interface Catalog {
 export interface FactorySummary extends Omit<FactoryResult, 'result'> {
   /** The factory's own solve diagnostics, structured so the UI can offer fixes. */
   diagnostics: Diagnostic[];
+  /** Miner fluid supplied from outside (A69), for the Miner support factory (A71). */
+  minerSupply?: ItemRate[];
 }
 
 /** The world result the UI shows (PLAN M8). */

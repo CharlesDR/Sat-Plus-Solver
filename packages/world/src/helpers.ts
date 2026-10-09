@@ -1,10 +1,12 @@
 /**
  * World editing helpers (docs/ARCHITECTURE.md §4.4–4.5): "allocate remaining"
- * resource limits and "size power plant". Pure: each returns a new `World`.
+ * resource limits, "size power plant" and the Miner support factory (A71).
+ * Pure: each returns a new `World`.
  */
 import { MW_ITEM_ID, type Model } from '@sps/data';
-import type { RawResource } from '@sps/solver';
+import type { ItemRate, RawResource } from '@sps/solver';
 import type { ResourceLimit, World } from './document';
+import { addFactory, addLink } from './editing';
 import { createSolveCache, type SolveCache } from './hash';
 import { resolveWorld, type ResolveOptions } from './resolve';
 import type { FactoryResult, SolveFactory, WorldResult } from './types';
@@ -105,4 +107,61 @@ function setTarget(world: World, factoryId: string, mw: number): World {
       return { ...f, request: { ...f.request, targets } };
     }),
   };
+}
+
+/** The name the Miner support factory gets, and is found by again (A71). */
+export const MINER_SUPPORT_NAME = 'Miner support';
+
+/** Each factory's miner fluid supplied from outside (A69), from its last solve. */
+export type MinerNeeds = {
+  factories: readonly { id: string; minerSupply?: readonly ItemRate[] | undefined }[];
+};
+
+/** The Miner support factory: the top-level factory with that name. */
+const supportOf = (world: World) =>
+  world.factories.find((f) => f.name === MINER_SUPPORT_NAME && f.parentId === undefined);
+
+/** Factory and fluid pairs that need miner fluid but have no link from Miner support yet. */
+export function unwiredMinerNeeds(world: World, needs: MinerNeeds): { to: string; item: string }[] {
+  const support = supportOf(world);
+  const linked = new Set(
+    world.links.filter((l) => l.from === support?.id).map((l) => `${l.to}\u0000${l.item}`),
+  );
+  const exists = new Set(world.factories.map((f) => f.id));
+  return [...needs.factories]
+    .filter((f) => f.id !== support?.id && exists.has(f.id))
+    .sort((a, b) => (a.id < b.id ? -1 : 1))
+    .flatMap((f) =>
+      (f.minerSupply ?? [])
+        .filter((m) => m.rate > 0 && !linked.has(`${f.id}\u0000${m.item}`))
+        .map((m) => ({ to: f.id, item: m.item })),
+    );
+}
+
+/**
+ * "Miner support" (A71): makes (or reuses) a factory that makes the miner
+ * fluid every other factory gets supplied from outside, with a pull link to
+ * each, so the fluid is made somewhere in the world and the world totals
+ * count it. Miner support makes its own miner fluid here.
+ */
+export function wireMinerSupport(
+  world: World,
+  needs: MinerNeeds,
+): { world: World; factoryId: string; links: string[] } {
+  let w = world;
+  let id = supportOf(w)?.id;
+  if (id === undefined) ({ world: w, id } = addFactory(w, MINER_SUPPORT_NAME));
+  w = {
+    ...w,
+    factories: w.factories.map((f) =>
+      f.id === id ? { ...f, request: { ...f.request, minerFluidSupply: 'local' } } : f,
+    ),
+  };
+  const links: string[] = [];
+  for (const n of unwiredMinerNeeds(w, needs)) {
+    const out = addLink(w, { from: id, to: n.to, item: n.item, mode: { kind: 'pull' } });
+    w = out.world;
+    links.push(out.id);
+  }
+  return { world: w, factoryId: id, links };
 }
