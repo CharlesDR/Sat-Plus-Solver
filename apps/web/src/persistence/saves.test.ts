@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { MAX_SLOTS, createSaves } from './saves';
+import { MAX_SLOTS, SIMPLE_PREFIX, createSaves } from './saves';
 import { blockedStorage, memoryStorage } from './testing';
 
 const clock = () => {
@@ -76,5 +76,23 @@ describe('local saves (PLAN M9)', () => {
     expect(createSaves(storage).list()).toEqual([]);
     storage.setItem('sps:slots', JSON.stringify([{ id: 'slot-1' }, 7]));
     expect(createSaves(storage).list()).toEqual([]);
+  });
+
+  test('simple mode keeps its own saves under its prefix (A72)', () => {
+    const storage = memoryStorage();
+    const main = createSaves(storage);
+    const simple = createSaves(storage, clock(), SIMPLE_PREFIX);
+    main.writeAutosave('m');
+    simple.writeAutosave('s');
+    simple.backupAutosave();
+    simple.save('Mine', 'x');
+    expect(main.readAutosave()).toBe('m');
+    expect(main.readBackup()).toBeUndefined();
+    expect(main.list()).toEqual([]);
+    expect(simple.readAutosave()).toBe('s');
+    expect(simple.list().map((s) => s.name)).toEqual(['Mine']);
+    expect([...storage.data.keys()].filter((k) => !k.startsWith('sps:simple:'))).toEqual([
+      'sps:autosave',
+    ]);
   });
 });

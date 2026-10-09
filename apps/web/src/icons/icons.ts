@@ -9,7 +9,9 @@ import manifest from './manifest.json';
 
 const items = new Set<string>(manifest.items);
 const machines = new Set<string>(manifest.machines);
-const base = `${import.meta.env.BASE_URL}icons`;
+// A page below the site root (simple mode, A72) says how to reach it in `<html data-root>`.
+const root = typeof document === 'undefined' ? '' : (document.documentElement.dataset.root ?? '');
+const base = `${import.meta.env.BASE_URL}${root}icons`;
 
 export function itemIcon(id: string | undefined): string | undefined {
   return id !== undefined && items.has(id) ? `${base}/items/${id}.webp` : undefined;

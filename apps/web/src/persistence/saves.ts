@@ -7,12 +7,16 @@
 
 export const MAX_SLOTS = 10;
 
-const KEY = {
-  autosave: 'sps:autosave',
-  backup: 'sps:autosave:backup',
-  slots: 'sps:slots',
-  slot: (id: string) => `sps:slot:${id}`,
-};
+/** The full planner's keys; simple mode (A72) keeps its own under `SIMPLE_PREFIX`. */
+export const MAIN_PREFIX = 'sps:';
+export const SIMPLE_PREFIX = 'sps:simple:';
+
+const keys = (p: string) => ({
+  autosave: `${p}autosave`,
+  backup: `${p}autosave:backup`,
+  slots: `${p}slots`,
+  slot: (id: string) => `${p}slot:${id}`,
+});
 
 export interface SlotInfo {
   id: string;
@@ -49,8 +53,16 @@ export function browserStorage(): Storage | undefined {
   }
 }
 
-/** Saves over `storage`; `now` is injected so tests are deterministic. */
-export function createSaves(storage: Storage | undefined, now: () => number = Date.now): Saves {
+/**
+ * Saves over `storage`, under the keys starting with `prefix`; `now` is
+ * injected so tests are deterministic.
+ */
+export function createSaves(
+  storage: Storage | undefined,
+  now: () => number = Date.now,
+  prefix: string = MAIN_PREFIX,
+): Saves {
+  const KEY = keys(prefix);
   const get = (key: string): string | undefined => {
     try {
       return storage?.getItem(key) ?? undefined;

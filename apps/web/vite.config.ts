@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
@@ -23,4 +24,13 @@ export default defineConfig({
   // highs.mjs locates highs.wasm via import.meta.url; pre-bundling would break that in dev.
   optimizeDeps: { exclude: ['highs'] },
   worker: { format: 'es' },
+  // Two pages from one build: the full planner, and simple mode at /simple/ (A72).
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(import.meta.dirname, 'index.html'),
+        simple: resolve(import.meta.dirname, 'simple/index.html'),
+      },
+    },
+  },
 });

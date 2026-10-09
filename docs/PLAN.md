@@ -154,6 +154,16 @@ References like §4.3 point into `ARCHITECTURE.md`.
 - **As built (A49–A53):** a child's target counts what it sends its parent (it makes the larger, not the sum); the parent draws on a child's surplus after fixed links and before pull links, shown as `surplus` link results; a family is ordered and swept as a cycle.
 - **Acceptance:** A child's output reaches its parent through the automatic links and the ledgers conserve. Esc from a grandchild returns to the child, then the parent, then the world. A parent cycle is rejected as an edit. A v9 save migrates with no parents. A collapsed parent shows only flows crossing its subtree.
 
+### M17 — Simple mode
+
+Charles, 2026-10-08 (OT-1): a single-factory sandbox for testers.
+
+- A second page at `…/simple/`, built from the same Vite build and deployed with the main app. It opens straight into one factory: targets, imports, settings, flowchart, summary, manual mode and plan tweaks. There is no world canvas, breadcrumb, groups, links, nesting, build marks or Ctrl+K search, and no "Settings apply to" switch (A72).
+- Its world is a one-factory World, so the solver, checks and save format are unchanged. A loaded file, slot or link with more factories keeps its first top-level factory, with its links as targets and imports, and says so.
+- Its autosave, backup and slots live under `sps:simple:` keys, apart from the full planner's. Its share links open in simple mode. The theme is shared.
+- Bridges to the full planner ("Open in full planner", "Send to simple mode") are deferred (OT-2).
+- **Acceptance:** `/simple/` opens one factory and solves; a reload keeps it; the full planner's autosave is untouched and its world doesn't change; a share link made in simple mode opens in simple mode; icons load on both pages.
+
 ### Graph readability track (G1–G5)
 
 Charles, 2026-10-07: the flowchart and number-format ideas are built in five steps, each one PR, in dependency order (G1 foundations, G2 ports and routing, G3 edge and node visuals, G4 layout tuning, G5 areas). Each step adds its entry here when it is built.
