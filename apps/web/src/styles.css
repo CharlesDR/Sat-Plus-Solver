@@ -2322,3 +2322,19 @@ input.flow-area-name {
   align-items: center;
   gap: 6px;
 }
+
+/* Simple mode (A72): the badge and the way back to the full planner. */
+.mode-badge {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.button-link {
+  font-size: 14px;
+  white-space: nowrap;
+}
