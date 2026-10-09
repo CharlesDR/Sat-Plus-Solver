@@ -56,5 +56,11 @@ test('new world: name, save first, undo, start screen', async ({ page }) => {
 
   // Part icons (UI-8): each factory card shows what it makes, each link what it carries.
   await expect(page.getByRole('group', { name: 'Makes' }).locator('img').first()).toBeVisible();
+  // The icon row sits inside its card, not clipped off its right edge.
+  const makes = page.getByRole('group', { name: 'Makes' }).first();
+  const card = page.locator('.world-node', { has: makes }).first();
+  const [row, box] = [await makes.boundingBox(), await card.boundingBox()];
+  expect(row!.width).toBeGreaterThan(0);
+  expect(row!.x + row!.width).toBeLessThanOrEqual(box!.x + box!.width);
   await expect(page.locator('.world-edge-label img').first()).toBeVisible();
 });
