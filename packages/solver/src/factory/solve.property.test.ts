@@ -4,7 +4,7 @@ import { describe, expect, test } from 'vitest';
 import vanillaMini from '../../../../fixtures/vanilla-mini/model.json';
 import { createHighsBackend } from '../lp/highs';
 import { recipeExclusion } from './recipes';
-import { LEX_EPSILON, MIN_RATE, solve } from './solve';
+import { LEX_EPSILON, MIN_RATE, SIMPLICITY_CAP, solve } from './solve';
 import type { ObjectiveId, SolveRequest, SolveResult } from './types';
 
 /**
@@ -309,6 +309,22 @@ describe('solver properties', () => {
           if (s >= MIN_RATE && !r.diagnostics.some((d) => d.code === 'import-cost'))
             expect(Math.abs(c.rate - s)).toBeLessThanOrEqual(TOL * Math.max(1, s));
         }
+      }),
+      { numRuns: 200, seed: SEED },
+    );
+  }, 120_000);
+
+  test('simplicity (A73): 200 random requests give checked plans within 1% of the plain plan', async () => {
+    await fc.assert(
+      fc.asyncProperty(miniRequest, async (req) => {
+        const r = await solveAndCheck(mini, { ...req, simplicity: true });
+        if (r.status !== 'ok') return;
+        const plain = await solve(mini, req, backend);
+        expect(plain.status).toBe('ok');
+        expect(r.recipes.length).toBeLessThanOrEqual(plain.recipes.length);
+        const was = plain.stages[0]!.value;
+        const room = (SIMPLICITY_CAP + 1e-4) * Math.max(Math.abs(was), LEX_EPSILON);
+        expect(r.stages[0]!.value).toBeLessThanOrEqual(was + room + TOL);
       }),
       { numRuns: 200, seed: SEED },
     );

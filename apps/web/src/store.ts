@@ -28,6 +28,8 @@ export interface Settings {
   wholeMachines: boolean;
   costImports: boolean;
   avoidFluidByproducts: boolean;
+  /** Simplicity (A73). */
+  simplicity: boolean;
   /** Missing in a world saved before v12: `any` (A69). */
   minerFluids?: MinerFluids;
   /** Missing in a world saved before v12: `local` (A69). */
@@ -330,6 +332,7 @@ export function effectiveSettings(
     'wholeMachines',
     'costImports',
     'avoidFluidByproducts',
+    'simplicity',
     'minerFluids',
     'minerFluidSupply',
     'maxTier',

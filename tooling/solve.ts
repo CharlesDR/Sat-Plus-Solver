@@ -3,7 +3,7 @@
  *
  *   pnpm solve --target "Iron Plate:60" [--target ...] [--import "Iron Ingot:30"]
  *              [--objective resources,machines,...] [--tolerance 0.01%] [--min-branch 0.01] [--min-flow 0.001] [--whole-machines]
- *              [--cost-imports] [--avoid-fluid-byproducts] [--miner-fluids any|water|none] [--miner-fluid-supply local|outside]
+ *              [--cost-imports] [--avoid-fluid-byproducts] [--simplicity] [--miner-fluids any|water|none] [--miner-fluid-supply local|outside]
  *              [--alternates] [--compare-alternates] [--exclude <recipe-id>] [--enable <recipe-id>] [--max-tier <major-minor>] [--budget "<node-id>=<count>"] [--model <model.json>] [--json]
  *
  * Items are matched by id or by name (case-insensitive). An import without a
@@ -16,6 +16,7 @@
  * `--enable` turns on single alternates; `--max-tier` leaves out recipes above
  * a dataset tier (tier 0-0 always stays); `--avoid-fluid-byproducts` lets no
  * fluid but Steam, Flue Gas and Energetic Dark Matter be left over (A39, the app's default);
+ * `--simplicity` drops slivers and steps that save at most 1% (A73, the app's default);
  * `--miner-fluids` limits Modular Miner fluid modules and `--miner-fluid-supply outside`
  * imports miner fluid at its cost (A69);
  * `--compare-alternates` solves both ways and lists the alternates that help.
@@ -50,7 +51,7 @@ import { ROOT, runPipeline } from './build-data';
 
 export const USAGE = `Usage: pnpm solve --target "Item:rate" [--target ...] [--import "Item[:cap]"]
                   [--objective resources,machines,...] [--tolerance <percent>] [--min-branch <machines>] [--min-flow <per-minute>]
-                  [--whole-machines] [--cost-imports] [--avoid-fluid-byproducts] [--miner-fluids any|water|none]
+                  [--whole-machines] [--cost-imports] [--avoid-fluid-byproducts] [--simplicity] [--miner-fluids any|water|none]
                   [--miner-fluid-supply local|outside] [--alternates] [--compare-alternates] [--exclude <recipe-id>]
                   [--enable <recipe-id>] [--max-tier <major-minor>] [--budget "<node-id>=<count>"] [--model <model.json>] [--json]
 Objectives: resources (o1), scarcity (o2), machines (o3), power (o4), output (o5), types (o6).`;
@@ -96,6 +97,7 @@ export function parseCli(argv: string[], model: Model): CliArgs {
         'min-flow': { type: 'string' },
         'whole-machines': { type: 'boolean' },
         'avoid-fluid-byproducts': { type: 'boolean' },
+        simplicity: { type: 'boolean' },
         'miner-fluids': { type: 'string' },
         'miner-fluid-supply': { type: 'string' },
         'cost-imports': { type: 'boolean' },
@@ -191,6 +193,7 @@ export function parseCli(argv: string[], model: Model): CliArgs {
       ...(minFlow !== undefined ? { minFlow } : {}),
       ...(parsed['whole-machines'] ? { wholeMachines: true } : {}),
       ...(parsed['avoid-fluid-byproducts'] ? { avoidFluidByproducts: true } : {}),
+      ...(parsed.simplicity ? { simplicity: true } : {}),
       ...(parsed['cost-imports'] ? { costImports: true } : {}),
       ...(minerFluids !== undefined ? { minerFluids: minerFluids as MinerFluids } : {}),
       ...(minerFluidSupply !== undefined

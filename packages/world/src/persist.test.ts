@@ -5,7 +5,7 @@ import { describe, expect, test } from 'vitest';
 import vanillaMini from '../../../fixtures/vanilla-mini/model.json';
 import mini from '../../../fixtures/worlds/mini-world.json';
 import v1 from '../../../fixtures/worlds/v1-world.json';
-import v13 from '../../../fixtures/worlds/v13-world.json';
+import v14 from '../../../fixtures/worlds/v14-world.json';
 import { WORLD_VERSION, createWorld, type World } from './document';
 import { migrateWorld } from './migrate';
 import { WorldLoadError, extractFactory, loadWorld, parseWorld, serializeWorld } from './persist';
@@ -40,6 +40,7 @@ const worldArb: fc.Arbitrary<World> = (() => {
       wholeMachines: fc.boolean(),
       costImports: fc.boolean(),
       avoidFluidByproducts: fc.boolean(),
+      simplicity: fc.boolean(),
       recipes: toggles,
       maxTier: tier,
     },
@@ -149,6 +150,7 @@ const worldArb: fc.Arbitrary<World> = (() => {
           wholeMachines: fc.boolean(),
           costImports: fc.boolean(),
           avoidFluidByproducts: fc.boolean(),
+          simplicity: fc.boolean(),
           recipes: toggles,
           maxTier: tier,
         }),
@@ -173,9 +175,9 @@ describe('World → JSON → World', () => {
   });
 
   test('is deep-equal for the current-version fixture, and the fixture is current', () => {
-    expect(v13.meta.v).toBe(WORLD_VERSION);
-    const w = parseWorld(JSON.stringify(v13));
-    expect(w).toStrictEqual(v13);
+    expect(v14.meta.v).toBe(WORLD_VERSION);
+    const w = parseWorld(JSON.stringify(v14));
+    expect(w).toStrictEqual(v14);
     expect(parseWorld(serializeWorld(w, true))).toStrictEqual(w);
   });
 

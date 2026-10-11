@@ -27,7 +27,7 @@ import type {
   SolveRequest,
 } from '@sps/solver';
 
-export const WORLD_VERSION = 13;
+export const WORLD_VERSION = 14;
 
 /** Lexicographic tolerance bounds (CLAUDE.md): 0.01%–90%, default 0.01%. */
 export const TOLERANCE_MIN = 0.0001;
@@ -58,6 +58,8 @@ export interface WorldDefaults {
   costImports: boolean;
   /** Avoid fluid byproducts (A39): no fluid but Steam, Flue Gas and Energetic Dark Matter may be left over. Default on. */
   avoidFluidByproducts: boolean;
+  /** Simplicity (A73): plans give up slivers and steps that save at most 1%. Default on. */
+  simplicity: boolean;
   /**
    * "Model miner optional fluid usage" (A69): `any` models every fluid
    * module, `water` only Water, `none` none (an ore that needs a fluid keeps
@@ -85,6 +87,7 @@ export interface FactoryRequest {
   wholeMachines?: boolean;
   costImports?: boolean;
   avoidFluidByproducts?: boolean;
+  simplicity?: boolean;
   minerFluids?: MinerFluids;
   minerFluidSupply?: MinerFluidSupply;
   /** Per-recipe toggles that win over the world's; a recipe not listed inherits. */
@@ -258,6 +261,7 @@ export function defaultWorldDefaults(): WorldDefaults {
     wholeMachines: false,
     costImports: false,
     avoidFluidByproducts: true,
+    simplicity: true,
     minerFluids: 'any',
     minerFluidSupply: 'outside',
     recipes: {},
@@ -349,6 +353,7 @@ export function factorySolveRequest(
     ...((r.wholeMachines ?? d.wholeMachines) ? { wholeMachines: true } : {}),
     ...((r.costImports ?? d.costImports) ? { costImports: true } : {}),
     ...((r.avoidFluidByproducts ?? d.avoidFluidByproducts) ? { avoidFluidByproducts: true } : {}),
+    ...((r.simplicity ?? d.simplicity) ? { simplicity: true } : {}),
     ...minerFluidSettings(r.minerFluids ?? d.minerFluids, r.minerFluidSupply ?? d.minerFluidSupply),
   };
 }

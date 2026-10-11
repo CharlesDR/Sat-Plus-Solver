@@ -135,6 +135,16 @@ function v12ToV13(doc: Doc): Doc {
   return { ...doc, meta: { ...(doc.meta as Doc), v: 13 } };
 }
 
+/** v13 → v14 (A73): world defaults gain "Simplicity", on like a new world's. */
+function v13ToV14(doc: Doc): Doc {
+  const defaults = (doc.defaults ?? {}) as Doc;
+  return {
+    ...doc,
+    meta: { ...(doc.meta as Doc), v: 14 },
+    defaults: { ...defaults, simplicity: true },
+  };
+}
+
 const MIGRATIONS: Record<number, (doc: Doc) => Doc> = {
   1: v1ToV2,
   2: v2ToV3,
@@ -148,6 +158,7 @@ const MIGRATIONS: Record<number, (doc: Doc) => Doc> = {
   10: v10ToV11,
   11: v11ToV12,
   12: v12ToV13,
+  13: v13ToV14,
 };
 
 /** Returns `doc` upgraded to the current version; throws on a newer or malformed document. */
