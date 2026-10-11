@@ -94,6 +94,19 @@ export function SettingsPanel({ store, scope, catalog }: Props) {
           No leftover fluids except Steam, Flue Gas and Energetic Dark Matter, which can be dumped.
         </p>
       </SettingField>
+      <SettingField {...meta('simplicity')}>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={values.simplicity}
+            onChange={(e) => set('simplicity', e.target.checked)}
+          />
+          Prefer simpler plans
+        </label>
+        <p className="hint">
+          Drops slivers and recipe steps that save 1% or less on every objective.
+        </p>
+      </SettingField>
       <SettingField {...meta('minerFluids')}>
         <label className="check">
           <input

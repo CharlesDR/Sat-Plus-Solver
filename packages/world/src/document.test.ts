@@ -41,6 +41,7 @@ describe('World document', () => {
       wholeMachines: false,
       costImports: false,
       avoidFluidByproducts: true,
+      simplicity: true,
       minerFluids: 'any',
       minerFluidSupply: 'outside',
       recipes: {},
@@ -116,6 +117,7 @@ describe('factorySolveRequest', () => {
       recipes: { alternates: false, exclude: [] },
       nodeBudget: 'pool',
       avoidFluidByproducts: true,
+      simplicity: true,
       minerFluidSupply: 'outside',
     });
   });
@@ -143,6 +145,7 @@ describe('factorySolveRequest', () => {
         { item: 'screw', cap: 10 },
       ],
       avoidFluidByproducts: true,
+      simplicity: true,
       minerFluids: 'none',
     });
   });

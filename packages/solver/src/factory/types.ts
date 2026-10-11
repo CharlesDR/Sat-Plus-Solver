@@ -82,6 +82,15 @@ export interface SolveRequest {
    */
   minFlow?: number;
   /**
+   * Simplicity (A73): after the prunes, the plan gives up slivers and whole
+   * recipe steps when doing without them costs at most SIMPLICITY_CAP (1%)
+   * on every objective. A sliver runs below `minBranch` machines scaled down
+   * to the plan's largest recipe, so small targets keep their small steps.
+   * Each drop re-solves the stack with the recipe held at 0. Default off
+   * (golden fixtures and the CLI); the app turns it on.
+   */
+  simplicity?: boolean;
+  /**
    * Cost imported inputs (§3.3): each import carries the cost of making 1/min
    * of it in a standalone plan under this stack, from the map pool.
    */

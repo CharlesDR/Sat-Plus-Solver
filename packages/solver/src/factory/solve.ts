@@ -68,6 +68,18 @@ const MAX_FLOW_COST = 0.01;
 const MAX_FLOW_SOLVES = 6;
 /** Most LP solves the prune pass may spend on one plan (A34). */
 const MAX_PRUNE_ATTEMPTS = 24;
+/** Most an objective may lose to simplicity (A73), relative to the first solve's plan. */
+export const SIMPLICITY_CAP = 0.01;
+/** Most stack re-solves the simplicity pass makes (A73). */
+const MAX_SIMPLIFY_SOLVES = 12;
+/** The simplicity pass (A73) stops after this many rejected re-solves in a row. */
+const MAX_SIMPLIFY_MISSES = 3;
+/** Most first-stage bound LPs the simplicity pass makes (A73). */
+const MAX_SIMPLIFY_BOUNDS = 40;
+/** A recipe below this fraction of the plan's largest is rounding error (A73). */
+const NOISE = 1e-6;
+/** Tidy weight of a conversion generator (C1, A73): far below a machine, above nothing. */
+const CONVERSION_TIDY_WEIGHT = 1e-3;
 /** Default time limit of a MILP stage, in seconds (§3.4). */
 export const MILP_TIME_LIMIT_SECONDS = 5;
 /** Elastic slack below this is solver noise, not a relaxation. */
@@ -107,6 +119,10 @@ interface Problem {
   minBranch: number;
   /** `request.minFlow`, per minute (A68). */
   minFlow: number;
+  /** `request.simplicity` (A73). */
+  simplicity: boolean;
+  /** Recipe variables of conversion generators (C1, A73), tidied at CONVERSION_TIDY_WEIGHT. */
+  conversion: ReadonlySet<string>;
   /** LP variables held at 0 by the flow prune (A68): recipes (with their machine counts), surpluses, imports. */
   banned: ReadonlySet<string>;
   recipes: Recipe[];
@@ -326,6 +342,8 @@ export async function solve(
     whole: request.wholeMachines ?? false,
     minBranch: request.minBranch ?? MIN_BRANCH,
     minFlow: request.minFlow ?? MIN_FLOW,
+    simplicity: request.simplicity ?? false,
+    conversion: new Set(recipes.filter(isConversionGenerator).map((r) => recipeVar(r.id))),
     banned: new Set(),
     recipes,
     items,
@@ -562,12 +580,22 @@ async function solveStack(
       turbineCaps: new Map(),
     };
   };
-  return pruneFlows(
-    p,
-    plan,
-    (banned) => solveLex(without(banned), backend, options, itemName, [...before]),
-    (banned) => firstStageBound(without(banned), backend, options),
-  );
+  const resolve = (banned: ReadonlySet<string>) =>
+    solveLex(without(banned), backend, options, itemName, [...before]);
+  const bound = (banned: ReadonlySet<string>) => firstStageBound(without(banned), backend, options);
+  const simple = await simplify(p, plan, resolve, bound);
+  const best = await pruneFlows(p, simple, plan, resolve, bound);
+  if (best === plan) return plan;
+  // Recipes the plan ran that it no longer does.
+  const runs = new Set(best.recipes.map((u) => u.id));
+  const dropped = plan.recipes.map((u) => u.id).filter((id) => !runs.has(id));
+  const pruned = [...new Set([...(best.stats.pruned ?? []), ...dropped])].sort();
+  // The size of the model the plan was first solved on, not of the re-solves.
+  const { recipes, columns, rows } = plan.stats;
+  return {
+    ...best,
+    stats: { ...best.stats, recipes, columns, rows, ...(pruned.length ? { pruned } : {}) },
+  };
 }
 
 /**
@@ -617,7 +645,7 @@ async function solveLex(
       if (k === 0) stats = { ...stats, columns: lp.variables.length, rows: lp.constraints.length };
       const terms = scaledTerms(p, objective);
       if (!lp.variables.some((v) => v.integer))
-        return tidy(lp, await backend.solve(lp, options), terms, 0, backend, options);
+        return tidy(lp, await backend.solve(lp, options), terms, 0, backend, options, p.conversion);
       const milpOptions: LpOptions = {
         ...options,
         timeLimitSeconds: options.timeLimitSeconds ?? MILP_TIME_LIMIT_SECONDS,
@@ -635,13 +663,13 @@ async function solveLex(
           )
         : undefined;
       const mip = await backend.solve(lp, start ? { ...milpOptions, start } : milpOptions);
-      const polished = await polish(lp, mip, integer, terms, backend, milpOptions);
+      const polished = await polish(lp, mip, integer, terms, backend, milpOptions, p.conversion);
       if (polished) return polished;
       // The machine counts don't hold up at LP precision: the MILP met a tiny
       // demand within its feasibility tolerance. Solve it again, tighter.
       const tight: LpOptions = { ...milpOptions, mipFeasibilityTolerance: TIGHT_MIP_FEASIBILITY };
       const again = await backend.solve(lp, start ? { ...tight, start } : tight);
-      return (await polish(lp, again, integer, terms, backend, milpOptions)) ?? again;
+      return (await polish(lp, again, integer, terms, backend, milpOptions, p.conversion)) ?? again;
     };
     let s = await run(tolerance);
     if (k === 0 && !usable(s)) return interpret(p, s, stats, backend, options, itemName);
@@ -743,12 +771,15 @@ async function pruneBranches(
     const fixed = { ...lp, variables };
     const s = await backend.solve(fixed, options);
     if (s.status !== 'optimal' || !s.values) return undefined;
-    const tidied = await tidy(fixed, s, terms, 0, backend, options);
+    const tidied = await tidy(fixed, s, terms, 0, backend, options, p.conversion);
     return { ...sol, values: tidied.values! };
   };
   while (attempts < MAX_PRUNE_ATTEMPTS) {
     const support = p.recipes.map((r) => r.id).filter((id) => run(sol, id) > 0);
-    const small = support.filter((id) => run(sol, id) < p.minBranch && !needed.has(id));
+    // Conversion generators (C1, A73) stay: tidy runs them only on steam that would be dumped.
+    const small = support.filter(
+      (id) => run(sol, id) < p.minBranch && !needed.has(id) && !p.conversion.has(recipeVar(id)),
+    );
     if (!small.length) break;
     const without = (drop: readonly string[]) =>
       new Set(support.filter((id) => !drop.includes(id)));
@@ -787,7 +818,8 @@ async function pruneBranches(
  * of its outputs (a tiny byproduct alone is its surplus's to answer for),
  * and every surplus or import below it, is held at 0 and the whole stack
  * solved again, so each stage gets a fresh optimum without them, as long as
- * no stage ends up more than MAX_FLOW_COST (1%) worse than the plan's. As in
+ * no stage ends up more than MAX_FLOW_COST (1%) worse than `ref`, the first
+ * solve's plan (a cap it shares with the simplicity pass, A73). As in
  * the prune pass, the re-solve keeps to the plan's own recipes, so it doesn't
  * spend the room on new slivers (and its LPs stay small): all of them
  * together are tried first, then each alone in order (recipes by id, then
@@ -796,42 +828,23 @@ async function pruneBranches(
  * costs more than that, or has no fewer tiny flows (a tiny surplus traded for
  * a tiny recipe consuming it) is undone, so a flow the plan needs (a target
  * below `minFlow`) stays. Repeats on the new plan, at most MAX_FLOW_SOLVES
- * attempts. Deterministic.
+ * attempts, starting from the simplicity pass's plan and drops. Deterministic.
  */
 async function pruneFlows(
   p: Problem,
-  plan: SolveResult,
+  start: Pruned,
+  ref: SolveResult,
   resolve: (banned: ReadonlySet<string>) => Promise<SolveResult>,
   bound: (banned: ReadonlySet<string>) => Promise<number | undefined>,
 ): Promise<SolveResult> {
+  const plan = start.plan;
   if (!(p.minFlow > 0) || plan.status !== 'ok') return plan;
   /** Variables held at 0 in `best`; recipes always with their machine counts. */
-  let banned = new Set<string>();
+  let banned = new Set<string>(start.banned);
   const needed = new Set<string>();
   const machines = new Map(p.recipes.map((r) => [recipeVar(r.id), machinesVar(r.id)]));
-  const tiny = (rate: number) => rate > 0 && rate < p.minFlow;
-  /** A plan's tiny flows, as the LP variables that carry them. */
-  const tinies = (r: SolveResult) => [
-    ...r.recipes
-      .filter((u) => u.inputs.some((f) => tiny(f.rate)) || u.outputs.every((f) => tiny(f.rate)))
-      .map((u) => recipeVar(u.id)),
-    ...r.surplus.filter((f) => tiny(f.rate)).map((f) => surplusVar(f.item)),
-    ...r.imports
-      .filter((f) => {
-        const supplied = r.minerSupply?.find((m) => m.item === f.item)?.rate ?? 0;
-        return p.importCaps.has(f.item) && tiny(f.rate - supplied);
-      })
-      .map((f) => importVar(f.item)),
-    ...(r.minerSupply ?? [])
-      .filter((f) => tiny(f.rate))
-      .map((f) => supplyVar(minerSupplyItem(f.item))),
-  ];
-  /** Stage `k`'s `value` within MAX_FLOW_COST of the original plan's. */
-  const within = (k: number, value: number) => {
-    const was = plan.stages[k]!.value;
-    const room = MAX_FLOW_COST * Math.max(Math.abs(was), LEX_EPSILON);
-    return plan.stages[k]!.objective === 'output' ? value >= was - room : value <= was + room;
-  };
+  const tinies = (r: SolveResult) => tinyFlows(p, r);
+  const within = (k: number, value: number) => withinCost(ref, MAX_FLOW_COST, k, value);
   let solves = 0;
   let best = plan;
   /**
@@ -875,17 +888,176 @@ async function pruneFlows(
       needed.add(v);
     }
   }
-  if (best === plan) return plan;
-  // Recipes the plan ran that it no longer does.
-  const runs = new Set(best.recipes.map((u) => u.id));
-  const dropped = plan.recipes.map((u) => u.id).filter((id) => !runs.has(id));
-  const pruned = [...new Set([...(best.stats.pruned ?? []), ...dropped])].sort();
-  // The size of the model the plan was first solved on, not of the re-solves.
-  const { recipes, columns, rows } = plan.stats;
-  return {
-    ...best,
-    stats: { ...best.stats, recipes, columns, rows, ...(pruned.length ? { pruned } : {}) },
+  return best;
+}
+
+/** A plan's flows below `minFlow` (A68), as the LP variables that carry them. */
+function tinyFlows(p: Problem, r: SolveResult): string[] {
+  const tiny = (rate: number) => rate > 0 && rate < p.minFlow;
+  return [
+    ...r.recipes
+      .filter((u) => u.inputs.some((f) => tiny(f.rate)) || u.outputs.every((f) => tiny(f.rate)))
+      .map((u) => recipeVar(u.id)),
+    ...r.surplus.filter((f) => tiny(f.rate)).map((f) => surplusVar(f.item)),
+    ...r.imports
+      .filter((f) => {
+        const supplied = r.minerSupply?.find((m) => m.item === f.item)?.rate ?? 0;
+        return p.importCaps.has(f.item) && tiny(f.rate - supplied);
+      })
+      .map((f) => importVar(f.item)),
+    ...(r.minerSupply ?? [])
+      .filter((f) => tiny(f.rate))
+      .map((f) => supplyVar(minerSupplyItem(f.item))),
+  ];
+}
+
+/** A pruned plan and the LP variables it holds at 0. */
+interface Pruned {
+  plan: SolveResult;
+  banned: ReadonlySet<string>;
+}
+
+/** Stage `k`'s `value` within `cap` (relative) of `ref`'s, in the objective's sense. */
+function withinCost(ref: SolveResult, cap: number, k: number, value: number): boolean {
+  const was = ref.stages[k]!.value;
+  const room = cap * Math.max(Math.abs(was), LEX_EPSILON);
+  return ref.stages[k]!.objective === 'output' ? value >= was - room : value <= was + room;
+}
+
+/**
+ * The simplicity pass (A73), before the flow prune (A68). Every drop holds the
+ * recipe (and its machine count) at 0 and solves the whole stack again, so
+ * the plan returned is always a fresh solution that `finish()` has checked;
+ * nothing is zeroed afterwards. Conversion generators are never dropped (C1).
+ *
+ * 1. Rounding error, always: recipes below NOISE of the plan's largest go
+ *    when the plan stays within `tolerance` of itself without them.
+ * 2. With `simplicity`, slivers (C2): recipes below `minBranch` machines,
+ *    scaled down by the plan's largest recipe when it runs under one machine,
+ *    so a small target keeps its small steps. All of them together first, on
+ *    any recipe (a sliver may stand in for a route the plan doesn't run yet);
+ *    then each alone, smallest first, on the plan's own recipes and then on
+ *    any recipe. A miner is never dropped alone on any recipe: it would only
+ *    come back as another miner of the same ore.
+ * 3. With `simplicity`, fewest steps (UX-1A): each remaining recipe alone,
+ *    smallest first, on the plan's own recipes.
+ *
+ * Steps 2 and 3 may cost up to SIMPLICITY_CAP on each objective against the
+ * first solve's plan; the flow prune that follows shares the same cap. A drop
+ * that leaves a target unproducible is ruled out without an LP, and the rest
+ * are checked first against the first stage's LP relaxation. A drop is kept
+ * only when the re-solved plan is ok, warns no more, stays within the cap and
+ * is simpler: fewer recipes, or as many with fewer slivers. At most
+ * MAX_SIMPLIFY_SOLVES re-solves and MAX_SIMPLIFY_BOUNDS bounds, and the pass
+ * stops after MAX_SIMPLIFY_MISSES rejected re-solves in a row. Returns the
+ * plan and the variables its drops hold at 0. Deterministic.
+ */
+async function simplify(
+  p: Problem,
+  plan: SolveResult,
+  resolve: (banned: ReadonlySet<string>) => Promise<SolveResult>,
+  bound: (banned: ReadonlySet<string>) => Promise<number | undefined>,
+): Promise<Pruned> {
+  let best = plan;
+  /** Variables of the recipes dropped so far, with their machine counts. */
+  let dropped: ReadonlySet<string> = new Set<string>();
+  if (best.status !== 'ok') return { plan, banned: dropped };
+  let solves = 0;
+  let bounds = 0;
+  /** Rejected re-solves since the last kept one. */
+  let misses = 0;
+  const wanted = [...new Set([...p.demand.keys(), ...p.scaled.keys()])];
+  const extraction = new Set(p.recipes.filter((r) => r.kind === 'extraction').map((r) => r.id));
+  const sources = [...p.importCaps.keys(), ...p.supply.keys()];
+  const largest = (r: SolveResult) => Math.max(0, ...r.recipes.map((u) => u.machines));
+  /** Droppable recipes of `r` below `threshold` machines, smallest first, then by id. */
+  const below = (r: SolveResult, threshold: number) =>
+    r.recipes
+      .filter((u) => u.machines < threshold && !p.conversion.has(recipeVar(u.id)))
+      .sort((a, b) => a.machines - b.machines || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+      .map((u) => u.id);
+  const slivers = (r: SolveResult) => below(r, p.minBranch * Math.min(1, largest(r))).length;
+  /** Re-solves without `ids`; true (and `best` replaced) when it is no worse than `ref` by `cap` and simpler. */
+  const attempt = async (ids: readonly string[], ref: SolveResult, cap: number, open = false) => {
+    if (solves >= MAX_SIMPLIFY_SOLVES || bounds >= MAX_SIMPLIFY_BOUNDS) return false;
+    if (misses >= MAX_SIMPLIFY_MISSES) return false;
+    // A miner dropped on its own comes back as another miner of the same ore.
+    if (open && ids.every((id) => extraction.has(id))) return false;
+    const runs = new Set(best.recipes.map((u) => u.id));
+    // Open: also any recipe making something the plan handles (another
+    // route to it), which keeps the LPs small.
+    const handled = new Set(best.items.map((f) => f.item));
+    const near = (r: Recipe) => open && r.outputs.some((f) => handled.has(f.item));
+    const unused = p.recipes.filter((r) => !runs.has(r.id) && !near(r)).map((r) => r.id);
+    const drop = ids.flatMap((id) => [recipeVar(id), machinesVar(id)]);
+    const vars = new Set([
+      ...dropped,
+      ...drop,
+      ...unused.flatMap((id) => [recipeVar(id), machinesVar(id)]),
+    ]);
+    // A drop that leaves a target with no way to be made needs no LP to rule out.
+    const left = p.recipes.filter((r) => !vars.has(recipeVar(r.id)));
+    const have = producible(left, sources);
+    if (wanted.some((i) => !have.has(i))) return false;
+    bounds++;
+    const first = await bound(vars);
+    if (first === undefined || (!Number.isNaN(first) && !withinCost(ref, cap, 0, first)))
+      return false;
+    solves++;
+    misses++;
+    const r = await resolve(vars);
+    if (r.status !== 'ok' || r.diagnostics.length > best.diagnostics.length) return false;
+    if (!r.stages.every((st, k) => withinCost(ref, cap, k, st.value))) return false;
+    const n = r.recipes.length;
+    const was = best.recipes.length;
+    if (n > was || (n === was && slivers(r) >= slivers(best))) return false;
+    misses = 0;
+    dropped = new Set([...dropped, ...drop]);
+    best = r;
+    return true;
   };
+
+  const noise = below(best, NOISE * largest(best));
+  if (noise.length) await attempt(noise, best, p.tolerance);
+  if (!p.simplicity) return { plan: best, banned: dropped };
+
+  const needed = new Set<string>();
+  let first = true;
+  for (;;) {
+    const small = below(best, p.minBranch * Math.min(1, largest(best))).filter(
+      (id) => !needed.has(id),
+    );
+    if (!small.length || solves >= MAX_SIMPLIFY_SOLVES) break;
+    // All of them together, once: after a failure, smaller sets rarely do better.
+    if (first && (await attempt(small, plan, SIMPLICITY_CAP, true))) continue;
+    first = false;
+    let changed = false;
+    for (const id of small) {
+      // On the plan's own recipes first (a small LP), then on any recipe.
+      if (
+        (await attempt([id], plan, SIMPLICITY_CAP)) ||
+        (await attempt([id], plan, SIMPLICITY_CAP, true))
+      ) {
+        changed = true;
+        break;
+      }
+      needed.add(id);
+    }
+    if (!changed) break;
+  }
+  for (;;) {
+    const steps = below(best, Infinity).filter((id) => !needed.has(id));
+    let changed = false;
+    for (const id of steps) {
+      if (await attempt([id], plan, SIMPLICITY_CAP)) {
+        changed = true;
+        break;
+      }
+      needed.add(id);
+    }
+    if (!changed) break;
+  }
+  return { plan: best, banned: dropped };
 }
 
 /**
@@ -961,6 +1133,7 @@ async function polish(
   stage: LpTerm[],
   backend: LpBackend,
   options: LpOptions,
+  conversion: ReadonlySet<string> = new Set(),
 ): Promise<LpSolution | undefined> {
   if (!usable(mip)) return mip;
   const variables = lp.variables.map(({ integer: _, ...v }) => {
@@ -973,8 +1146,9 @@ async function polish(
   if (fixed.status !== 'optimal' || !fixed.values) return mip;
   return {
     ...mip,
-    values: (await tidy({ ...lp, variables }, fixed, stage, POLISH_SLACK, backend, options))
-      .values!,
+    values: (
+      await tidy({ ...lp, variables }, fixed, stage, POLISH_SLACK, backend, options, conversion)
+    ).values!,
   };
 }
 
@@ -983,8 +1157,12 @@ async function polish(
  * recipe runs only as hard as the plan needs. The 1e-9 regularizer alone is
  * below the solver's tolerances, so an LP plan could otherwise process a free
  * capped import into surplus product, and a pull link would draw that excess
- * from its producer (R7). Keeps the solution's status; returns it as is when
- * it has no optimal plan or the tidy LP fails.
+ * from its producer (R7). Conversion generators (`conversion`, C1 in A73)
+ * weigh CONVERSION_TIDY_WEIGHT instead of 1: a turbine that turns dumped
+ * steam into water the plan uses saves more than it costs at any rate, so
+ * it always runs, while one whose water would only be left over never does.
+ * Keeps the solution's status; returns it as is when it has no optimal plan
+ * or the tidy LP fails.
  */
 async function tidy(
   lp: LpModel,
@@ -993,6 +1171,7 @@ async function tidy(
   slack: number,
   backend: LpBackend,
   options: LpOptions,
+  conversion: ReadonlySet<string> = new Set(),
 ): Promise<LpSolution> {
   if (sol.status !== 'optimal' || !sol.values) return sol;
   const value = stage.reduce((sum, t) => sum + t.coef * (sol.values!.get(t.var) ?? 0), 0);
@@ -1001,7 +1180,10 @@ async function tidy(
       ...lp,
       objective: lp.variables
         .filter((v) => v.name.startsWith('recipe:'))
-        .map((v) => ({ var: v.name, coef: 1 })),
+        .map((v) => ({
+          var: v.name,
+          coef: conversion.has(v.name) ? CONVERSION_TIDY_WEIGHT : 1,
+        })),
       constraints: [
         ...lp.constraints,
         { name: 'polish', terms: stage, hi: value + slack * Math.max(1, Math.abs(value)) },

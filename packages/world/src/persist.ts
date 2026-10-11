@@ -141,6 +141,7 @@ function shapeProblems(w: World): string[] {
     !isBool(d.wholeMachines) ||
     !isBool(d.costImports) ||
     !isBool(d.avoidFluidByproducts) ||
+    !isBool(d.simplicity) ||
     !isOpt(d.minerFluids, isMinerFluids) ||
     !isOpt(d.minerFluidSupply, isMinerSupply) ||
     !isBoolMap(d.recipes) ||
@@ -198,6 +199,7 @@ function isRequest(r: unknown): boolean {
     isOpt(r.wholeMachines, isBool) &&
     isOpt(r.costImports, isBool) &&
     isOpt(r.avoidFluidByproducts, isBool) &&
+    isOpt(r.simplicity, isBool) &&
     isOpt(r.minerFluids, isMinerFluids) &&
     isOpt(r.minerFluidSupply, isMinerSupply) &&
     isOpt(r.recipes, isBoolMap) &&

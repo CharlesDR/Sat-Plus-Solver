@@ -35,6 +35,9 @@ const appDefaults = (item: string, rate: number) => (model: Model) => {
   // Miner fluid made here, as the app planned when the baseline was measured
   // (a new world supplies it from outside since A69, which gives other plans).
   world.defaults.minerFluidSupply = 'local';
+  // Simplicity off, as the app planned when the baseline was measured (A73
+  // gives plastic a shorter plan, which would be a different drawing).
+  world.defaults.simplicity = false;
   return factorySolveRequest(world, model, world.factories[0]!.id);
 };
 const warpDrive = (): SolveRequest => ({

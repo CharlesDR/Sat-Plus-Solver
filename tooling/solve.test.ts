@@ -56,6 +56,7 @@ describe('pnpm solve: arguments', () => {
         '0.5%',
         '--whole-machines',
         '--avoid-fluid-byproducts',
+        '--simplicity',
         '--cost-imports',
         '--alternates',
         '--compare-alternates',
@@ -68,6 +69,7 @@ describe('pnpm solve: arguments', () => {
       tolerance: 0.005,
       wholeMachines: true,
       avoidFluidByproducts: true,
+      simplicity: true,
       costImports: true,
       recipes: { alternates: true, exclude: [] },
     });

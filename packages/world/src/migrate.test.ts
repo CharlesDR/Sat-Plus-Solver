@@ -11,6 +11,7 @@ import v10 from '../../../fixtures/worlds/v10-world.json';
 import v11 from '../../../fixtures/worlds/v11-world.json';
 import v12 from '../../../fixtures/worlds/v12-world.json';
 import v13 from '../../../fixtures/worlds/v13-world.json';
+import v14 from '../../../fixtures/worlds/v14-world.json';
 import v9 from '../../../fixtures/worlds/v9-world.json';
 import { WORLD_VERSION, createWorld, factorySolveRequest } from './document';
 import { WorldMigrationError, migrateWorld } from './migrate';
@@ -29,6 +30,8 @@ describe('migrateWorld', () => {
       costImports: false,
       // On, like a new world's (v8, A39).
       avoidFluidByproducts: true,
+      // On, like a new world's (v14, A73).
+      simplicity: true,
       recipes: { 'cast-screw': false },
       maxTier: null,
     });
@@ -53,6 +56,8 @@ describe('migrateWorld', () => {
       wholeMachines: true,
       costImports: false,
       avoidFluidByproducts: true,
+      // On, like a new world's (v14, A73).
+      simplicity: true,
       recipes: { 'cast-screw': false },
       maxTier: null,
     });
@@ -93,6 +98,7 @@ describe('migrateWorld', () => {
       ...v3.defaults,
       objectives: ['scarcity'],
       avoidFluidByproducts: true,
+      simplicity: true,
     });
     expect(JSON.stringify(v3)).toBe(before);
   });
@@ -144,13 +150,13 @@ describe('migrateWorld', () => {
     expect(w.meta).toEqual({ v: WORLD_VERSION, dataHash: v5.meta.dataHash });
     expect(w.factories).toEqual(v5.factories.map((f) => ({ ...f, tweaks: [] })));
     for (const key of ['groups', 'links', 'nodePool'] as const) expect(w[key]).toEqual(v5[key]);
-    expect(w.defaults).toEqual({ ...v5.defaults, avoidFluidByproducts: true });
+    expect(w.defaults).toEqual({ ...v5.defaults, avoidFluidByproducts: true, simplicity: true });
     expect(JSON.stringify(v5)).toBe(before);
     // The v6 fixture is the v5 one plus tweaks on one factory.
     expect({ ...w, factories: w.factories.map((f) => ({ ...f, tweaks: [] })) }).toEqual({
       ...v6,
       meta: { ...v6.meta, v: WORLD_VERSION },
-      defaults: { ...v6.defaults, avoidFluidByproducts: true },
+      defaults: { ...v6.defaults, avoidFluidByproducts: true, simplicity: true },
       factories: v6.factories.map((f) => ({ ...f, tweaks: [] })),
     });
   });
@@ -161,7 +167,7 @@ describe('migrateWorld', () => {
     expect(w).toEqual({
       ...v6,
       meta: { ...v6.meta, v: WORLD_VERSION },
-      defaults: { ...v6.defaults, avoidFluidByproducts: true },
+      defaults: { ...v6.defaults, avoidFluidByproducts: true, simplicity: true },
     });
     expect(JSON.stringify(v6)).toBe(before);
     // The v7 fixture is the v6 one plus manual plans on two factories.
@@ -178,7 +184,7 @@ describe('migrateWorld', () => {
     expect(w).toEqual({
       ...v7,
       meta: { ...v7.meta, v: WORLD_VERSION },
-      defaults: { ...v7.defaults, avoidFluidByproducts: true },
+      defaults: { ...v7.defaults, avoidFluidByproducts: true, simplicity: true },
     });
     expect(JSON.stringify(v7)).toBe(before);
     expect(factorySolveRequest(w, { nodes: [] }, 'factory-1').avoidFluidByproducts).toBe(true);
@@ -186,6 +192,7 @@ describe('migrateWorld', () => {
     expect({
       ...v8,
       meta: { ...v8.meta, v: WORLD_VERSION },
+      defaults: { ...v8.defaults, simplicity: true },
       factories: v8.factories.map((f) => ({
         ...f,
         request: (({
@@ -202,7 +209,11 @@ describe('migrateWorld', () => {
   test('a v8 save carries over unchanged but for its version (A44)', () => {
     const before = JSON.stringify(v8);
     const w = migrateWorld(v8);
-    expect(w).toEqual({ ...v8, meta: { ...v8.meta, v: WORLD_VERSION } });
+    expect(w).toEqual({
+      ...v8,
+      meta: { ...v8.meta, v: WORLD_VERSION },
+      defaults: { ...v8.defaults, simplicity: true },
+    });
     expect(JSON.stringify(v8)).toBe(before);
     expect(w.factories.some((f) => f.built)).toBe(false);
     // The v9 fixture is the v8 one plus a build mark on one factory.
@@ -216,7 +227,11 @@ describe('migrateWorld', () => {
   test('a v9 save carries over unchanged but for its version, with no parents (A49)', () => {
     const before = JSON.stringify(v9);
     const w = migrateWorld(v9);
-    expect(w).toEqual({ ...v9, meta: { ...v9.meta, v: WORLD_VERSION } });
+    expect(w).toEqual({
+      ...v9,
+      meta: { ...v9.meta, v: WORLD_VERSION },
+      defaults: { ...v9.defaults, simplicity: true },
+    });
     expect(JSON.stringify(v9)).toBe(before);
     expect(w.factories.some((f) => f.parentId !== undefined)).toBe(false);
     expect(w.links.some((l) => l.nested)).toBe(false);
@@ -227,7 +242,11 @@ describe('migrateWorld', () => {
   test('a v10 save carries over unchanged but for its version, with default areas (A64)', () => {
     const before = JSON.stringify(v10);
     const w = migrateWorld(v10);
-    expect(w).toEqual({ ...v10, meta: { ...v10.meta, v: WORLD_VERSION } });
+    expect(w).toEqual({
+      ...v10,
+      meta: { ...v10.meta, v: WORLD_VERSION },
+      defaults: { ...v10.defaults, simplicity: true },
+    });
     expect(JSON.stringify(v10)).toBe(before);
     expect(w.factories.some((f) => f.areas)).toBe(false);
     // The v11 fixture is the v10 one plus area settings on two factories.
@@ -241,7 +260,11 @@ describe('migrateWorld', () => {
   test('a v11 save carries over unchanged, keeping fluid modules made here (A69)', () => {
     const before = JSON.stringify(v11);
     const w = migrateWorld(v11);
-    expect(w).toEqual({ ...v11, meta: { ...v11.meta, v: WORLD_VERSION } });
+    expect(w).toEqual({
+      ...v11,
+      meta: { ...v11.meta, v: WORLD_VERSION },
+      defaults: { ...v11.defaults, simplicity: true },
+    });
     expect(JSON.stringify(v11)).toBe(before);
     const req = factorySolveRequest(w, { nodes: [] }, w.factories[0]!.id);
     expect(req).not.toHaveProperty('minerFluids');
@@ -258,25 +281,61 @@ describe('migrateWorld', () => {
     delete defaults.minerFluids;
     delete defaults.minerFluidSupply;
     delete (unset.factories[0]!.request as { minerFluidSupply?: string }).minerFluidSupply;
-    expect({ ...unset, meta: { ...unset.meta, v: WORLD_VERSION } }).toEqual(w);
-    expect(factorySolveRequest(v12 as typeof w, { nodes: [] }, 'factory-1')).toMatchObject({
+    expect({
+      ...unset,
+      meta: { ...unset.meta, v: WORLD_VERSION },
+      defaults: { ...unset.defaults, simplicity: true },
+    }).toEqual(w);
+    expect(
+      factorySolveRequest(v12 as unknown as typeof w, { nodes: [] }, 'factory-1'),
+    ).toMatchObject({
       minerFluids: 'water',
     });
-    expect(factorySolveRequest(v12 as typeof w, { nodes: [] }, 'factory-1')).not.toHaveProperty(
-      'minerFluidSupply',
-    );
+    expect(
+      factorySolveRequest(v12 as unknown as typeof w, { nodes: [] }, 'factory-1'),
+    ).not.toHaveProperty('minerFluidSupply');
   });
 
   test('a v12 save carries over unchanged but for its version, unnamed (N8)', () => {
     const before = JSON.stringify(v12);
     const w = migrateWorld(v12);
-    expect(w).toEqual({ ...v12, meta: { ...v12.meta, v: WORLD_VERSION } });
+    expect(w).toEqual({
+      ...v12,
+      meta: { ...v12.meta, v: WORLD_VERSION },
+      defaults: { ...v12.defaults, simplicity: true },
+    });
     expect(JSON.stringify(v12)).toBe(before);
     expect(w.meta.name).toBeUndefined();
     // The v13 fixture is the v12 one plus a name.
     const { name, ...meta } = v13.meta;
     expect(name).toBe('Phase 2');
-    expect({ ...v13, meta }).toEqual(w);
+    expect({
+      ...v13,
+      meta: { ...meta, v: WORLD_VERSION },
+      defaults: { ...v13.defaults, simplicity: true },
+    }).toEqual(w);
+  });
+
+  test('a v13 save gains "Simplicity", on, in the world defaults (A73)', () => {
+    const before = JSON.stringify(v13);
+    const w = migrateWorld(v13);
+    expect(w).toEqual({
+      ...v13,
+      meta: { ...v13.meta, v: WORLD_VERSION },
+      defaults: { ...v13.defaults, simplicity: true },
+    });
+    expect(JSON.stringify(v13)).toBe(before);
+    expect(factorySolveRequest(w, { nodes: [] }, 'factory-1').simplicity).toBe(true);
+    expect(createWorld('x').defaults.simplicity).toBe(true);
+    // The v14 fixture is the migrated v13 one with the setting off in one factory.
+    const request = (({ simplicity: _, ...r }) => r)(v14.factories[0]!.request);
+    expect({
+      ...v14,
+      factories: [{ ...v14.factories[0]!, request }, ...v14.factories.slice(1)],
+    }).toEqual(w);
+    expect(
+      factorySolveRequest(v14 as unknown as typeof w, { nodes: [] }, 'factory-1'),
+    ).not.toHaveProperty('simplicity');
   });
 
   test('a current world passes through unchanged', () => {
