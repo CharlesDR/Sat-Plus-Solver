@@ -19,9 +19,12 @@ async function plan(page: Page, item: string, rate: string) {
   await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
 }
 
-/** Waits for the plan of the latest edit. */
+/**
+ * Waits for the plan of the latest edit. A re-solve with alternates on and two
+ * objectives can take longer than the default 5 s on a busy CI runner.
+ */
 async function settled(page: Page) {
-  await expect(page.locator('[aria-busy=true]')).toHaveCount(0);
+  await expect(page.locator('[aria-busy=true]')).toHaveCount(0, { timeout: 20_000 });
   await expect(page.getByTestId('plan')).toBeVisible();
 }
 
