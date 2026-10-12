@@ -220,7 +220,11 @@ export function FactoriesPanel(props: {
               {num((r?.nodes ?? []).reduce((s, n) => s + n.used, 0))}
               {num(r?.machines ?? 0)}
               <td className="num actions">
-                <button type="button" onClick={() => onOpen(f.id)} aria-label={`Open ${f.name}`}>
+                <button
+                  type="button"
+                  onClick={() => onOpen(f.id)}
+                  aria-label={`Open ${f.name} (Factories table)`}
+                >
                   Open
                 </button>
                 <button

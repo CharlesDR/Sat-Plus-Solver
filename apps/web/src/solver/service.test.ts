@@ -1,6 +1,6 @@
 import type { Model } from '@sps/data';
 import { factoryGraph } from '@sps/graph';
-import { createHighsBackend, solve, summarizePlan } from '@sps/solver';
+import { compareTiers, createHighsBackend, solve, summarizePlan } from '@sps/solver';
 import { DEFAULT_FACTORY_ID, addFactory, addLink, createWorld, type World } from '@sps/world';
 import { describe, expect, test } from 'vitest';
 import miniJson from '../../../../fixtures/vanilla-mini/model.json';
@@ -40,6 +40,13 @@ describe('solver service', () => {
     expect(c.nodes.map((n) => n.id).sort()).toEqual(mini.nodes.map((n) => n.id).sort());
     expect(c.nodes.find((n) => n.id === 'node:iron-ore:normal')?.label).toBe('Iron Ore (normal)');
     expect(c.tiers).toEqual(['1-3', '2-1', '10-0']);
+    // Each target carries its lowest recipe tier (UX-17).
+    const lowest = (item: string) =>
+      tiered.recipes
+        .filter((r) => r.outputs.some((o) => o.item === item))
+        .map((r) => r.tier)
+        .sort(compareTiers)[0];
+    for (const t of c.targets) expect(t.tier).toBe(lowest(t.id));
     expect(structuredClone(c)).toEqual(c);
   });
 

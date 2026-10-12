@@ -39,6 +39,9 @@ export interface StartActions {
   importFile(): void;
 }
 
+/** Whether the world panels were open when the world view was last shown. */
+let panelWasOpen = false;
+
 export function WorldView(props: {
   world: World;
   store: WorldStore;
@@ -50,7 +53,21 @@ export function WorldView(props: {
   start: StartActions;
 }) {
   const { world, store, catalog, layout, plan, onOpen, onSizePower, start } = props;
-  const [tab, setTab] = useState<Tab>('Factories');
+  // The panels start collapsed to the tab row, so the canvas gets the height;
+  // picking a tab opens them, and they stay as left for this page visit (UX-A).
+  const [tab, pickTab] = useState<Tab>('Factories');
+  const [panelOpen, openPanel] = useState(() => panelWasOpen);
+  const setPanelOpen = useCallback((open: boolean) => {
+    panelWasOpen = open;
+    openPanel(open);
+  }, []);
+  const setTab = useCallback(
+    (t: Tab) => {
+      pickTab(t);
+      setPanelOpen(true);
+    },
+    [setPanelOpen],
+  );
   const [traceItem, setTraceId] = useState<string>();
   const [traceText, setTraceText] = useState('');
   const [draft, setDraft] = useState<LinkDraft>();
@@ -151,7 +168,7 @@ export function WorldView(props: {
         setTab('Links');
       },
     }),
-    [onOpen, store],
+    [onOpen, store, setTab],
   );
 
   return (
@@ -316,51 +333,63 @@ export function WorldView(props: {
           onCancel={() => setDraft(undefined)}
         />
       )}
-      <div
-        className="tabs"
-        role="tablist"
-        aria-label="World panels"
-        onKeyDown={(e) => {
-          // The ARIA tab pattern: arrows move and select, Home/End jump to the ends.
-          const k = TABS.indexOf(tab);
-          const next =
-            e.key === 'ArrowRight'
-              ? (k + 1) % TABS.length
-              : e.key === 'ArrowLeft'
-                ? (k - 1 + TABS.length) % TABS.length
-                : e.key === 'Home'
-                  ? 0
-                  : e.key === 'End'
-                    ? TABS.length - 1
-                    : undefined;
-          if (next === undefined) return;
-          e.preventDefault();
-          setTab(TABS[next]!);
-          document.getElementById(`${panelId}-tab-${next}`)?.focus();
-        }}
-      >
-        {TABS.map((t, k) => (
+      <div className="tabs-row">
+        <div
+          className="tabs"
+          role="tablist"
+          aria-label="World panels"
+          onKeyDown={(e) => {
+            // The ARIA tab pattern: arrows move and select, Home/End jump to the ends.
+            const k = TABS.indexOf(tab);
+            const next =
+              e.key === 'ArrowRight'
+                ? (k + 1) % TABS.length
+                : e.key === 'ArrowLeft'
+                  ? (k - 1 + TABS.length) % TABS.length
+                  : e.key === 'Home'
+                    ? 0
+                    : e.key === 'End'
+                      ? TABS.length - 1
+                      : undefined;
+            if (next === undefined) return;
+            e.preventDefault();
+            setTab(TABS[next]!);
+            document.getElementById(`${panelId}-tab-${next}`)?.focus();
+          }}
+        >
+          {TABS.map((t, k) => (
+            <button
+              key={t}
+              id={`${panelId}-tab-${k}`}
+              type="button"
+              role="tab"
+              aria-selected={tab === t}
+              aria-controls={summary && panelOpen ? `${panelId}-panel` : undefined}
+              tabIndex={tab === t ? 0 : -1}
+              onClick={() => setTab(t)}
+            >
+              {t}
+              {count(t) !== undefined && (
+                <>
+                  {' '}
+                  <span className="tab-count">{count(t)}</span>
+                </>
+              )}
+            </button>
+          ))}
+        </div>
+        {panelOpen && (
           <button
-            key={t}
-            id={`${panelId}-tab-${k}`}
             type="button"
-            role="tab"
-            aria-selected={tab === t}
-            aria-controls={summary ? `${panelId}-panel` : undefined}
-            tabIndex={tab === t ? 0 : -1}
-            onClick={() => setTab(t)}
+            className="link-button tabs-collapse"
+            aria-expanded="true"
+            onClick={() => setPanelOpen(false)}
           >
-            {t}
-            {count(t) !== undefined && (
-              <>
-                {' '}
-                <span className="tab-count">{count(t)}</span>
-              </>
-            )}
+            Hide panel
           </button>
-        ))}
+        )}
       </div>
-      {summary && (
+      {summary && panelOpen && (
         <section
           id={`${panelId}-panel`}
           className="summary panel"

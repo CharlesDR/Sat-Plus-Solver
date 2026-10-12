@@ -814,22 +814,6 @@ label.inline {
   padding: 2px 7px;
   box-shadow: none;
 }
-.scope {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 0 0 12px;
-}
-.scope-label {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--muted);
-}
-.scope .segmented > label {
-  flex: 1;
-  justify-content: center;
-  text-align: center;
-}
 .targets .row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 90px auto;
@@ -947,9 +931,9 @@ label.inline {
 }
 .plan-toolbar {
   display: grid;
-  gap: 10px;
-  padding: 12px 14px;
-  margin-bottom: 12px;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -986,8 +970,8 @@ label.inline {
 .mode-switch button {
   border: 0;
   border-radius: 999px;
-  padding: 6px 20px;
-  font-size: 15px;
+  padding: 4px 16px;
+  font-size: 14px;
   font-weight: 600;
   background: transparent;
   box-shadow: none;
@@ -1103,45 +1087,44 @@ label.inline {
   font-size: 13px;
 }
 
-/* Headline numbers. */
+/* Headline numbers: one line (UX-2). */
 .plan-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 10px;
-  margin: 0 0 12px;
-}
-.stat {
-  padding: 10px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 18px;
+  margin: 0 0 8px;
+  padding: 6px 12px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
+}
+.stat {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
 }
 .stat dt {
   font-size: 12px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   color: var(--muted);
 }
 .stat dd {
-  margin: 2px 0 0;
+  margin: 0;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  gap: 6px;
 }
 .stat-value {
-  font-size: 20px;
+  font-size: 15px;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
 }
 .stat-value .status-chip {
-  font-size: 14px;
-  padding: 3px 11px 3px 9px;
+  font-size: 13px;
 }
 .stat-detail {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -1397,7 +1380,6 @@ section.diagnostics li p {
 }
 .factory-flowchart .flow-canvas {
   min-height: 360px;
-  max-height: 80vh;
 }
 .factory-flowchart .flow-title,
 .factory-flowchart .flow-detail {
@@ -2352,4 +2334,121 @@ img:is(.world-icon, .flow-icon, .flow-item-icon, .cell-icon),
 .button-link {
   font-size: 14px;
   white-space: nowrap;
+}
+
+/* ---------- Layout and controls (UX-A) ---------- */
+[hidden] {
+  display: none !important;
+}
+.toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.toolbar-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 13px;
+}
+.toolbar-toggle .toggle-state {
+  color: var(--muted);
+  font-weight: 400;
+}
+.toolbar-toggle .chevron {
+  color: var(--muted);
+  transition: transform 0.15s;
+}
+.toolbar-toggle[aria-expanded='true'] {
+  background: var(--surface-2);
+}
+.toolbar-toggle[aria-expanded='true'] .chevron {
+  transform: rotate(180deg);
+}
+.view-switch {
+  margin-left: auto;
+}
+.plan-toolbar > .build-bar,
+.plan-toolbar > .nest-bar {
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.scope-chip {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.scope-chip select {
+  padding: 2px 24px 2px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+}
+.setting > .setting-badge,
+.setting > .setting-reset {
+  order: 2;
+  margin-left: auto;
+}
+.setting > .hint {
+  order: 3;
+  flex-basis: 100%;
+}
+.setting-badge {
+  font-size: 11px;
+}
+.setting-reset {
+  padding: 0 7px;
+  font-size: 13px;
+  line-height: 20px;
+  border-radius: 999px;
+  box-shadow: none;
+}
+details.advanced {
+  margin: 10px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+details.advanced > summary {
+  font-size: 13px;
+}
+.changed-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.recent-targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.recent-targets .chip {
+  cursor: pointer;
+  box-shadow: none;
+}
+.factory-flowchart.fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  margin: 0;
+  padding: 8px;
+  background: var(--bg);
+}
+.tabs-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.tabs-row > .tabs {
+  flex: 1;
+}
+.tabs-collapse {
+  margin-bottom: 4px;
+  font-size: 13px;
 }

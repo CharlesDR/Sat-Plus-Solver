@@ -86,6 +86,12 @@ export const FitIcon = () => (
   </Icon>
 );
 
+export const FullscreenIcon = () => (
+  <Icon>
+    <path d="M4 4h6M4 4v6M20 4h-6M20 4v6M4 20h6M4 20v-6M20 20h-6M20 20v-6" />
+  </Icon>
+);
+
 /** The app mark: a factory's three belts, as in the favicon. */
 export const LogoMark = () => (
   <svg className="logo" width="24" height="24" viewBox="0 0 16 16" aria-hidden="true">

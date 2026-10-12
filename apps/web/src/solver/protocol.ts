@@ -8,6 +8,8 @@ import type { FactoryResult, ModelerReportLine, World, WorldResult } from '@sps/
 export interface CatalogItem {
   id: string;
   name: string;
+  /** Targets only: the lowest tier of a recipe that makes it (UX-17). */
+  tier?: string;
 }
 
 /** A recipe the recipe toggles list. */

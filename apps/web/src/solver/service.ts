@@ -250,10 +250,16 @@ const byName =
 
 /** Items a target can name: every recipe output except power (MW). */
 export function targetCatalog(model: Model): CatalogItem[] {
-  const produced = new Set(model.recipes.flatMap((r) => r.outputs.map((o) => o.item)));
+  // Each item's lowest recipe tier: the Targets picker hides items above max tier (UX-17).
+  const tier = new Map<string, string>();
+  for (const r of model.recipes)
+    for (const o of r.outputs) {
+      const t = tier.get(o.item);
+      if (t === undefined || compareTiers(r.tier, t) < 0) tier.set(o.item, r.tier);
+    }
   return model.items
-    .filter((i) => produced.has(i.id) && i.id !== MW_ITEM_ID)
-    .map((i) => ({ id: i.id, name: i.name }))
+    .filter((i) => tier.has(i.id) && i.id !== MW_ITEM_ID)
+    .map((i) => ({ id: i.id, name: i.name, tier: tier.get(i.id)! }))
     .sort(byName((c) => c.name));
 }
 

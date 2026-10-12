@@ -1,14 +1,16 @@
 /**
- * The plan's headline numbers in one strip above the flowchart: status,
- * power, machines, nodes and the objective. The tables below keep the detail.
+ * The plan's headline numbers in one line above the flowchart (UX-2): status,
+ * power, machines and resource nodes. The objective value is a tooltip on the
+ * status (UX-7). The tables below keep the detail.
  */
 import { formatRate as fmt, groupThousands, type PlanSummary } from '@sps/solver';
 import type { ReactNode } from 'react';
+import { OBJECTIVE_CODES, OBJECTIVE_LABELS } from './controls/ObjectiveStack';
 import { StatusChip } from './ui/StatusChip';
 
-function Stat(props: { label: string; children: ReactNode; detail?: ReactNode }) {
+function Stat(props: { label: string; children: ReactNode; detail?: ReactNode; title?: string }) {
   return (
-    <div className="stat">
+    <div className="stat" title={props.title}>
       <dt>{props.label}</dt>
       <dd>
         <span className="stat-value">{props.children}</span>
@@ -24,9 +26,13 @@ export function PlanStats(props: { plan: PlanSummary; manual: boolean; timing: s
   const built = plan.recipes.reduce((s, r) => s + r.machinesCeil, 0);
   const running = plan.recipes.reduce((s, r) => s + r.machines, 0);
   const nodes = plan.nodes.reduce((s, n) => s + n.used, 0);
+  const objective =
+    !manual && plan.objectiveValue !== undefined
+      ? `Objective: ${OBJECTIVE_LABELS[plan.objective]} (${OBJECTIVE_CODES[plan.objective]}) = ${fmt(plan.objectiveValue)}`
+      : undefined;
   return (
     <dl className="plan-stats" aria-label="Plan at a glance">
-      <Stat label="Status" detail={timing}>
+      <Stat label="Status" detail={timing} {...(objective ? { title: objective } : {})}>
         {manual ? (
           <StatusChip status="manual" label="manual, not solver-checked" />
         ) : (
@@ -42,12 +48,7 @@ export function PlanStats(props: { plan: PlanSummary; manual: boolean; timing: s
       <Stat label="Machines" detail={`${fmt(running)} running`}>
         {groupThousands(String(built))}
       </Stat>
-      {nodes > 0 && <Stat label="Nodes">{fmt(nodes)}</Stat>}
-      {!manual && plan.objectiveValue !== undefined && (
-        <Stat label="Objective" detail={plan.objective}>
-          {fmt(plan.objectiveValue)}
-        </Stat>
-      )}
+      {nodes > 0 && <Stat label="Resource nodes used">{fmt(nodes)}</Stat>}
     </dl>
   );
 }

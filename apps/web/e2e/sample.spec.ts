@@ -16,6 +16,7 @@ test('the README sample world opens from its link and solves without errors', as
     await expect(page.getByRole('button', { name: `Open ${name}`, exact: true })).toBeVisible();
   await worldSettled(page);
   await expect(page.locator('.world [role=status]').first()).toHaveText(/World solved in/);
+  await page.getByRole('tab', { name: /^Factories/ }).click();
   const statuses = await page.getByTestId('factory-status').allTextContents();
   expect(statuses).toEqual(['ok', 'ok', 'ok', 'ok']);
   // Its power plant nets world power to 0 MW, so the world chip shows no deficit (B4).

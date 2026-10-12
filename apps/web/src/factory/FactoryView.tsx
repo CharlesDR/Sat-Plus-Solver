@@ -26,7 +26,7 @@ import {
 import type { Selection } from '../selection';
 import type { SolveOutcome } from '../solver/client';
 import type { Catalog, FocusPlan, SolveProgress, WorldAction } from '../solver/protocol';
-import type { Scope, WorldStore } from '../store';
+import { effectiveSettings, type Scope, type WorldStore } from '../store';
 import { SolvingNote } from '../SolvingNote';
 import { SummaryTable } from '../SummaryTable';
 import { BuildPanel } from '../build/BuildPanel';
@@ -38,9 +38,10 @@ import type { Baseline } from '../tweaks/tweaks';
 import type { WorldPlanState } from '../useWorldPlan';
 import { PlanStats } from '../PlanStats';
 import { SidebarIcon } from '../ui/icons';
-import { useSidebarOpen } from '../ui/prefs';
+import { useOpenPref, usePlanView, useSidebarOpen, type PlanView as ViewChoice } from '../ui/prefs';
 import { useToast } from '../ui/toasts';
 import { useEscapeLayer } from '../escape';
+import { BUILD_STATE } from '../build/build';
 
 /** Recovery after a crash: the world as a file, straight from the store. */
 export function ExportWorld({ store }: { store: WorldStore }) {
@@ -95,6 +96,15 @@ export function FactoryView(props: {
   const actions = store.getState();
   const factory = world.factories.find((f) => f.id === factoryId);
   const [scopeKind, setScopeKind] = useState<Scope['kind']>('factory');
+  // Toolbar panels start closed unless in use (UX-2): built, nested, tweaked.
+  const children = world.factories.filter((f) => f.parentId === factoryId);
+  const [buildOpen, setBuildOpen] = useOpenPref('build', factory?.built !== undefined);
+  const [nestOpen, setNestOpen] = useOpenPref(
+    'nest',
+    factory?.parentId !== undefined || children.length > 0,
+  );
+  const [tweaksOpen, setTweaksOpen] = useOpenPref('tweaks', (factory?.tweaks.length ?? 0) > 0);
+  const [view, setView] = usePlanView();
   const scope = useMemo<Scope>(
     () => (scopeKind === 'world' ? { kind: 'world' } : { kind: 'factory', id: factoryId }),
     [scopeKind, factoryId],
@@ -191,32 +201,21 @@ export function FactoryView(props: {
       <TargetsEditor
         catalog={catalog.targets}
         targets={factory.request.targets}
+        maxTier={effectiveSettings(world, factoryId).values.maxTier}
         onChange={(t) => actions.setTargets(factoryId, t)}
       />
       {!simple && (
-        <div className="scope" role="radiogroup" aria-label="Settings apply to">
-          <span className="scope-label">Settings apply to</span>
-          <div className="segmented">
-            <label className={scopeKind === 'factory' ? 'checked' : undefined}>
-              <input
-                type="radio"
-                name="scope"
-                checked={scopeKind === 'factory'}
-                onChange={() => setScopeKind('factory')}
-              />
-              This factory
-            </label>
-            <label className={scopeKind === 'world' ? 'checked' : undefined}>
-              <input
-                type="radio"
-                name="scope"
-                checked={scopeKind === 'world'}
-                onChange={() => setScopeKind('world')}
-              />
-              World defaults (all factories)
-            </label>
-          </div>
-        </div>
+        <label className="scope-chip">
+          Settings apply to{' '}
+          <select
+            aria-label="Settings apply to"
+            value={scopeKind}
+            onChange={(e) => setScopeKind(e.target.value as Scope['kind'])}
+          >
+            <option value="factory">This factory</option>
+            <option value="world">World defaults (all factories)</option>
+          </select>
+        </label>
       )}
       <SettingsPanel store={store} scope={scope} catalog={catalog} simple={simple} />
       <details className="card">
@@ -332,12 +331,41 @@ export function FactoryView(props: {
       </aside>
       <section className="plan-pane" aria-label="Plan">
         <div className={cls('plan-toolbar', manual && 'manual')}>
-          <ModeSwitch
-            manual={manual}
-            blocked={plan.kind === 'solving' ? 'Wait for the plan to finish solving.' : undefined}
-            onChange={toManual}
-          />
-          {!simple && (
+          <div className="toolbar-row">
+            <ModeSwitch
+              manual={manual}
+              blocked={plan.kind === 'solving' ? 'Wait for the plan to finish solving.' : undefined}
+              onChange={toManual}
+            />
+            {!simple && (
+              <Toggle open={buildOpen} onToggle={setBuildOpen}>
+                Build
+                <span className="toggle-state">
+                  {factory.built
+                    ? mine?.build
+                      ? BUILD_STATE[mine.build.state].label
+                      : 'marked'
+                    : 'not marked'}
+                </span>
+              </Toggle>
+            )}
+            {!simple && (
+              <Toggle open={nestOpen} onToggle={setNestOpen}>
+                Sub-factories
+                <span className="toggle-state">
+                  {children.length || (factory.parentId ? 'inside' : 'none')}
+                </span>
+              </Toggle>
+            )}
+            {outcome && !manual && (
+              <Toggle open={tweaksOpen} onToggle={setTweaksOpen}>
+                Tweaks
+                <span className="toggle-state">{factory.tweaks.length}</span>
+              </Toggle>
+            )}
+            <ViewSwitch view={view} onChange={setView} />
+          </div>
+          {!simple && buildOpen && (
             <BuildPanel
               factory={factory}
               check={mine?.build}
@@ -366,7 +394,7 @@ export function FactoryView(props: {
               }}
             />
           )}
-          {!simple && (
+          {!simple && nestOpen && (
             <NestPanel
               world={world}
               factory={factory}
@@ -423,6 +451,7 @@ export function FactoryView(props: {
               recipes={catalog.recipes}
               names={names}
               node={selectedNode}
+              open={tweaksOpen}
               baseline={baseline}
               run={props.run}
               onTweak={(t) => {
@@ -446,6 +475,7 @@ export function FactoryView(props: {
         </div>
         <PlanView
           plan={plan}
+          view={view}
           areas={{
             settings: factory?.areas,
             collapsed: shut,
@@ -473,6 +503,48 @@ export function FactoryView(props: {
 
 const NONE: ReadonlySet<string> = new Set();
 
+/** A toolbar button that opens and closes one panel below the toolbar (UX-2). */
+function Toggle(props: { open: boolean; onToggle(open: boolean): void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      className="toolbar-toggle"
+      aria-expanded={props.open}
+      onClick={() => props.onToggle(!props.open)}
+    >
+      {props.children}
+      <span className="chevron" aria-hidden="true">
+        ▾
+      </span>
+    </button>
+  );
+}
+
+const VIEWS: readonly { id: ViewChoice; label: string }[] = [
+  { id: 'both', label: 'Both' },
+  { id: 'graph', label: 'Graph' },
+  { id: 'table', label: 'Table' },
+];
+
+/** Flowchart, tables, or both (UX-3), kept as a preference. */
+function ViewSwitch(props: { view: ViewChoice; onChange(v: ViewChoice): void }) {
+  return (
+    <div className="segmented view-switch" role="radiogroup" aria-label="Plan view">
+      {VIEWS.map((v) => (
+        <button
+          key={v.id}
+          type="button"
+          role="radio"
+          aria-checked={props.view === v.id}
+          onClick={() => props.onChange(v.id)}
+        >
+          {v.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** A factory's flowchart areas (A64): its settings, and which areas are collapsed. */
 interface PlanAreas {
   settings: FactoryAreas | undefined;
@@ -489,6 +561,7 @@ const cls = (...xs: (string | false | undefined)[]) => xs.filter(Boolean).join('
 
 function PlanView(props: {
   plan: PlanState;
+  view: ViewChoice;
   areas: PlanAreas;
   diagnostics: ReactNode;
   layout: LayoutEngine;
@@ -503,24 +576,28 @@ function PlanView(props: {
     <>
       <PlanStats plan={o.plan} manual={o.manual !== undefined} timing={timing} />
       {diagnostics}
-      <ErrorBoundary what="the flowchart" resetKey={o.graph}>
-        <PlanFlowchart
-          engine={layout}
-          graph={o.graph}
-          catalog={catalog}
-          areas={props.areas}
+      {props.view !== 'table' && (
+        <ErrorBoundary what="the flowchart" resetKey={o.graph}>
+          <PlanFlowchart
+            engine={layout}
+            graph={o.graph}
+            catalog={catalog}
+            areas={props.areas}
+            selection={selection}
+            onSelect={(id) => onSelect(id, 'graph')}
+            onOpenFactory={props.onOpenFactory}
+          />
+        </ErrorBoundary>
+      )}
+      {props.view !== 'graph' && (
+        <SummaryTable
+          plan={o.plan}
+          manual={o.manual !== undefined}
+          missing={o.manual?.missing}
           selection={selection}
-          onSelect={(id) => onSelect(id, 'graph')}
-          onOpenFactory={props.onOpenFactory}
+          onSelect={(id) => onSelect(id, 'table')}
         />
-      </ErrorBoundary>
-      <SummaryTable
-        plan={o.plan}
-        manual={o.manual !== undefined}
-        missing={o.manual?.missing}
-        selection={selection}
-        onSelect={(id) => onSelect(id, 'table')}
-      />
+      )}
     </>
   );
   switch (plan.kind) {

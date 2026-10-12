@@ -8,7 +8,12 @@ import { useCallback, useState } from 'react';
 
 export type Theme = 'system' | 'light' | 'dark';
 
-const KEY = { theme: 'sps:pref:theme', sidebar: 'sps:pref:sidebar' } as const;
+const KEY = {
+  theme: 'sps:pref:theme',
+  sidebar: 'sps:pref:sidebar',
+  view: 'sps:pref:view',
+  recent: 'sps:pref:recent-targets',
+} as const;
 
 function read(key: string): string | undefined {
   try {
@@ -57,4 +62,63 @@ export function useSidebarOpen(): [boolean, (open: boolean) => void] {
     write(KEY.sidebar, o ? 'open' : 'closed');
   }, []);
   return [open, set];
+}
+
+/**
+ * Whether a collapsible section is open (UX-A). It starts open only while it
+ * is `active` (a build mark, a parent, a changed advanced value); a user's
+ * toggle is remembered per section and per active state, so opening the Build
+ * panel once on an unbuilt factory doesn't open it on every factory.
+ */
+export function useOpenPref(section: string, active = false): [boolean, (open: boolean) => void] {
+  const key = `sps:pref:open:${section}:${active ? 'active' : 'idle'}`;
+  const [, bump] = useState(0);
+  const stored = read(key);
+  const open = stored === undefined ? active : stored === 'open';
+  const set = useCallback(
+    (o: boolean) => {
+      write(key, o ? 'open' : 'closed');
+      bump((n) => n + 1);
+    },
+    [key],
+  );
+  return [open, set];
+}
+
+/** What the factory plan shows: the flowchart, the tables, or both (UX-3). */
+export type PlanView = 'both' | 'graph' | 'table';
+const isPlanView = (x: unknown): x is PlanView => x === 'both' || x === 'graph' || x === 'table';
+
+export function usePlanView(): [PlanView, (v: PlanView) => void] {
+  const [view, setView] = useState<PlanView>(() => {
+    const v = read(KEY.view);
+    return isPlanView(v) ? v : 'both';
+  });
+  const set = useCallback((v: PlanView) => {
+    setView(v);
+    write(KEY.view, v);
+  }, []);
+  return [view, set];
+}
+
+/** How many recent targets the Targets editor offers as chips (UX-12). */
+export const RECENT_TARGETS = 6;
+
+/** Item ids, most recent first. */
+export function readRecentTargets(): string[] {
+  try {
+    const v: unknown = JSON.parse(read(KEY.recent) ?? '[]');
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Puts items first in the recent list, without repeats, and keeps the newest few. */
+export function withRecent(recent: readonly string[], items: readonly string[]): string[] {
+  return [...new Set([...items, ...recent])].slice(0, RECENT_TARGETS);
+}
+
+export function writeRecentTargets(items: readonly string[]): void {
+  write(KEY.recent, JSON.stringify(items));
 }

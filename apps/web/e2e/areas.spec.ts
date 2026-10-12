@@ -69,6 +69,7 @@ test('Plastic 20/min is drawn in areas that collapse, expand and rename (A63, A6
     .toContain(`"${id}":"oil-refining"`);
 
   // Grouping off draws one flowchart.
+  await page.locator('details.advanced > summary').click();
   await page.getByRole('checkbox', { name: 'Disable factory component grouping' }).check();
   await expect(frames(page)).toHaveCount(0);
 });
