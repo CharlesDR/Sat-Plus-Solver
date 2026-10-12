@@ -121,16 +121,17 @@ export function carriersFor(
 }
 
 /**
- * Items a link out of `factoryId` would most likely carry: what it makes
- * (produced), most first. Any item may still be typed in.
+ * The parts a link out of `factoryId` lists first (UX-18): its products,
+ * that is what it targets, exports or has spare, by id. Any other part is
+ * under "Other…".
  */
-export function exportsOf(summary: WorldSummary | undefined, factoryId: string): string[] {
+export function productsOf(summary: WorldSummary | undefined, factoryId: string): string[] {
   const f = summary?.factories.find((x) => x.id === factoryId);
   if (!f) return [];
   return f.ledger
-    .filter((r) => r.produced > 1e-6 && r.item !== 'mw')
-    .sort((a, b) => b.produced - a.produced || (a.item < b.item ? -1 : 1))
-    .map((r) => r.item);
+    .filter((r) => r.item !== 'mw' && (r.target > 1e-6 || r.exported > 1e-6 || r.surplus > 1e-6))
+    .map((r) => r.item)
+    .sort();
 }
 
 /** Items with any flow in the save, for the item trace picker. */

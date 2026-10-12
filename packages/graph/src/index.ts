@@ -71,9 +71,9 @@ export type {
   PlacedNode,
   TrayRow,
 } from './layout';
-export { factoryNodeId, groupNodeId, nestNodeId, worldGraph } from './world';
+export { factoryNodeId, groupNodeId, MAX_OUT_PORTS, nestNodeId, worldGraph } from './world';
 export type {
-  StubItem,
+  CardItem,
   WorldEdge,
   WorldEdgeItem,
   WorldGraph,
@@ -81,12 +81,17 @@ export type {
   WorldGraphOptions,
   WorldNode,
   WorldNodeKind,
+  WorldPort,
 } from './world';
 export {
   absolutePosition,
   ACTION_ROW,
   GROUP_HEADER,
   layoutWorldGraph,
+  MORE_PORT,
+  PORT_ROW,
+  portId,
+  portY,
   worldEdgeLines,
   worldNodeLines,
 } from './worldLayout';

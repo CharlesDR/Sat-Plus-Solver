@@ -1910,21 +1910,12 @@ input.flow-area-name {
 .canvas-hint p {
   margin: 0 0 8px;
 }
-.world-products {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin: 2px 0;
-}
 .world-icon {
   display: inline-block;
   width: 16px;
   height: 16px;
   vertical-align: -3px;
   margin-right: 4px;
-}
-.world-products .world-icon {
-  margin-right: 0;
 }
 /* Dark icons stay readable on the dark theme (B12). */
 img:is(.world-icon, .flow-icon, .flow-item-icon, .cell-icon, .io-icon),
@@ -1979,7 +1970,6 @@ img:is(.world-icon, .flow-icon, .flow-item-icon, .cell-icon, .io-icon),
   position: relative;
   width: 100%;
   height: 100%;
-  padding: 8px 12px;
   border: 1px solid var(--line-strong);
   border-left-width: 4px;
   border-radius: 8px;
@@ -1987,8 +1977,91 @@ img:is(.world-icon, .flow-icon, .flow-item-icon, .cell-icon, .io-icon),
   color: var(--fg);
   font-size: 12px;
   line-height: 16px;
-  overflow: hidden;
   box-shadow: var(--shadow-sm);
+}
+.world-body {
+  height: 100%;
+  padding: 8px 12px;
+  overflow: hidden;
+}
+/* Ports (A80): one per part, inputs down the left edge, outputs down the right. */
+.world-ports {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 22px;
+}
+.world-ports.in {
+  left: 0;
+}
+.world-ports.out {
+  right: 0;
+}
+.world-port {
+  position: absolute;
+  left: 0;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.world-port .world-icon {
+  margin-right: 0;
+}
+.world-node .world-port .react-flow__handle {
+  width: 7px;
+  height: 7px;
+  border-width: 1px;
+}
+/* An unmet import: red, with a short line from nowhere. */
+.world-port.unmet .world-icon {
+  outline: 2px solid var(--error);
+}
+.world-port.unmet::before {
+  content: '';
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  width: 14px;
+  border-top: 2px dashed var(--error);
+}
+.world-node .more-button {
+  min-width: 20px;
+  padding: 0 2px;
+  font-size: 11px;
+  line-height: 16px;
+}
+.world-more-list,
+.world-raw {
+  position: absolute;
+  z-index: 10;
+  margin: 0;
+  padding: 4px 8px;
+  list-style: none;
+  white-space: nowrap;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  box-shadow: var(--shadow-sm);
+}
+.world-more-list {
+  left: 100%;
+  top: 0;
+  margin-left: 8px;
+}
+/* Raw resources of the selected card, beside it: the layout doesn't move. */
+.world-raw {
+  right: 100%;
+  top: 0;
+  margin-right: 18px;
+  border-color: var(--accent);
+}
+.world-raw-head {
+  font-weight: 600;
+}
+.world-node.selected {
+  box-shadow: 0 0 0 2px var(--accent);
 }
 .world-node .flow-detail .status-chip {
   font-size: 11px;
@@ -1999,14 +2072,6 @@ img:is(.world-icon, .flow-icon, .flow-item-icon, .cell-icon, .io-icon),
   background: var(--surface-2);
   border-style: double;
   border-width: 3px 3px 3px 5px;
-}
-.world-node.stub {
-  background: var(--surface-2);
-  border-style: dashed;
-  border-left-width: 1px;
-}
-.world-node.stub.in {
-  border-color: var(--warn);
 }
 .world-node.ok {
   border-left-color: var(--ok);
@@ -2027,13 +2092,15 @@ img:is(.world-icon, .flow-icon, .flow-item-icon, .cell-icon, .io-icon),
   bottom: 6px;
   font-size: 12px;
 }
+.world-node:has(> .world-ports.out) .link-button {
+  right: 30px;
+}
 .world-node .react-flow__handle {
   width: 10px;
   height: 10px;
   background: var(--accent);
   border: 2px solid var(--surface);
 }
-.world-node.stub .react-flow__handle,
 .world-node.group .react-flow__handle {
   opacity: 0;
 }
@@ -2058,9 +2125,6 @@ img:is(.world-icon, .flow-icon, .flow-item-icon, .cell-icon, .io-icon),
 }
 .world-edge {
   stroke: var(--muted) !important;
-}
-.world-edge.stub {
-  stroke-dasharray: 4 4;
 }
 .world-edge.short {
   stroke: var(--warn) !important;
@@ -2092,7 +2156,7 @@ img:is(.world-icon, .flow-icon, .flow-item-icon, .cell-icon, .io-icon),
 .dimmed {
   opacity: 0.25;
 }
-/* Frames and stubs are not interactive nodes; their buttons still are. */
+/* Frames are not interactive nodes; their buttons still are. */
 .world-node button,
 .group-frame button {
   pointer-events: all;

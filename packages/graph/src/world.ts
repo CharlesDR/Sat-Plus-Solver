@@ -1,16 +1,17 @@
 /**
  * The world graph (docs/ARCHITECTURE.md §4.5 "Outer graph", PLAN M8):
  * factories and groups as nodes, links as edges grouped per pair of shown
- * nodes and labeled by item and rate, and stubs for unmet imports and
- * unclaimed surplus.
+ * nodes and labeled by item and rate.
  *
  * A collapsed group is one node that stands for every factory below it: the
  * links between two of its factories are internal and hidden, and the links
- * crossing its boundary attach to it. An expanded group is a frame around its
+ * crossing its boundary attach to it. Each card has one port per part it takes
+ * or ships (A80): unmet imports are red input ports, and surplus that is
+ * neither a target nor an export folds into one "…" output port. An expanded group is a frame around its
  * members. A factory with sub-factories (A53) is drawn the same way: a frame
  * around it and everything below it, or, collapsed, one node with only the
- * flows crossing its subtree. Item trace marks exactly the factories, collapsed groups, links
- * and stubs that touch the item. Pure and deterministic: everything is sorted
+ * flows crossing its subtree. Item trace marks exactly the factories, collapsed groups and links
+ * that touch the item. Pure and deterministic: everything is sorted
  * by id.
  */
 import type { PowerSummary } from '@sps/solver';
@@ -22,7 +23,9 @@ export interface WorldGraphInput {
     FactoryResult,
     'id' | 'name' | 'groupId' | 'status' | 'ledger' | 'power' | 'nodes' | 'machines' | 'manual'
   > &
-    Partial<Pick<FactoryResult, 'build' | 'parentId' | 'subtree' | 'subtreeBuild'>>)[];
+    Partial<
+      Pick<FactoryResult, 'build' | 'parentId' | 'subtree' | 'subtreeBuild' | 'extraction'>
+    >)[];
   groups: readonly Pick<
     GroupResult,
     'id' | 'name' | 'parentId' | 'factories' | 'ledger' | 'power' | 'nodes' | 'machines'
@@ -41,22 +44,39 @@ export interface WorldGraphOptions {
   itemName?: (id: string) => string | undefined;
 }
 
-export type WorldNodeKind = 'group' | 'factory' | 'stub';
+export type WorldNodeKind = 'group' | 'factory';
 
-export interface StubItem {
+export interface CardItem {
   item: string;
   name: string;
   rate: number;
 }
 
+/** One part on a card's edge (A80). */
+export interface WorldPort extends CardItem {
+  /**
+   * Inputs: imported plus unmet; outputs: target plus exported, per minute.
+   */
+  rate: number;
+  /** Inputs: what no link or import brings. Drawn red with a dangling stub. */
+  unmet?: number;
+  /** Outputs: made beyond what is targeted or shipped. */
+  surplus?: number;
+  /** A link edge carries it. */
+  linked: boolean;
+}
+
+/** Output ports a card shows before the rest fold into its "+N" port. */
+export const MAX_OUT_PORTS = 8;
+
 export interface WorldNode {
   /**
    * `group:<id>`, `nest:<factory id>` (a factory with sub-factories, A53),
-   * `factory:<id>`, or `stub:in:<node id>` / `stub:out:<node id>`.
+   * or `factory:<id>`.
    */
   id: string;
   kind: WorldNodeKind;
-  /** The group or factory id; for a stub, the node id it hangs off. */
+  /** The group or factory id. */
   ref: string;
   /** A group node that stands for a factory and its sub-factories (A53); `ref` is the factory. */
   nest?: true;
@@ -77,22 +97,28 @@ export interface WorldNode {
   machines?: number;
   /** Groups: how many factories are below it (a nest counts its factory too). */
   members?: number;
-  /** Stubs: unmet imports (`in`) or unclaimed surplus (`out`), sorted by item. */
-  direction?: 'in' | 'out';
-  items?: StubItem[];
-  /** Factories: what it makes for its targets or ships over links, by item (UI-8). */
-  products?: { item: string; name: string }[];
+  /** Factories and collapsed groups: input ports, by part name (A80). */
+  inPorts?: WorldPort[];
+  /** Factories and collapsed groups: output ports, by part name. */
+  outPorts?: WorldPort[];
+  /**
+   * The "…" port: any unlinked outputs past `MAX_OUT_PORTS`, then surplus
+   * that is neither a target nor an export, each by name.
+   */
+  more?: (CardItem & { kind: 'surplus' | 'product' })[];
+  /** Factories: raw resources the plan extracts, shown while the card is selected. */
+  raw?: CardItem[];
   traced: boolean;
 }
 
 export interface WorldEdgeItem {
   item: string;
   name: string;
-  /** Links: the requested rate summed over `links`; stubs: the stub rate. */
+  /** The requested rate summed over `links`. */
   rate: number;
   /** Requested minus delivered: what an upstream failure leaves short. */
   short: number;
-  /** Link ids, sorted; empty on a stub edge. */
+  /** Link ids, sorted. */
   links: string[];
 }
 
@@ -101,7 +127,7 @@ export interface WorldEdge {
   id: string;
   source: string;
   target: string;
-  kind: 'link' | 'stub';
+  kind: 'link';
   /** Sorted by item. */
   items: WorldEdgeItem[];
   traced: boolean;
@@ -110,16 +136,16 @@ export interface WorldEdge {
 }
 
 export interface WorldGraph {
-  /** Groups first (each after its parent), then factories, then stubs; by id within each. */
+  /** Groups first (each after its parent), then factories; by id within each. */
   nodes: WorldNode[];
   /** Sorted by id. */
   edges: WorldEdge[];
   traceItem?: string;
 }
 
-/** Flows below this (per minute) are solver noise: no stub, no trace. */
+/** Flows below this (per minute) are solver noise: no port, no trace. */
 const FLOW_TOL = 1e-6;
-/** Power is its own badge, not a stub. */
+/** Power is its own badge, not a port. */
 const POWER_ITEM = 'mw';
 
 const byKey = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
@@ -185,7 +211,7 @@ export function worldGraph(input: WorldGraphInput, options: WorldGraphOptions = 
   const nodes: WorldNode[] = [];
   /** Factory id → the node id it shows as. */
   const shownAs = new Map<string, string>();
-  /** Scope node id → its ledger, for stubs. */
+  /** Scope node id → its ledger, for ports. */
   const ledgers = new Map<string, readonly LedgerRow[]>();
 
   const statusOf = (ids: readonly string[]) => {
@@ -256,10 +282,13 @@ export function worldGraph(input: WorldGraphInput, options: WorldGraphOptions = 
       power: { ...f.power },
       nodesUsed: sumNodes(f.nodes),
       machines: f.machines,
-      products: f.ledger
-        .filter((r) => r.target > FLOW_TOL || r.exported > FLOW_TOL)
-        .map((r) => ({ item: r.item, name: name(r.item) }))
-        .sort((a, b) => byKey(a.item, b.item)),
+      ...(f.extraction?.length
+        ? {
+            raw: f.extraction
+              .filter((r) => r.rate > FLOW_TOL)
+              .map((r) => ({ item: r.item, name: name(r.item), rate: r.rate })),
+          }
+        : {}),
       traced: trace !== undefined && touches(f.ledger, trace),
     });
     ledgers.set(id, f.ledger);
@@ -305,46 +334,85 @@ export function worldGraph(input: WorldGraphInput, options: WorldGraphOptions = 
     });
   }
 
-  // Stubs: unmet imports in, unclaimed surplus out (§4.5).
-  const owners = nodes.filter((n) => ledgers.has(n.id));
-  for (const owner of owners) {
-    const ledger = ledgers.get(owner.id)!;
-    for (const direction of ['in', 'out'] as const) {
-      const items = ledger
-        .filter((r) => r.item !== POWER_ITEM)
-        .map((r) => ({
-          item: r.item,
-          name: name(r.item),
-          rate: direction === 'in' ? r.unmet : r.surplus,
-        }))
-        .filter((r) => r.rate > FLOW_TOL);
-      if (!items.length) continue;
-      const id = `stub:${direction}:${owner.id}`;
-      const traced = trace !== undefined && items.some((i) => i.item === trace);
-      nodes.push({
-        id,
-        kind: 'stub',
-        ref: owner.id,
-        label: direction === 'in' ? 'Unmet imports' : 'Unclaimed surplus',
-        ...(owner.parent ? { parent: owner.parent } : {}),
-        direction,
-        items,
-        traced,
-      });
-      const [source, target] = direction === 'in' ? [id, owner.id] : [owner.id, id];
-      edges.push({
-        id: `${source}→${target}`,
-        source,
-        target,
-        kind: 'stub',
-        items: items.map((i) => ({ ...i, short: 0, links: [] })),
-        traced,
-        short: false,
-      });
+  // Ports (A80): what each card takes and ships, plus any part a link carries.
+  const linkedIn = new Map<string, Map<string, number>>();
+  const linkedOut = new Map<string, Map<string, number>>();
+  const add = (m: Map<string, Map<string, number>>, node: string, item: string, rate: number) => {
+    const byItem = m.get(node) ?? new Map<string, number>();
+    byItem.set(item, (byItem.get(item) ?? 0) + rate);
+    m.set(node, byItem);
+  };
+  for (const e of edges)
+    for (const it of e.items) {
+      add(linkedOut, e.source, it.item, it.rate);
+      add(linkedIn, e.target, it.item, it.rate);
     }
+  const byName = (a: CardItem, b: CardItem) => byKey(a.name, b.name) || byKey(a.item, b.item);
+  for (const n of nodes) {
+    const ledger = ledgers.get(n.id);
+    if (!ledger) continue;
+    const rows = new Map(ledger.filter((r) => r.item !== POWER_ITEM).map((r) => [r.item, r]));
+    const ins = linkedIn.get(n.id) ?? new Map<string, number>();
+    const outs = linkedOut.get(n.id) ?? new Map<string, number>();
+    const inItems = new Set([
+      ...[...rows.values()]
+        .filter((r) => r.imported > FLOW_TOL || r.unmet > FLOW_TOL)
+        .map((r) => r.item),
+      ...ins.keys(),
+    ]);
+    n.inPorts = [...inItems]
+      .map((item): WorldPort => {
+        const r = rows.get(item);
+        const unmet = r?.unmet ?? 0;
+        return {
+          item,
+          name: name(item),
+          rate: r ? r.imported + r.unmet : ins.get(item)!,
+          ...(unmet > FLOW_TOL ? { unmet } : {}),
+          linked: ins.has(item),
+        };
+      })
+      .sort(byName);
+    const outItems = new Set([
+      ...[...rows.values()]
+        .filter((r) => r.target > FLOW_TOL || r.exported > FLOW_TOL)
+        .map((r) => r.item),
+      ...outs.keys(),
+    ]);
+    const outPorts = [...outItems]
+      .map((item): WorldPort => {
+        const r = rows.get(item);
+        const surplus = r?.surplus ?? 0;
+        return {
+          item,
+          name: name(item),
+          rate: r ? r.target + r.exported : outs.get(item)!,
+          ...(surplus > FLOW_TOL ? { surplus } : {}),
+          linked: outs.has(item),
+        };
+      })
+      .sort(byName);
+    const more: NonNullable<WorldNode['more']> = [...rows.values()]
+      .filter((r) => r.surplus > FLOW_TOL && !outItems.has(r.item))
+      .map((r) => ({ item: r.item, name: name(r.item), rate: r.surplus, kind: 'surplus' as const }))
+      .sort(byName);
+    // Past the cap, unlinked outputs fold into the "…" port; linked ones always show.
+    const room = MAX_OUT_PORTS - 1;
+    if (outPorts.length + (more.length ? 1 : 0) > MAX_OUT_PORTS) {
+      const linked = outPorts.filter((p) => p.linked).length;
+      let free = Math.max(0, room - linked);
+      const folded: typeof more = [];
+      n.outPorts = outPorts.filter((p) => {
+        if (p.linked || free-- > 0) return true;
+        folded.push({ item: p.item, name: p.name, rate: p.rate, kind: 'product' });
+        return false;
+      });
+      more.unshift(...folded);
+    } else n.outPorts = outPorts;
+    if (more.length) n.more = more;
   }
 
-  const kindOrder: Record<WorldNodeKind, number> = { group: 0, factory: 1, stub: 2 };
+  const kindOrder: Record<WorldNodeKind, number> = { group: 0, factory: 1 };
   const groupOrder = new Map(nodes.filter((n) => n.kind === 'group').map((n, k) => [n.id, k]));
   nodes.sort(
     (a, b) =>
