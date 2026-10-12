@@ -4,7 +4,7 @@
  */
 import { groupAreas, recipeNodeId, type FactoryGraph, type LayoutEngine } from '@sps/graph';
 import { allocateRemaining, extractFactory, serializeWorld, type FactoryAreas } from '@sps/world';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useStore } from 'zustand';
 import { DiagnosticsList, useNames } from '../Diagnostics';
 import { factoryDiagnostics, withImport, withResourceLimit, type Fix } from '../diagnostics';
@@ -39,7 +39,15 @@ import type { WorldPlanState } from '../useWorldPlan';
 import { PlanStats } from '../PlanStats';
 import { CloseIcon, SidebarIcon } from '../ui/icons';
 import { DRAWER_QUERY, useMediaQuery } from '../ui/media';
-import { useOpenPref, usePlanView, useSidebarOpen, type PlanView as ViewChoice } from '../ui/prefs';
+import {
+  useOpenPref,
+  usePlanView,
+  useSidebarOpen,
+  useStatsScope,
+  type PlanView as ViewChoice,
+} from '../ui/prefs';
+import { useItemLookup } from '../controls/itemRows';
+import { STATS_SCOPES, isStatsScope, scopeView, type ScopeWorld } from '../stats/scope';
 import { useToast } from '../ui/toasts';
 import { isShortcut, useEscapeLayer } from '../escape';
 import { BUILD_STATE } from '../build/build';
@@ -539,6 +547,7 @@ export function FactoryView(props: {
             onChange: (change) => actions.setFactoryAreas(factoryId, change),
           }}
           diagnostics={diagnostics}
+          world={simple ? undefined : summary}
           onOpenFactory={onOpen}
           layout={layout}
           catalog={catalog}
@@ -621,6 +630,8 @@ function PlanView(props: {
   factoryId: string;
   areas: PlanAreas;
   diagnostics: ReactNode;
+  /** The world result the stats scope sums over (A81); undefined hides the scope picker. */
+  world: ScopeWorld | undefined;
   layout: LayoutEngine;
   catalog: Catalog;
   selection: Selection | undefined;
@@ -628,36 +639,73 @@ function PlanView(props: {
   onFocusTargets(): void;
   onOpenFactory(id: string): void;
 }) {
-  const { plan, layout, catalog, selection, onSelect, diagnostics } = props;
-  const solved = (o: Focused, timing: string) => (
-    <>
-      <PlanStats plan={o.plan} manual={o.manual !== undefined} timing={timing} />
-      {diagnostics}
-      {props.view !== 'table' && (
-        <ErrorBoundary what="the flowchart" resetKey={o.graph}>
-          <PlanFlowchart
-            engine={layout}
-            graph={o.graph}
-            catalog={catalog}
-            areas={props.areas}
+  const { plan, layout, catalog, selection, onSelect, diagnostics, world } = props;
+  const [statsScope, setStatsScope] = useStatsScope();
+  const items = useItemLookup(catalog.items);
+  const nodeLabels = useMemo(() => new Map(catalog.nodes.map((n) => [n.id, n.label])), [catalog]);
+  const scopeId = useId();
+  const solved = (o: Focused, timing: string) => {
+    const scope = world
+      ? scopeView({
+          scope: statsScope,
+          factoryId: props.factoryId,
+          world,
+          selection: selection?.id,
+          recipes: o.plan.recipes,
+          itemName: items.name,
+          nodeLabel: (id) => nodeLabels.get(id) ?? id,
+        })
+      : undefined;
+    return (
+      <>
+        {world && (
+          <div className="stats-scope">
+            <label htmlFor={scopeId}>Stats for</label>
+            <select
+              id={scopeId}
+              value={statsScope}
+              title="Which factories the plan stats sum over. Flows between them net out."
+              onChange={(e) => {
+                if (isStatsScope(e.target.value)) setStatsScope(e.target.value);
+              }}
+            >
+              {STATS_SCOPES.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        <PlanStats plan={o.plan} manual={o.manual !== undefined} timing={timing} scope={scope} />
+        {diagnostics}
+        {props.view !== 'table' && (
+          <ErrorBoundary what="the flowchart" resetKey={o.graph}>
+            <PlanFlowchart
+              engine={layout}
+              graph={o.graph}
+              catalog={catalog}
+              areas={props.areas}
+              selection={selection}
+              onSelect={(id) => onSelect(id, 'graph')}
+              onOpenFactory={props.onOpenFactory}
+              viewKey={props.factoryId}
+            />
+          </ErrorBoundary>
+        )}
+        {props.view !== 'graph' && (
+          <SummaryTable
+            plan={o.plan}
+            manual={o.manual !== undefined}
+            missing={o.manual?.missing}
+            scope={scope}
             selection={selection}
-            onSelect={(id) => onSelect(id, 'graph')}
-            onOpenFactory={props.onOpenFactory}
-            viewKey={props.factoryId}
+            onSelect={(id) => onSelect(id, 'table')}
           />
-        </ErrorBoundary>
-      )}
-      {props.view !== 'graph' && (
-        <SummaryTable
-          plan={o.plan}
-          manual={o.manual !== undefined}
-          missing={o.manual?.missing}
-          selection={selection}
-          onSelect={(id) => onSelect(id, 'table')}
-        />
-      )}
-    </>
-  );
+        )}
+      </>
+    );
+  };
   switch (plan.kind) {
     case 'idle':
       return (

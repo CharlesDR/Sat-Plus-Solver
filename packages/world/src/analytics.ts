@@ -17,6 +17,7 @@ import type {
   LinkResult,
   NodePoolRow,
   NodeUse,
+  ScopeStats,
   ScopeTotals,
   WorldDiagnostic,
   WorldResult,
@@ -260,35 +261,11 @@ export function analyze(
 
   /** Totals of a set of factories; links with one end outside are its boundary. */
   const scope = (members: ReadonlySet<string>): ScopeTotals => {
-    const rows = new Map<string, Row>();
-    const add = (item: string, r: Partial<Row>) => {
-      const t = rows.get(item) ?? emptyRow();
-      for (const k of Object.keys(r) as (keyof Row)[]) t[k] += r[k]!;
-      rows.set(item, t);
-    };
-    for (const id of [...members].sort()) {
-      for (const [item, r] of factoryRows.get(id)!)
-        add(item, {
-          produced: r.produced,
-          consumed: r.consumed,
-          target: r.target,
-          surplus: r.surplus,
-          unmet: r.unmet,
-        });
-    }
-    for (const l of linkResults) {
-      const from = members.has(l.from);
-      const to = members.has(l.to);
-      if (from && !to) add(l.item, { exported: l.delivered });
-      if (to && !from) add(l.item, { imported: l.delivered });
-    }
-    const fs = [...members].sort().map((id) => factoryById.get(id)!);
-    return {
-      ledger: toLedger(rows),
-      power: sumPower(fs.map((f) => f.power)),
-      nodes: sumNodes(fs.flatMap((f) => f.nodes)),
-      machines: fs.reduce((s, f) => s + f.machines, 0),
-    };
+    const { ledger, power, nodes, machines } = scopeStats(
+      { factories, links: linkResults },
+      members,
+    );
+    return { ledger, power, nodes, machines };
   };
 
   // Sub-factories (A52): a parent's totals with everything below it, and the
@@ -389,6 +366,61 @@ export function analyze(
     nodePool,
     diagnostics: sortDiagnostics(diagnostics),
     stats,
+  };
+}
+
+/** What `scopeStats` reads: a world result's factories and links, without the solve results. */
+export interface ScopeSource {
+  factories: readonly Pick<
+    FactoryResult,
+    'id' | 'ledger' | 'power' | 'nodes' | 'machines' | 'extraction' | 'plan'
+  >[];
+  links: readonly LinkResult[];
+}
+
+/**
+ * The totals of a set of factories (A52, A81): their ledgers, power, nodes,
+ * machines and extraction summed. A link with both ends inside nets out; one
+ * with an end outside is an import or export of the scope. Unknown ids are
+ * skipped. Pure and order-independent.
+ */
+export function scopeStats(source: ScopeSource, members: Iterable<string>): ScopeStats {
+  const set = new Set(members);
+  const fs = source.factories.filter((f) => set.has(f.id)).sort((a, b) => byKey(a.id, b.id));
+  const rows = new Map<string, Row>();
+  const add = (item: string, r: Partial<Row>) => {
+    const t = rows.get(item) ?? emptyRow();
+    for (const k of Object.keys(r) as (keyof Row)[]) t[k] += r[k]!;
+    rows.set(item, t);
+  };
+  for (const f of fs)
+    for (const r of f.ledger)
+      add(r.item, {
+        produced: r.produced,
+        consumed: r.consumed,
+        target: r.target,
+        surplus: r.surplus,
+        unmet: r.unmet,
+      });
+  for (const l of source.links) {
+    const from = set.has(l.from);
+    const to = set.has(l.to);
+    if (from && !to) add(l.item, { exported: l.delivered });
+    if (to && !from) add(l.item, { imported: l.delivered });
+  }
+  const extraction = new Map<string, number>();
+  for (const f of fs)
+    for (const e of f.extraction) extraction.set(e.item, (extraction.get(e.item) ?? 0) + e.rate);
+  return {
+    factories: fs.map((f) => f.id),
+    ledger: toLedger(rows),
+    power: sumPower(fs.map((f) => f.power)),
+    nodes: sumNodes(fs.flatMap((f) => f.nodes)),
+    machines: fs.reduce((s, f) => s + f.machines, 0),
+    running: fs.reduce((s, f) => s + f.plan.reduce((m, e) => m + e.machines, 0), 0),
+    extraction: [...extraction]
+      .sort(([a], [b]) => byKey(a, b))
+      .map(([item, rate]) => ({ item, rate })),
   };
 }
 

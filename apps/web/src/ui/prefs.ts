@@ -5,6 +5,7 @@
  * defaults apply and nothing else changes.
  */
 import { useCallback, useState } from 'react';
+import { isStatsScope, type StatsScope } from '../stats/scope';
 
 export type Theme = 'system' | 'light' | 'dark';
 
@@ -16,6 +17,7 @@ const KEY = {
   precise: 'sps:pref:precise-numbers',
   viewports: 'sps:pref:viewports',
   planTab: 'sps:pref:plan-tab',
+  statsScope: 'sps:pref:stats-scope',
 } as const;
 
 function read(key: string): string | undefined {
@@ -148,6 +150,19 @@ export function usePlanTab(): [PlanTab, (t: PlanTab) => void] {
     write(KEY.planTab, t);
   }, []);
   return [tab, set];
+}
+
+/** What the plan stats sum over (UI-9, A81); Current & Below by default. */
+export function useStatsScope(): [StatsScope, (s: StatsScope) => void] {
+  const [scope, setScope] = useState<StatsScope>(() => {
+    const s = read(KEY.statsScope);
+    return isStatsScope(s) ? s : 'current-below';
+  });
+  const set = useCallback((s: StatsScope) => {
+    setScope(s);
+    write(KEY.statsScope, s);
+  }, []);
+  return [scope, set];
 }
 
 /** A flowchart's pan and zoom, with the size of the plan drawing it was left on. */

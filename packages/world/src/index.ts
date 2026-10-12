@@ -27,6 +27,7 @@ export {
   wireMinerSupport,
   type MinerNeeds,
 } from './helpers';
+export { scopeStats, type ScopeSource } from './analytics';
 export type * from './types';
 export {
   discardManual,
