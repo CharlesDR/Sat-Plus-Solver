@@ -38,6 +38,9 @@ test('simple mode: one factory, own saves, share link', async ({ page, freshPage
   // The full planner starts its own world and doesn't see the simple one.
   await page.getByRole('link', { name: 'Full planner' }).click();
   await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Start here' })).toBeVisible();
+  await page.getByLabel('New factory name').fill('Factory');
+  await page.getByRole('button', { name: 'Add factory' }).click();
   await page.getByRole('button', { name: 'Open Factory', exact: true }).click();
   await expect(page.getByLabel('Target item')).toHaveValue('');
   await page.goto('simple/');

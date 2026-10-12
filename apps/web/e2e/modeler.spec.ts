@@ -50,7 +50,7 @@ test('export a factory to Modeler and import it back as built', async ({ page })
   // The import is a second factory, in manual mode and built, with the same recipe table.
   await page.keyboard.press('Escape');
   const crumbs = page.getByRole('navigation', { name: 'Breadcrumb' });
-  await crumbs.getByLabel('Factory').selectOption('factory-1');
+  await crumbs.getByLabel('Factory').selectOption('factory-2');
   await expect(page.getByTestId('plan-status')).toContainText('manual plan, not solver-checked');
   await expect(page.getByTestId('build-bar')).toContainText('Matches build');
   await expect(page.getByRole('table', { name: 'Recipes' })).toHaveText(recipes!);

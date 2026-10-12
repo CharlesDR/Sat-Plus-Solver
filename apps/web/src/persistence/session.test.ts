@@ -1,4 +1,4 @@
-import { createWorld, parseWorld, serializeWorld } from '@sps/world';
+import { createWorld, emptyWorld, parseWorld, serializeWorld } from '@sps/world';
 import { describe, expect, test } from 'vitest';
 import v2 from '../../../../fixtures/worlds/v2-world.json';
 import { createWorldStore } from '../store';
@@ -14,9 +14,9 @@ const hashOf = (world: unknown) => {
 };
 
 describe('bootWorld', () => {
-  test('a new world when nothing is saved', () => {
+  test('a new world with no factory when nothing is saved', () => {
     const boot = bootWorld('', createSaves(memoryStorage()));
-    expect(boot).toEqual({ world: createWorld(), source: 'new' });
+    expect(boot).toEqual({ world: emptyWorld(), source: 'new' });
   });
 
   test('the autosave, migrated', () => {

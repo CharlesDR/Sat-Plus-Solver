@@ -14,6 +14,7 @@ import { isShareHash, readShareHash } from './share';
 import { downloadText, modelerFileName, ShareControls } from './ShareControls';
 import { ChevronDownIcon, FileIcon } from '../ui/icons';
 import { FileButton } from '../ui/FileButton';
+import { useMenuDismiss } from '../ui/Menu';
 import { useToast } from '../ui/toasts';
 
 type Notice = { kind: 'info' | 'error'; text: string; restorable?: boolean };
@@ -93,26 +94,7 @@ export function SavePanel(props: {
   }, [boot, saves, toast]);
 
   // The menu closes on Escape and on a click outside it.
-  useEffect(() => {
-    const close = () => menu.current?.removeAttribute('open');
-    const onClick = (e: MouseEvent) => {
-      if (menu.current?.open && !menu.current.contains(e.target as Node)) close();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && menu.current?.open) {
-        // Handled: Esc closes the menu and goes no further (A42).
-        e.preventDefault();
-        close();
-        menu.current.querySelector('summary')?.focus();
-      }
-    };
-    document.addEventListener('mousedown', onClick);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onClick);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, []);
+  useMenuDismiss(menu);
 
   /** Loads a world, keeping the current one as the backup. */
   const load = useCallback(

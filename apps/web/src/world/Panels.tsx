@@ -8,6 +8,7 @@ import { StatusChip } from '../ui/StatusChip';
 import { groupAncestors, type World } from '@sps/world';
 import { parentOptions } from '../nest/nest';
 import { useState, type ReactNode } from 'react';
+import { MoreMenu } from '../ui/Menu';
 import type { Catalog, WorldSummary } from '../solver/protocol';
 import type { WorldStore } from '../store';
 import {
@@ -127,8 +128,9 @@ export function FactoriesPanel(props: {
   onOpen(id: string): void;
 }) {
   const { world, summary, store, itemName, onOpen } = props;
-  const actions = store.getState();
   const solved = new Map(summary.factories.map((f) => [f.id, f]));
+  const group = new Map(world.groups.map((g) => [g.id, g.name]));
+  const parent = new Map(world.factories.map((f) => [f.id, f.name]));
   return (
     <div>
       <Table
@@ -161,51 +163,9 @@ export function FactoriesPanel(props: {
             .map((x) => ({ item: x.item, rate: x.exported }));
           return (
             <tr key={f.id} data-factory={f.id}>
-              <td className="text">
-                <input
-                  aria-label={`Name of ${f.name}`}
-                  value={f.name}
-                  onChange={(e) => actions.renameFactory(f.id, e.target.value)}
-                />
-              </td>
-              <td className="text">
-                <select
-                  aria-label={`Group of ${f.name}`}
-                  value={f.groupId ?? ''}
-                  disabled={f.parentId !== undefined}
-                  title={
-                    f.parentId !== undefined ? 'A sub-factory shows inside its parent.' : undefined
-                  }
-                  onChange={(e) => actions.setFactoryGroup(f.id, e.target.value || undefined)}
-                >
-                  <option value="">(none)</option>
-                  {world.groups.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td className="text">
-                <select
-                  aria-label={`Factory ${f.name} is inside`}
-                  value={f.parentId ?? ''}
-                  onChange={(e) => {
-                    try {
-                      actions.setFactoryParent(f.id, e.target.value || undefined);
-                    } catch {
-                      // The list never offers a cycle; a stale choice changes nothing.
-                    }
-                  }}
-                >
-                  <option value="">(top level)</option>
-                  {parentOptions(world, f.id).map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.name}
-                    </option>
-                  ))}
-                </select>
-              </td>
+              <td className="text">{f.name}</td>
+              <td className="text">{(f.groupId && group.get(f.groupId)) || '—'}</td>
+              <td className="text">{(f.parentId && parent.get(f.parentId)) || '—'}</td>
               <td className={`text status ${r?.status ?? ''}`} data-testid="factory-status">
                 {r ? <StatusChip status={r.status} /> : '…'}
               </td>
@@ -227,18 +187,83 @@ export function FactoriesPanel(props: {
                 >
                   Open
                 </button>
-                <button
-                  type="button"
-                  onClick={() => actions.removeFactory(f.id)}
-                  aria-label={`Delete ${f.name}`}
-                >
-                  Delete
-                </button>
+                <MoreMenu label={`Edit ${f.name}`} fixed>
+                  <FactoryEditor world={world} store={store} id={f.id} />
+                </MoreMenu>
               </td>
             </tr>
           );
         })}
       </Table>
+    </div>
+  );
+}
+
+/**
+ * A Factories table row's menu (UX-11): the table itself is read-only, and a
+ * factory's name, group, parent and deletion live here.
+ */
+function FactoryEditor(props: { world: World; store: WorldStore; id: string }) {
+  const { world, store, id } = props;
+  const actions = store.getState();
+  const f = world.factories.find((x) => x.id === id);
+  if (!f) return null;
+  return (
+    <div className="factory-editor">
+      <label>
+        Name
+        <input
+          aria-label={`Name of ${f.name}`}
+          value={f.name}
+          onChange={(e) => actions.renameFactory(f.id, e.target.value)}
+        />
+      </label>
+      <label>
+        Group
+        <select
+          aria-label={`Group of ${f.name}`}
+          value={f.groupId ?? ''}
+          disabled={f.parentId !== undefined}
+          title={f.parentId !== undefined ? 'A sub-factory shows inside its parent.' : undefined}
+          onChange={(e) => actions.setFactoryGroup(f.id, e.target.value || undefined)}
+        >
+          <option value="">(none)</option>
+          {world.groups.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Inside
+        <select
+          aria-label={`Factory ${f.name} is inside`}
+          value={f.parentId ?? ''}
+          onChange={(e) => {
+            try {
+              actions.setFactoryParent(f.id, e.target.value || undefined);
+            } catch {
+              // The list never offers a cycle; a stale choice changes nothing.
+            }
+          }}
+        >
+          <option value="">(top level)</option>
+          {parentOptions(world, f.id).map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        type="button"
+        className="danger"
+        onClick={() => actions.removeFactory(f.id)}
+        aria-label={`Delete ${f.name}`}
+      >
+        Delete factory
+      </button>
     </div>
   );
 }

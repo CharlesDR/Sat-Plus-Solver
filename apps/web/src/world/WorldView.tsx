@@ -27,6 +27,7 @@ import { traceableItems, worldStatus } from './viewModel';
 import { StatusChip } from '../ui/StatusChip';
 import { WorldCanvas, type CanvasActions } from './WorldCanvas';
 import { PlusIcon } from '../ui/icons';
+import { MoreMenu } from '../ui/Menu';
 import { useToast } from '../ui/toasts';
 import { offBuildText } from '../build/build';
 
@@ -214,24 +215,6 @@ export function WorldView(props: {
               : `Add ${MINER_SUPPORT_NAME} factory`}
           </button>
         )}
-        <button
-          type="button"
-          disabled={plan.kind !== 'done' || !summary?.factories.length}
-          title="Save every factory's current plan as the one built in your game"
-          onClick={() => {
-            if (!summary) return;
-            const skipped = store
-              .getState()
-              .markAllBuilt(summary.factories, new Date().toISOString());
-            toast(
-              skipped.length
-                ? `Marked every factory as built except ${skipped.length} with no plan.`
-                : 'Marked every factory as built.',
-            );
-          }}
-        >
-          Mark every factory as built
-        </button>
         {summary && (
           <span data-testid="world-status" title="World status">
             <StatusChip {...worldStatus(summary)} />
@@ -249,6 +232,29 @@ export function WorldView(props: {
             {plan.kind === 'done' ? `World solved in ${Math.round(plan.outcome.ms)} ms.` : ''}
           </span>
         )}
+        {/* Power actions sit in a menu, not in prime position (UX-10). */}
+        <MoreMenu label="More world actions" className="world-more">
+          <div className="menu-actions">
+            <button
+              type="button"
+              disabled={plan.kind !== 'done' || !summary?.factories.length}
+              title="Save every factory's current plan as the one built in your game"
+              onClick={() => {
+                if (!summary) return;
+                const skipped = store
+                  .getState()
+                  .markAllBuilt(summary.factories, new Date().toISOString());
+                toast(
+                  skipped.length
+                    ? `Marked every factory as built except ${skipped.length} with no plan.`
+                    : 'Marked every factory as built.',
+                );
+              }}
+            >
+              Mark every factory as built
+            </button>
+          </div>
+        </MoreMenu>
       </div>
       {plan.kind === 'error' && (
         <p className="error" role="alert">
@@ -262,7 +268,7 @@ export function WorldView(props: {
           onFix={fix}
         />
       )}
-      {/* Docked above the canvas, not floating over its nodes (B3). */}
+      {/* Docked above the canvas, not floating over its nodes (B3); the one Add entry (UX-8). */}
       <div className="canvas-head">
         <form
           className="add-factory"
@@ -292,19 +298,13 @@ export function WorldView(props: {
         {unplanned && (
           <div className="canvas-overlay canvas-hint" role="group" aria-label="Start here">
             <p>
-              <strong>Start here.</strong> Open a factory and add a target to plan it. Drag from one
-              factory’s right edge to another’s left edge to link them.
+              <strong>Start here.</strong>{' '}
+              {world.factories.length === 0
+                ? 'Name a factory above and add it, then open it and pick what it makes.'
+                : 'Open a factory and add a target to plan it.'}{' '}
+              Drag from one factory’s right edge to another’s left edge to link them.
             </p>
             <div className="start-cards">
-              <button
-                type="button"
-                onClick={() =>
-                  onOpen(world.factories[0]?.id ?? store.getState().addFactory('Factory'))
-                }
-              >
-                <strong>Add a factory</strong>
-                <span>Pick what it makes.</span>
-              </button>
               <button type="button" onClick={start.sample}>
                 <strong>Open the sample world</strong>
                 <span>Four linked factories.</span>

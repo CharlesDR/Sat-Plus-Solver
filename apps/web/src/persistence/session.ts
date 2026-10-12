@@ -3,7 +3,7 @@
  * A share link wins over the autosave; the autosave it replaces is kept as
  * the backup, so opening someone's link never loses your own world.
  */
-import { createWorld, parseWorld, serializeWorld, type World } from '@sps/world';
+import { emptyWorld, parseWorld, serializeWorld, type World } from '@sps/world';
 import type { WorldStore } from '../store';
 import type { Saves } from './saves';
 import { isShareHash, readShareHash } from './share';
@@ -17,7 +17,10 @@ export interface Boot {
 
 const why = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-/** The world to start with: the share link in `hash`, else the autosave, else a new one. */
+/**
+ * The world to start with: the share link in `hash`, else the autosave, else
+ * a new one with no factory yet (UX-8).
+ */
 export function bootWorld(hash: string, saves: Saves): Boot {
   let problem: string | undefined;
   if (isShareHash(hash)) {
@@ -39,7 +42,7 @@ export function bootWorld(hash: string, saves: Saves): Boot {
       problem = `Your autosave could not be read (${why(e)}); it is kept as the backup.`;
     }
   }
-  return { world: createWorld(), source: 'new', ...(problem ? { problem } : {}) };
+  return { world: emptyWorld(), source: 'new', ...(problem ? { problem } : {}) };
 }
 
 /** Writes the world to the autosave now and whenever it changes. Returns the unsubscribe. */

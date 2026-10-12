@@ -42,6 +42,7 @@ test('factory view with a plan, diagnostics and every section open is axe-clean'
   page,
 }) => {
   await page.goto('/');
+  await addFactory(page, 'Factory');
   await page.getByRole('button', { name: 'Open Factory', exact: true }).click();
   await page.getByLabel('Target item').fill('Compact Biomass');
   await page.getByLabel('Per minute').fill('10');
@@ -104,6 +105,7 @@ test.describe('dark mode', () => {
   test.use({ colorScheme: 'dark' });
   test('the world and factory views are axe-clean in dark mode too', async ({ page }) => {
     await page.goto('/');
+    await addFactory(page, 'Factory');
     await worldSettled(page);
     await axe(page, 'the dark world view');
     await page.getByRole('button', { name: 'Open Factory', exact: true }).click();

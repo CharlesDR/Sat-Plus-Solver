@@ -9,6 +9,7 @@ import {
   createFactory,
   createWorld,
   factorySolveRequest,
+  emptyWorld,
   freshWorld,
   renameWorld,
   type World,
@@ -81,8 +82,8 @@ describe('fresh worlds and names (N1, N2, N8)', () => {
     const old = busy();
     const w = freshWorld(old, true, ' Phase 2 ');
     expect(w).toEqual({
-      ...createWorld('h'),
-      meta: { ...createWorld('h').meta, name: 'Phase 2' },
+      ...emptyWorld('h'),
+      meta: { ...emptyWorld('h').meta, name: 'Phase 2' },
       defaults: old.defaults,
       nodePool: old.nodePool,
     });
@@ -91,8 +92,8 @@ describe('fresh worlds and names (N1, N2, N8)', () => {
     expect(old.defaults.recipes).toEqual({ a: false });
   });
 
-  test('an empty start is a new world on the same data, unnamed when blank', () => {
-    expect(freshWorld(busy(), false, '  ')).toEqual(createWorld('h'));
+  test('an empty start is a new world on the same data, with no factory, unnamed when blank', () => {
+    expect(freshWorld(busy(), false, '  ')).toEqual(emptyWorld('h'));
   });
 
   test('renaming sets or clears the name', () => {
