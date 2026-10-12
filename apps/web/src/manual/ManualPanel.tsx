@@ -12,9 +12,9 @@ import { paletteMatches } from './manual';
 
 /** The two-state switch at the top of the factory view. */
 const MANUAL_NOTE =
-  'Manual: the solver is paused for this factory. Flows are plain arithmetic on your machine counts and are not solver-checked.';
+  'Manual: the solver is paused for this factory. Flows are plain arithmetic on your machine counts and are not solver-checked. Press M to switch.';
 const SOLVER_NOTE =
-  'Solver: the plan is solved from your targets and settings. Switch to Manual to freeze it and edit it by hand.';
+  'Solver: the plan is solved from your targets and settings. Switch to Manual to freeze it and edit it by hand (M).';
 
 export function ModeSwitch(props: {
   manual: boolean;

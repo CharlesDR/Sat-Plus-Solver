@@ -1,9 +1,9 @@
 /**
  * The flowchart writes numbers with its own copy of the number format (the
- * graph package may not import the solver's code); both must agree (A41).
+ * graph package may not import the solver's code); both must agree (A41, and the quiet format of A78).
  */
-import { rateText } from '@sps/graph';
-import { formatRate } from '@sps/solver';
+import { quietText, rateText } from '@sps/graph';
+import { formatQuiet, formatRate } from '@sps/solver';
 import fc from 'fast-check';
 import { expect, test } from 'vitest';
 
@@ -18,6 +18,7 @@ test('the graph rateText and the solver formatRate write every number the same w
       ),
       (x) => {
         expect(rateText(x)).toBe(formatRate(x));
+        expect(quietText(x)).toBe(formatQuiet(x));
       },
     ),
     { seed: 41, numRuns: 2000 },

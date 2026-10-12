@@ -4,7 +4,7 @@
  * Names are resolved against the model; numbers stay numeric (use `formatRate` or `formatExact`).
  */
 import type { Model } from '@sps/data';
-import { formatExact, formatRate, groupThousands } from './numbers';
+import { formatExact, formatQuiet, formatRate, groupThousands } from './numbers';
 import type { Diagnostic, ObjectiveId, PowerSummary, SolveResult, SolveStatus } from './types';
 
 export interface SummaryRecipe {
@@ -17,12 +17,29 @@ export interface SummaryRecipe {
   powerMW: number;
   /** Heaters only (A17): boiler load 0–1; `machines` is then the whole heater count. */
   boilerLoad?: number;
+  /** What these machines consume and produce per minute (the plan's own flows), without MW. */
+  inputs: SummaryFlow[];
+  outputs: SummaryFlow[];
+  /** Extraction recipes: the node class they draw on. */
+  node?: string;
 }
 
 export interface SummaryFlow {
   item: string;
   name: string;
   rate: number;
+}
+
+/** One item's movement in the plan (the Items tab, UX-4). */
+export interface SummaryItem {
+  item: string;
+  name: string;
+  produced: number;
+  consumed: number;
+  imported: number;
+  surplus: number;
+  /** Targets plus world demand. */
+  demand: number;
 }
 
 export interface SummaryNode {
@@ -46,6 +63,8 @@ export interface PlanSummary {
   imports: SummaryFlow[];
   /** Surplus and byproducts. */
   byproducts: SummaryFlow[];
+  /** Every item that moves except MW, sorted by name (UX-4). */
+  items: SummaryItem[];
   nodes: SummaryNode[];
   /** Raw resources extracted (A33). */
   extraction: SummaryFlow[];
@@ -53,6 +72,9 @@ export interface PlanSummary {
   /** Loop items the plan needs a starter of (A74), by name. Absent when none. */
   starters?: string[];
 }
+
+/** The power pseudo-item: generators output it; the MW column and Power line show it. */
+const MW = 'mw';
 
 export function summarizePlan(model: Model, result: SolveResult): PlanSummary {
   const item = new Map(model.items.map((i) => [i.id, i.name]));
@@ -73,10 +95,25 @@ export function summarizePlan(model: Model, result: SolveResult): PlanSummary {
       machinesCeil: r.machinesCeil,
       powerMW: r.powerMW,
       ...(r.boilerLoad !== undefined ? { boilerLoad: r.boilerLoad } : {}),
+      inputs: r.inputs.filter((f) => f.item !== MW).map((f) => flow(f.item, f.rate)),
+      outputs: r.outputs.filter((f) => f.item !== MW).map((f) => flow(f.item, f.rate)),
+      ...(r.node !== undefined ? { node: r.node } : {}),
     })),
     targets: result.items.filter((i) => i.demand > 0).map((i) => flow(i.item, i.demand)),
     imports: result.imports.map((r) => flow(r.item, r.rate)),
     byproducts: result.surplus.map((r) => flow(r.item, r.rate)),
+    items: result.items
+      .filter((i) => i.item !== MW)
+      .map((i) => ({
+        item: i.item,
+        name: name(i.item),
+        produced: i.produced,
+        consumed: i.consumed,
+        imported: i.imported,
+        surplus: i.surplus,
+        demand: i.demand,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name) || (a.item < b.item ? -1 : 1)),
     nodes: result.nodes.map((n) => {
       const meta = node.get(n.node);
       return {
@@ -102,23 +139,52 @@ export function starterNote(plan: Pick<PlanSummary, 'starters'>): string | undef
   return `Needs starter ${list}.`;
 }
 
+/** How a table writes its numbers: rates and counts, and the same with an exact fraction. */
+export interface NumberFormat {
+  rate(n: number): string;
+  exact(n: number): string;
+}
+
+/** The A41 format the CLI uses: 1 to 4 decimals, with the exact fraction. */
+export const PRECISE_NUMBERS: NumberFormat = { rate: formatRate, exact: formatExact };
+/** The quiet format (UX-6, A78): 1 to 2 decimals and "<0.01"; the web app's default. */
+export const QUIET_NUMBERS: NumberFormat = { rate: formatQuiet, exact: formatQuiet };
+
+/** A recipe's inputs or outputs as one cell: "Iron Ore 30.0, Coal 15.0" (UX-4). */
+const flowsText = (flows: readonly SummaryFlow[], rate: (n: number) => string) =>
+  flows.map((f) => `${f.name} ${rate(f.rate)}`).join(', ');
+
 /**
  * The Recipes table of the plan, as text cells (CLI and web share it). A
  * `Boiler` column (load %, A17) appears only when the plan builds a heater:
  * its Count is whole heaters, which burn full fuel; the boiler side runs at
- * the load shown.
+ * the load shown. With `io`, Inputs and Outputs columns follow the machine
+ * (UX-4). Rows keep the order of `plan.recipes`.
  */
-export function recipeTable(plan: PlanSummary): { head: string[]; rows: string[][] } {
+export function recipeTable(
+  plan: Pick<PlanSummary, 'recipes'>,
+  options: { io?: boolean; format?: NumberFormat } = {},
+): { head: string[]; rows: string[][] } {
+  const { io = false, format = PRECISE_NUMBERS } = options;
   const heaters = plan.recipes.some((r) => r.boilerLoad !== undefined);
   return {
-    head: ['Recipe', 'Machine', 'Count', 'Build', ...(heaters ? ['Boiler'] : []), 'MW'],
+    head: [
+      'Recipe',
+      'Machine',
+      ...(io ? ['Inputs', 'Outputs'] : []),
+      'Count',
+      'Build',
+      ...(heaters ? ['Boiler'] : []),
+      'MW',
+    ],
     rows: plan.recipes.map((r) => [
       r.name,
       r.machine,
-      formatExact(r.machines),
+      ...(io ? [flowsText(r.inputs, format.rate), flowsText(r.outputs, format.rate)] : []),
+      format.exact(r.machines),
       groupThousands(String(r.machinesCeil)),
-      ...(heaters ? [r.boilerLoad === undefined ? '' : `${formatRate(r.boilerLoad * 100)}%`] : []),
-      formatRate(r.powerMW),
+      ...(heaters ? [r.boilerLoad === undefined ? '' : `${format.rate(r.boilerLoad * 100)}%`] : []),
+      format.rate(r.powerMW),
     ]),
   };
 }

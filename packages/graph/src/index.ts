@@ -50,11 +50,13 @@ export {
   multiStageInputs,
   TRAY_PAD,
   rateText,
+  quietText,
   countText,
   SMALL_PLAN,
   wrapText,
 } from './layout';
 export { flowForm, GASES, type FlowForm } from './forms';
+export { productionDepths, productionOrder, type OrderedRecipe } from './order';
 export { gap, layoutScore, type LayoutScore } from './score';
 export type {
   Box,

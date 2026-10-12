@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { recipeTable, type PlanSummary } from './summary';
+import { QUIET_NUMBERS, recipeTable, type PlanSummary } from './summary';
 
 const plan = (recipes: PlanSummary['recipes']): PlanSummary => ({
   status: 'ok',
@@ -9,6 +9,7 @@ const plan = (recipes: PlanSummary['recipes']): PlanSummary => ({
   targets: [],
   imports: [],
   byproducts: [],
+  items: [],
   nodes: [],
   extraction: [],
   power: { consumptionMW: 0, generationMW: 0, netMW: 0 },
@@ -20,6 +21,8 @@ const smelter = {
   machines: 2.5,
   machinesCeil: 3,
   powerMW: 10,
+  inputs: [{ item: 'iron-ore', name: 'Iron Ore', rate: 75 }],
+  outputs: [{ item: 'iron-ingot', name: 'Iron Ingot', rate: 75 }],
 };
 
 test('recipeTable: no Boiler column without heaters', () => {
@@ -42,6 +45,8 @@ test('recipeTable: heaters show whole machines and their boiler load (A17)', () 
     machinesCeil: 8,
     powerMW: 0,
     boilerLoad: 300 / 320,
+    inputs: [],
+    outputs: [],
   };
   expect(recipeTable(plan([smelter, heater]))).toEqual({
     head: ['Recipe', 'Machine', 'Count', 'Build', 'Boiler', 'MW'],
@@ -50,4 +55,19 @@ test('recipeTable: heaters show whole machines and their boiler load (A17)', () 
       ['Solid Fuel Heater Mk.1 (Coal)', 'Solid Fuel Heater Mk.1 (MP)', '8.0', '8', '93.75%', '0.0'],
     ],
   });
+});
+
+test('recipeTable: with io, Inputs and Outputs follow the machine (UX-4)', () => {
+  expect(recipeTable(plan([smelter]), { io: true })).toEqual({
+    head: ['Recipe', 'Machine', 'Inputs', 'Outputs', 'Count', 'Build', 'MW'],
+    rows: [['Iron Ingot', 'Smelter', 'Iron Ore 75.0', 'Iron Ingot 75.0', '2.5', '3', '10.0']],
+  });
+});
+
+test('recipeTable: the quiet format shows 2 decimals and no fraction (UX-6)', () => {
+  const row = recipeTable(plan([{ ...smelter, machines: 7 / 3, powerMW: 0.001 }]), {
+    format: QUIET_NUMBERS,
+  }).rows[0]!;
+  expect(row[2]).toBe('2.34');
+  expect(row[4]).toBe('<0.01');
 });

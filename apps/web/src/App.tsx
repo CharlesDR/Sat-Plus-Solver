@@ -20,6 +20,7 @@ import { ThemeSwitch } from './ui/ThemeSwitch';
 import { ToastProvider, useToast } from './ui/toasts';
 import { WorldView, type StartActions } from './world/WorldView';
 import { EscapeContext, escapeStack, isTextField } from './escape';
+import { NumbersProvider } from './ui/numbers';
 import { backOut, factoryView, focusOf, parentLookup, WORLD_VIEW, type View } from './viewPath';
 
 /** Where the user is: the world canvas (home), or one factory drilled into. */
@@ -142,91 +143,93 @@ function AppFrame(props: {
 
   return (
     <EscapeContext.Provider value={escape}>
-      <div className="app">
-        <header className="topbar">
-          <div className="brand">
-            <LogoMark />
-            <h1>Sat-Plus-Solver</h1>
-            {world.meta.name && (
-              <span className="world-name" title="World name">
-                {world.meta.name}
-              </span>
-            )}
-          </div>
-          <Breadcrumb
-            world={world}
-            focus={focus}
-            onWorld={() => setView(WORLD_VIEW)}
-            onFactory={(id) => setView(factoryView(id, parentLookup(world)))}
-          />
-          <div className="topbar-actions">
-            <button
-              type="button"
-              className="search-button"
-              onClick={() => setPalette(true)}
-              disabled={!catalog}
-              title="Quick search (Ctrl+K)"
-            >
-              <SearchIcon />
-              <span>Search</span>
-              <kbd>Ctrl K</kbd>
-            </button>
-            <SavePanel
-              store={store}
-              saves={saves}
-              boot={boot}
-              modeler={modeler}
-              onNewWorld={() => setNewWorld(true)}
+      <NumbersProvider>
+        <div className="app">
+          <header className="topbar">
+            <div className="brand">
+              <LogoMark />
+              <h1>Sat-Plus-Solver</h1>
+              {world.meta.name && (
+                <span className="world-name" title="World name">
+                  {world.meta.name}
+                </span>
+              )}
+            </div>
+            <Breadcrumb
+              world={world}
+              focus={focus}
+              onWorld={() => setView(WORLD_VIEW)}
+              onFactory={(id) => setView(factoryView(id, parentLookup(world)))}
             />
-            <ThemeSwitch />
-          </div>
-        </header>
-        <main className={focus !== undefined ? 'main factory-main' : 'main world-main'}>
-          {mismatch && (
-            <p className="warning banner" role="alert">
-              This plan was made with different game data ({mismatch.world}); the loaded data is{' '}
-              {mismatch.model}. Results may differ.{' '}
-              <button type="button" onClick={() => store.getState().useCurrentData()}>
-                Use current data
+            <div className="topbar-actions">
+              <button
+                type="button"
+                className="search-button"
+                onClick={() => setPalette(true)}
+                disabled={!catalog}
+                title="Quick search (Ctrl+K)"
+              >
+                <SearchIcon />
+                <span>Search</span>
+                <kbd>Ctrl K</kbd>
               </button>
-            </p>
-          )}
-          {initError ? (
-            <p className="error" role="alert">
-              The solver failed to start: {initError}
-            </p>
-          ) : !catalog ? (
-            <p aria-busy="true" role="status" className="loading">
-              Loading the solver…
-            </p>
-          ) : (
-            <ErrorBoundary what="the app" recovery={<ExportWorld store={store} />}>
-              <Shell
-                client={client}
+              <SavePanel
                 store={store}
-                layout={layout}
-                catalog={catalog}
-                focus={focus}
-                onView={setView}
-                start={start}
+                saves={saves}
+                boot={boot}
+                modeler={modeler}
+                onNewWorld={() => setNewWorld(true)}
               />
-              {palette && (
-                <CommandPalette
+              <ThemeSwitch />
+            </div>
+          </header>
+          <main className={focus !== undefined ? 'main factory-main' : 'main world-main'}>
+            {mismatch && (
+              <p className="warning banner" role="alert">
+                This plan was made with different game data ({mismatch.world}); the loaded data is{' '}
+                {mismatch.model}. Results may differ.{' '}
+                <button type="button" onClick={() => store.getState().useCurrentData()}>
+                  Use current data
+                </button>
+              </p>
+            )}
+            {initError ? (
+              <p className="error" role="alert">
+                The solver failed to start: {initError}
+              </p>
+            ) : !catalog ? (
+              <p aria-busy="true" role="status" className="loading">
+                Loading the solver…
+              </p>
+            ) : (
+              <ErrorBoundary what="the app" recovery={<ExportWorld store={store} />}>
+                <Shell
+                  client={client}
                   store={store}
+                  layout={layout}
                   catalog={catalog}
                   focus={focus}
                   onView={setView}
-                  onClose={() => setPalette(false)}
-                  actions={actions}
+                  start={start}
                 />
-              )}
-              {newWorld && (
-                <NewWorldDialog store={store} saves={saves} onClose={() => setNewWorld(false)} />
-              )}
-            </ErrorBoundary>
-          )}
-        </main>
-      </div>
+                {palette && (
+                  <CommandPalette
+                    store={store}
+                    catalog={catalog}
+                    focus={focus}
+                    onView={setView}
+                    onClose={() => setPalette(false)}
+                    actions={actions}
+                  />
+                )}
+                {newWorld && (
+                  <NewWorldDialog store={store} saves={saves} onClose={() => setNewWorld(false)} />
+                )}
+              </ErrorBoundary>
+            )}
+          </main>
+        </div>
+      </NumbersProvider>
     </EscapeContext.Provider>
   );
 }

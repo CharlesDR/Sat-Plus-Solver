@@ -138,13 +138,22 @@ test('avoid fluid byproducts is on, and its fix turns it off for the factory (A3
   await expect(avoid).not.toBeChecked();
 });
 
-test('counts show 1 to 4 decimals rounded up, with the exact fraction (A41)', async ({ page }) => {
+test('counts show 2 decimals, or 1 to 4 rounded up with the exact fraction (A41, A78)', async ({
+  page,
+}) => {
   await openFactory(page);
   await page.getByLabel('Per minute').fill('10');
   await page.getByLabel('Target item').fill('Iron Rod');
   await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
   const rod = page.getByRole('table', { name: 'Recipes' }).getByRole('row', { name: /^Iron Rod / });
-  await expect(rod.getByRole('cell').nth(2)).toHaveText('0.6667 (2/3)');
+  // Count is the fifth column, after Recipe, Machine, Inputs and Outputs (UX-4).
+  const count = rod.getByRole('cell').nth(4);
+  // Quiet by default (UX-6), with the exact value on hover.
+  await expect(count).toHaveText('0.67');
+  await expect(count).toHaveAttribute('title', '0.6667 (2/3)');
+  await page.getByLabel('Precise numbers').check();
+  await expect(count).toHaveText('0.6667 (2/3)');
+  await page.getByLabel('Precise numbers').uncheck();
   await expect(page.locator('summary', { hasText: 'Imports' })).toHaveText(
     'Imports (0 unassigned)',
   );

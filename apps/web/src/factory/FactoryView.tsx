@@ -4,7 +4,7 @@
  */
 import { groupAreas, recipeNodeId, type FactoryGraph, type LayoutEngine } from '@sps/graph';
 import { allocateRemaining, extractFactory, serializeWorld, type FactoryAreas } from '@sps/world';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useStore } from 'zustand';
 import { DiagnosticsList, useNames } from '../Diagnostics';
 import { factoryDiagnostics, withImport, withResourceLimit, type Fix } from '../diagnostics';
@@ -40,7 +40,7 @@ import { PlanStats } from '../PlanStats';
 import { SidebarIcon } from '../ui/icons';
 import { useOpenPref, usePlanView, useSidebarOpen, type PlanView as ViewChoice } from '../ui/prefs';
 import { useToast } from '../ui/toasts';
-import { useEscapeLayer } from '../escape';
+import { isShortcut, useEscapeLayer } from '../escape';
 import { BUILD_STATE } from '../build/build';
 
 /** Recovery after a crash: the world as a file, straight from the store. */
@@ -167,6 +167,31 @@ export function FactoryView(props: {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [store, factoryId]);
+  // One-key shortcuts (UX-13): M switches Solver/Manual, / filters the recipes.
+  const switchMode = useRef<() => void>(() => {});
+  useEffect(() => {
+    switchMode.current = () => {
+      if (!manual && plan.kind === 'solving') return;
+      setSelection(undefined);
+      if (manual) actions.leaveManual(factoryId);
+      else actions.enterManual(factoryId, planToFreeze(outcome?.graph));
+    };
+  });
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (isShortcut(e, 'm')) {
+        e.preventDefault();
+        switchMode.current();
+      } else if (isShortcut(e, '/')) {
+        const filter = document.querySelector<HTMLInputElement>('[data-shortcut=filter-recipes]');
+        if (!filter) return;
+        e.preventDefault();
+        filter.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   if (!factory) return <p className="error">Unknown factory “{factoryId}”.</p>;
   const selectedNode = selection && outcome?.graph.nodes.find((n) => n.id === selection.id);
   const scoped: Scope = { kind: 'factory', id: factoryId };
@@ -476,6 +501,7 @@ export function FactoryView(props: {
         <PlanView
           plan={plan}
           view={view}
+          factoryId={factoryId}
           areas={{
             settings: factory?.areas,
             collapsed: shut,
@@ -562,6 +588,7 @@ const cls = (...xs: (string | false | undefined)[]) => xs.filter(Boolean).join('
 function PlanView(props: {
   plan: PlanState;
   view: ViewChoice;
+  factoryId: string;
   areas: PlanAreas;
   diagnostics: ReactNode;
   layout: LayoutEngine;
@@ -586,6 +613,7 @@ function PlanView(props: {
             selection={selection}
             onSelect={(id) => onSelect(id, 'graph')}
             onOpenFactory={props.onOpenFactory}
+            viewKey={props.factoryId}
           />
         </ErrorBoundary>
       )}
@@ -645,6 +673,7 @@ function PlanFlowchart(props: {
   selection: Selection | undefined;
   onSelect: (id: string | undefined) => void;
   onOpenFactory(id: string): void;
+  viewKey: string;
 }) {
   const { graph, catalog, areas } = props;
   const { settings, collapsed, onCollapse, onChange } = areas;
@@ -681,6 +710,7 @@ function PlanFlowchart(props: {
       selection={props.selection}
       onSelect={props.onSelect}
       onOpenFactory={props.onOpenFactory}
+      viewKey={props.viewKey}
       {...(controls ? { areas: controls } : {})}
     />
   );

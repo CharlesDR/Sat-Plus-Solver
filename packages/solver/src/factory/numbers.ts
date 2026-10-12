@@ -109,3 +109,29 @@ export function formatExact(n: number): string {
   const exact = exactText(n);
   return exact === undefined ? formatRate(n) : `${formatRate(n)} (${exact})`;
 }
+
+/** Places the quiet format (UX-6) shows at most. */
+const QUIET_PLACES = 2;
+const QUIET_STEP = 10 ** QUIET_PLACES;
+
+/**
+ * The quiet number format (UX-6, A78): 1 to 2 decimals, rounded up away from
+ * zero to the next 0.01 like `formatRate`, and "<0.01" for dust that would
+ * otherwise show as 0.01. What rounds to 0 in `formatRate` is "0.0" here too.
+ * 2/3 → "0.67", 60 → "60.0", 0.004 → "<0.01".
+ */
+export function formatQuiet(n: number): string {
+  if (!Number.isFinite(n)) return String(n);
+  if (formatRate(n) === '0.0') return '0.0';
+  const size = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+  // The same noise as `formatRate`, so this never shows less than it does.
+  const noise = Math.min(NOISE * Math.max(1, size), MAX_NOISE_STEPS / STEP) * QUIET_STEP;
+  if (size * QUIET_STEP < 1 - noise) return `${sign}<0.01`;
+  const steps = Math.ceil(size * QUIET_STEP - noise);
+  const whole = Math.floor(steps / QUIET_STEP);
+  const frac = String(steps % QUIET_STEP)
+    .padStart(QUIET_PLACES, '0')
+    .replace(/0+$/, '');
+  return `${sign}${groupThousands(String(whole))}.${frac || '0'}`;
+}
