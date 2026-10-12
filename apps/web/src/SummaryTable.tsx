@@ -9,6 +9,7 @@ import {
   formatExact,
   formatRate as fmt,
   recipeTable,
+  starterNote,
   type PlanSummary,
   type SummaryFlow,
 } from '@sps/solver';
@@ -52,6 +53,7 @@ export function SummaryTable({
       </p>
       {plan.status === 'ok' && (
         <>
+          {starterNote(plan) && <p data-testid="starters">{starterNote(plan)}</p>}
           <Table
             title="Recipes"
             textColumns={2}

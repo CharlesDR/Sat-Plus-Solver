@@ -35,6 +35,7 @@ import {
   parseTier,
   recipeTable,
   solve,
+  starterNote,
   summarizePlan,
   type AlternatesReport,
   type ImportCap,
@@ -282,6 +283,8 @@ export function renderPlan(model: Model, result: SolveResult): string {
   if (plan.status !== 'ok') return out.join('\n') + '\n';
   if (result.outputScale !== undefined)
     out.push(`Output scale: ${fmt(result.outputScale)} × the targets`);
+  const starters = starterNote(plan);
+  if (starters) out.push(starters);
 
   out.push('', 'Recipes');
   const recipes = recipeTable(plan);

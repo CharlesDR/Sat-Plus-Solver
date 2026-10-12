@@ -14,7 +14,13 @@
     "Ficsmas": "Seasonal content."
   },
   "excludeRecipes": {
-    "Well Water": "Resource Well Extractor draws 0 MW in the dataset (pressurizer power is not attributed), which would make water free; water comes from Water Extractors instead."
+    "Well Water": "Resource Well Extractor draws 0 MW in the dataset (pressurizer power is not attributed), which would make water free; water comes from Water Extractors instead.",
+    "Copper Egg (Terrarium)": "Gourmet Meal loop (A74, Charles 2026-10-11): Gourmet Meal is a placeholder for slugs that are not finalized (its own recipe is excluded by the Placeholder rule). Copper and Iron Slugs still come out of Orange and Pink breeding as byproducts. Revisit when the mod ships a new game_data.json.",
+    "Iron Egg (Terrarium)": "Gourmet Meal loop (A74, Charles 2026-10-11): Gourmet Meal is a placeholder for slugs that are not finalized (its own recipe is excluded by the Placeholder rule). Copper and Iron Slugs still come out of Orange and Pink breeding as byproducts. Revisit when the mod ships a new game_data.json.",
+    "Golden Egg (Terrarium)": "Gourmet Meal loop (A74, Charles 2026-10-11): Gourmet Meal is a placeholder for slugs that are not finalized (its own recipe is excluded by the Placeholder rule). Copper and Iron Slugs still come out of Orange and Pink breeding as byproducts. Revisit when the mod ships a new game_data.json.",
+    "Copper Slug (Breeding)": "Gourmet Meal loop (A74, Charles 2026-10-11): Gourmet Meal is a placeholder for slugs that are not finalized (its own recipe is excluded by the Placeholder rule). Copper and Iron Slugs still come out of Orange and Pink breeding as byproducts. Revisit when the mod ships a new game_data.json.",
+    "Iron Slug (Breeding)": "Gourmet Meal loop (A74, Charles 2026-10-11): Gourmet Meal is a placeholder for slugs that are not finalized (its own recipe is excluded by the Placeholder rule). Copper and Iron Slugs still come out of Orange and Pink breeding as byproducts. Revisit when the mod ships a new game_data.json.",
+    "Golden Slug (Breeding)": "Gourmet Meal loop (A74, Charles 2026-10-11): Gourmet Meal is a placeholder for slugs that are not finalized (its own recipe is excluded by the Placeholder rule). Copper and Iron Slugs still come out of Orange and Pink breeding as byproducts. Revisit when the mod ships a new game_data.json."
   },
   "excludeRecipesUsingParts": {
     "Placeholder": "Unfinished recipes in the dataset."

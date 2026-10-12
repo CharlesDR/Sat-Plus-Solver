@@ -8,7 +8,7 @@ import type {
   LpTerm,
   LpVariable,
 } from '../lp/types';
-import { closestFixes, producible, prune } from './reachability';
+import { closestFixes, planStarters, producible, prune, reachableFor } from './reachability';
 import { filterRecipes, parseTier } from './recipes';
 import { filterMinerRoutes, minerSupplyItem } from './minerFluids';
 import { extractionOf } from './resources';
@@ -125,6 +125,8 @@ interface Problem {
   conversion: ReadonlySet<string>;
   /** LP variables held at 0 by the flow prune (A68): recipes (with their machine counts), surpluses, imports. */
   banned: ReadonlySet<string>;
+  /** Items only a breeding loop makes (A74); empty unless a wanted item needs one. */
+  bred: ReadonlySet<string>;
   recipes: Recipe[];
   /** Balance-row items, sorted. */
   items: string[];
@@ -236,7 +238,9 @@ export async function solve(
   const supply: Problem['supply'] = new Map();
   if (outside) {
     const all = fluidsOf(enabled);
-    const used = fluidsOf(prune(enabled, producible(enabled, sourcesOf(all)), wanted));
+    const used = fluidsOf(
+      prune(enabled, reachableFor(enabled, sourcesOf(all), wanted).have, wanted),
+    );
     for (const fluid of used) {
       const c = await embodiedCost(
         model,
@@ -252,7 +256,7 @@ export async function solve(
     enabled = enabled.filter((r) => !r.route?.fluid || supply.has(minerSupplyItem(r.route.fluid)));
   }
   const sources = sourcesOf([...supply.values()].map((s) => s.fluid));
-  const available = producible(enabled, sources);
+  const { have: available, bred } = reachableFor(enabled, sources, wanted);
   const unreachable = wanted.filter((i) => !available.has(i)).sort();
   const names = new Map(model.items.map((i) => [i.id, i.name]));
   const itemName = (id: string) => names.get(id) ?? id;
@@ -345,6 +349,7 @@ export async function solve(
     simplicity: request.simplicity ?? false,
     conversion: new Set(recipes.filter(isConversionGenerator).map((r) => recipeVar(r.id))),
     banned: new Set(),
+    bred,
     recipes,
     items,
     demand,
@@ -1822,12 +1827,15 @@ function finish(
     }
   }
 
+  // A loop the plan runs needs its starter brought once (A74).
+  const starters = planStarters(recipes, imported.keys(), p.bred);
   return {
     status: 'ok',
     objective: p.stack[0]!,
     objectives: [...p.stack],
     stages: [],
     ...(p.scaled.size ? { outputScale: scale } : {}),
+    ...(starters.length ? { starters } : {}),
     recipes,
     items,
     imports: toRates(imported),

@@ -50,6 +50,8 @@ export interface PlanSummary {
   /** Raw resources extracted (A33). */
   extraction: SummaryFlow[];
   power: PowerSummary;
+  /** Loop items the plan needs a starter of (A74), by name. Absent when none. */
+  starters?: string[];
 }
 
 export function summarizePlan(model: Model, result: SolveResult): PlanSummary {
@@ -87,7 +89,17 @@ export function summarizePlan(model: Model, result: SolveResult): PlanSummary {
     }),
     extraction: result.extraction.map((e) => flow(e.item, e.rate)),
     power: { ...result.power },
+    ...(result.starters?.length ? { starters: result.starters.map(name) } : {}),
   };
+}
+
+/** The plan note for its starters (A74), such as "Needs starter Lime Slugs." No count is given. */
+export function starterNote(plan: Pick<PlanSummary, 'starters'>): string | undefined {
+  const names = (plan.starters ?? []).map((n) => (n.endsWith('s') ? n : `${n}s`));
+  if (!names.length) return undefined;
+  const list =
+    names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+  return `Needs starter ${list}.`;
 }
 
 /**
