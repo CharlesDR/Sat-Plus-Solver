@@ -16,6 +16,8 @@ test('add sub-factories, open them, and back out with Esc', async ({ page }) => 
   await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
 
   // A sub-factory opens below its parent and is wired to it.
+  // The Sub-factories panel starts closed on a top-level factory (UX-2).
+  await page.getByRole('button', { name: /^Sub-factories/ }).click();
   await page.getByRole('button', { name: 'Add sub-factory' }).click();
   await expect(crumbs.getByRole('button', { name: 'Factory', exact: true })).toBeVisible();
   await expect(factorySelect).toHaveValue('factory-1');

@@ -44,7 +44,9 @@ test('an alternate turned on is used when better; the tier filter takes it away'
 }) => {
   await plan(page, 'Reinforced Iron Plate', '10');
   expect(await recipeNames(page)).not.toContain('Stitched Iron Plate');
-  const before = await page.getByTestId('plan-status').textContent();
+  // The objective value is a tooltip on the status (UX-7).
+  const objective = page.getByTestId('plan-status').locator('[title^="Objective"]');
+  const before = await objective.getAttribute('title');
 
   await page.locator('summary', { hasText: 'Recipes' }).click();
   await page.getByLabel('Search recipes').fill('stitched iron plate');
@@ -53,10 +55,10 @@ test('an alternate turned on is used when better; the tier filter takes it away'
   await toggle.check();
   await settled(page);
   expect(await recipeNames(page)).toContain('Stitched Iron Plate');
-  await expect(page.getByTestId('plan-status')).not.toHaveText(before!);
+  await expect(objective).not.toHaveAttribute('title', before!);
 
-  // Stitched Iron Plate is tier 2-1: a 2-0 limit leaves it out even though it is on.
-  await page.getByLabel('Max tier').selectOption('2-0');
+  // Stitched Iron Plate is tier 2-1: a T1 limit leaves it out even though it is on.
+  await page.getByLabel('Max tier').selectOption('T1');
   await settled(page);
   expect(await recipeNames(page)).not.toContain('Stitched Iron Plate');
   await expect(toggle).toBeDisabled();
@@ -99,9 +101,10 @@ test('settings inherit the world defaults until the factory overrides them', asy
   await expect(setting.getByText('world default')).toBeVisible();
 
   // World scope: turning alternates on reaches the factory, which inherits it.
-  await page.getByLabel('World defaults (all factories)').check();
+  const scope = page.getByLabel('Settings apply to');
+  await scope.selectOption('World defaults (all factories)');
   await alternates.check();
-  await page.getByLabel('This factory').check();
+  await scope.selectOption('This factory');
   await expect(alternates).toBeChecked();
   await expect(setting.getByText('world default')).toBeVisible();
 
@@ -114,6 +117,8 @@ test('settings inherit the world defaults until the factory overrides them', asy
   // Objective stack and a clamped tolerance.
   await page.getByLabel('Add objective').selectOption('machines');
   await expect(page.getByRole('list', { name: 'Objective stack' }).locator('li')).toHaveCount(2);
+  // Tolerance sits in the Advanced subpanel, closed on load (UX-5).
+  await page.locator('details.advanced > summary').click();
   const tolerance = page.getByLabel('Tolerance (%)');
   await tolerance.fill('500');
   await tolerance.press('Enter');
@@ -128,11 +133,11 @@ test('a new factory starts on scarcity-weighted resources, first in the list', a
   await page.getByRole('button', { name: 'Open Fresh', exact: true }).click();
   const stack = page.getByRole('list', { name: 'Objective stack' }).locator('li');
   await expect(stack).toHaveCount(1);
-  await expect(stack.first()).toContainText('Scarcity-weighted resources (O2)');
+  await expect(stack.first()).toContainText('Scarcity-weighted resources');
   // Scarcity is in the stack, so the add list starts with the next one; remove it to see it first.
   await page.getByLabel('Add objective').selectOption('resources');
-  await page.getByRole('button', { name: 'Remove Scarcity-weighted resources (O2)' }).click();
+  await page.getByRole('button', { name: 'Remove Scarcity-weighted resources' }).click();
   await expect(page.getByLabel('Add objective').locator('option').nth(1)).toHaveText(
-    'Scarcity-weighted resources (O2)',
+    'Scarcity-weighted resources',
   );
 });

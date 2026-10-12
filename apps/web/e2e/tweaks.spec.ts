@@ -19,6 +19,8 @@ test('ban, swap and import a recipe group; undo, Ctrl+Z and revert all', async (
   await page.getByLabel('Target item').fill('Iron Plate');
   await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
   const panel = page.getByRole('region', { name: 'Plan tweaks' });
+  // The tweak list starts closed until there are tweaks (UX-2).
+  await page.getByRole('button', { name: /^Tweaks/ }).click();
   await expect(panel.getByRole('button', { name: 'Undo' })).toBeDisabled();
   await expect(panel.getByRole('button', { name: 'Revert all' })).toBeDisabled();
 

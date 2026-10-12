@@ -137,6 +137,7 @@ const WorldNodeView = memo(function WorldNodeView({ data }: NodeProps<CanvasNode
         <button
           type="button"
           className="nodrag link-button"
+          aria-label={`Open ${n.label}`}
           onClick={() => actions.openFactory(n.ref)}
         >
           Open

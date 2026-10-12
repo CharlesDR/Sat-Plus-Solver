@@ -52,7 +52,7 @@ import { flowNodeIcon, itemIcon } from '../icons/icons';
 import type { Selection } from '../selection';
 import { formatExact } from '@sps/solver';
 import type { Catalog, CatalogRecipe } from '../solver/protocol';
-import { FitIcon } from '../ui/icons';
+import { FitIcon, FullscreenIcon } from '../ui/icons';
 import { ICON_SIZE, LABEL_ICON_SIZE, useLayout } from './useLayout';
 
 type FlowNodeData = {
@@ -441,9 +441,15 @@ export function Flowchart(props: {
     [props.catalog.recipes],
   );
   const fluids = useMemo(() => new Set(props.catalog.fluids), [props.catalog.fluids]);
+  // Fullscreen (UX-3): the flowchart covers the window until Esc or the button.
+  const [full, setFull] = useState(false);
+  useEscapeLayer(full, () => setFull(false));
   if (!props.graph.nodes.length) return null;
   return (
-    <section className="flowchart factory-flowchart" aria-label="Flowchart">
+    <section
+      className={full ? 'flowchart factory-flowchart fullscreen' : 'flowchart factory-flowchart'}
+      aria-label="Flowchart"
+    >
       {state.kind === 'pending' && <p className="hint">Laying out the flowchart…</p>}
       {state.kind === 'error' && (
         <p className="error" role="alert">
@@ -458,6 +464,8 @@ export function Flowchart(props: {
             fluids={fluids}
             selection={props.selection}
             onSelect={props.onSelect}
+            full={full}
+            onFullscreen={setFull}
             {...(props.onOpenFactory ? { onOpenFactory: props.onOpenFactory } : {})}
             {...(props.areas ? { areas: props.areas } : {})}
           />
@@ -468,15 +476,16 @@ export function Flowchart(props: {
 }
 
 /** The opening view: as wide as the canvas allows, within the zoom limits. */
-function opening(layout: FactoryLayout, width: number) {
+function opening(layout: FactoryLayout, width: number, full = false) {
   const fit = (width - 2 * PAD) / Math.max(1, layout.width);
   const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, fit));
   const drawn = { width: layout.width * zoom, height: layout.height * zoom };
-  // Tall enough for the drawing at that zoom, within the CSS min and max height.
-  const height = Math.min(
-    Math.max(360, drawn.height + 2 * PAD),
-    Math.round(window.innerHeight * 0.8),
-  );
+  // Tall enough for the drawing at that zoom and at least half the window, up
+  // to the window less the compact toolbar (UX-3); fullscreen fills the window.
+  const room = window.innerHeight - (full ? 2 * PAD : 120);
+  const height = full
+    ? room
+    : Math.max(360, Math.min(Math.max(drawn.height + 2 * PAD, window.innerHeight / 2), room));
   return {
     zoom,
     height,
@@ -493,8 +502,10 @@ function Canvas(props: {
   onSelect: (id: string | undefined) => void;
   onOpenFactory?: (id: string) => void;
   areas?: AreaControls;
+  full: boolean;
+  onFullscreen(full: boolean): void;
 }) {
-  const { layout, recipes, fluids, selection, onSelect, onOpenFactory, areas } = props;
+  const { layout, recipes, fluids, selection, onSelect, onOpenFactory, areas, full } = props;
   const selected = selection?.id;
   const box = useRef<HTMLDivElement>(null);
   // Measured before the first paint, so the plan opens at its view without a jump.
@@ -508,7 +519,7 @@ function Canvas(props: {
     return () => watch.disconnect();
   }, []);
   // A resize changes the canvas height only; the view moves only for a new plan.
-  const view = width === undefined ? undefined : opening(layout, width);
+  const view = width === undefined ? undefined : opening(layout, width, full);
 
   // The node or line under the pointer, and the node whose tooltip is open (A48).
   const [hoverNode, setHoverNode] = useState<string>();
@@ -674,6 +685,14 @@ function Canvas(props: {
             <Background gap={20} size={1} />
             <Controls showInteractive={false} showFitView={false}>
               <FitButton layout={layout} />
+              <ControlButton
+                onClick={() => props.onFullscreen(!full)}
+                title={full ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
+                aria-label={full ? 'Exit fullscreen' : 'Fullscreen'}
+                aria-pressed={full}
+              >
+                <FullscreenIcon />
+              </ControlButton>
             </Controls>
             {tipNode && <Tooltip node={tipNode} name={name} areas={areas} />}
             <Follow layout={layout} box={box} selection={selection} />

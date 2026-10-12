@@ -9,8 +9,18 @@ import {
   type Settings,
   type WorldStore,
 } from '../store';
+import { defaultWorldDefaults } from '@sps/world';
+import { useOpenPref } from '../ui/prefs';
 import { ObjectiveStack } from './ObjectiveStack';
+import { tierOptions } from './tiers';
 import { ToleranceInput } from './ToleranceInput';
+
+const ADVANCED: readonly SettingKey[] = [
+  'tolerance',
+  'wholeMachines',
+  'minerFluids',
+  'minerFluidSupply',
+];
 
 interface Props {
   store: WorldStore;
@@ -38,6 +48,18 @@ export function SettingsPanel({ store, scope, catalog, simple = false }: Props) 
   const minerFluids = values.minerFluids ?? 'any';
   const set = <K extends SettingKey>(key: K, v: Settings[K]) => setSetting(scope, key, v);
 
+  // The Advanced subpanel starts closed; a dot on its header marks a value
+  // changed from the app's defaults, so nothing in it changes unseen (UX-5).
+  const base = defaultWorldDefaults();
+  const changed =
+    values.tolerance !== base.tolerance ||
+    values.wholeMachines !== base.wholeMachines ||
+    minerFluids !== base.minerFluids ||
+    (values.minerFluidSupply ?? 'local') !== base.minerFluidSupply ||
+    factory?.areas?.off === true ||
+    ADVANCED.some((k) => overridden?.[k] === true);
+  const [advancedOpen, setAdvancedOpen] = useOpenPref('advanced');
+
   const meta = (k: SettingKey) => ({
     k,
     overridden: simple ? undefined : overridden?.[k],
@@ -50,9 +72,6 @@ export function SettingsPanel({ store, scope, catalog, simple = false }: Props) 
       <SettingField {...meta('objectives')}>
         <ObjectiveStack stack={values.objectives} onChange={(o) => set('objectives', o)} />
       </SettingField>
-      <SettingField {...meta('tolerance')}>
-        <ToleranceInput value={values.tolerance} onChange={(t) => set('tolerance', t)} />
-      </SettingField>
       <SettingField {...meta('alternates')}>
         <label className="check">
           <input
@@ -63,14 +82,20 @@ export function SettingsPanel({ store, scope, catalog, simple = false }: Props) 
           All alternate recipes
         </label>
       </SettingField>
-      <SettingField {...meta('wholeMachines')}>
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={values.wholeMachines}
-            onChange={(e) => set('wholeMachines', e.target.checked)}
-          />
-          Whole machines
+      <SettingField {...meta('maxTier')}>
+        <label>
+          Max tier
+          <select
+            value={values.maxTier ?? ''}
+            onChange={(e) => set('maxTier', e.target.value === '' ? null : e.target.value)}
+          >
+            <option value="">No limit</option>
+            {tierOptions(catalog.tiers, values.maxTier).map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
         </label>
       </SettingField>
       <SettingField {...meta('costImports')}>
@@ -109,76 +134,89 @@ export function SettingsPanel({ store, scope, catalog, simple = false }: Props) 
           Drops slivers and recipe steps that save 1% or less on every objective.
         </p>
       </SettingField>
-      <SettingField {...meta('minerFluids')}>
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={minerFluids !== 'none'}
-            onChange={(e) => set('minerFluids', e.target.checked ? 'any' : 'none')}
-          />
-          Model miner optional fluid usage
-        </label>
-        {minerFluids !== 'none' && (
+      <details
+        className="advanced"
+        open={advancedOpen}
+        onToggle={(e) => setAdvancedOpen(e.currentTarget.open)}
+      >
+        <summary>
+          Advanced
+          {changed && (
+            <span
+              className="changed-dot"
+              title="A setting in here is changed"
+              aria-label="changed"
+            />
+          )}
+        </summary>
+        <SettingField {...meta('tolerance')}>
+          <ToleranceInput value={values.tolerance} onChange={(t) => set('tolerance', t)} />
+        </SettingField>
+        <SettingField {...meta('wholeMachines')}>
           <label className="check">
             <input
               type="checkbox"
-              checked={minerFluids === 'water'}
-              onChange={(e) => set('minerFluids', e.target.checked ? 'water' : 'any')}
+              checked={values.wholeMachines}
+              onChange={(e) => set('wholeMachines', e.target.checked)}
             />
-            Water only
+            Whole machines
           </label>
-        )}
-        <p className="hint">
-          Off, miners use no fluid modules, except where an ore can't be mined without one.
-        </p>
-      </SettingField>
-      <SettingField {...meta('minerFluidSupply')}>
-        <label>
-          Miner fluid{' '}
-          <select
-            value={values.minerFluidSupply ?? 'local'}
-            onChange={(e) => set('minerFluidSupply', e.target.value as MinerFluidSupply)}
-          >
-            <option value="outside">Supplied from outside</option>
-            <option value="local">Made here</option>
-          </select>
-        </label>
-        <p className="hint">
-          Supplied from outside, it is imported and still counts as a cost in the objectives.
-        </p>
-      </SettingField>
-      {factory && (
-        <div className="setting" data-setting="areas">
+        </SettingField>
+        <SettingField {...meta('minerFluids')}>
           <label className="check">
             <input
               type="checkbox"
-              checked={factory.areas?.off === true}
-              onChange={(e) => setFactoryAreas(factory.id, { off: e.target.checked })}
+              checked={minerFluids !== 'none'}
+              onChange={(e) => set('minerFluids', e.target.checked ? 'any' : 'none')}
             />
-            Disable factory component grouping
+            Model miner optional fluid usage
+          </label>
+          {minerFluids !== 'none' && (
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={minerFluids === 'water'}
+                onChange={(e) => set('minerFluids', e.target.checked ? 'water' : 'any')}
+              />
+              Water only
+            </label>
+          )}
+          <p className="hint">
+            Off, miners use no fluid modules, except where an ore can't be mined without one.
+          </p>
+        </SettingField>
+        <SettingField {...meta('minerFluidSupply')}>
+          <label>
+            Miner fluid{' '}
+            <select
+              value={values.minerFluidSupply ?? 'local'}
+              onChange={(e) => set('minerFluidSupply', e.target.value as MinerFluidSupply)}
+            >
+              <option value="outside">Supplied from outside</option>
+              <option value="local">Made here</option>
+            </select>
           </label>
           <p className="hint">
-            Draws a large plan as one flowchart instead of areas such as Ore Processing and
-            Steelworks.
+            Supplied from outside, it is imported and still counts as a cost in the objectives.
           </p>
-        </div>
-      )}
-      <SettingField {...meta('maxTier')}>
-        <label>
-          Max tier
-          <select
-            value={values.maxTier ?? ''}
-            onChange={(e) => set('maxTier', e.target.value === '' ? null : e.target.value)}
-          >
-            <option value="">No limit</option>
-            {catalog.tiers.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </label>
-      </SettingField>
+        </SettingField>
+        {factory && (
+          <div className="setting" data-setting="areas">
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={factory.areas?.off === true}
+                onChange={(e) => setFactoryAreas(factory.id, { off: e.target.checked })}
+              />
+              Disable factory component grouping
+            </label>
+            <p className="hint">
+              Draws a large plan as one flowchart instead of areas such as Ore Processing and
+              Steelworks.
+            </p>
+          </div>
+        )}
+      </details>
     </fieldset>
   );
 }
@@ -194,18 +232,23 @@ function SettingField(props: {
   const { k, overridden, onReset, children } = props;
   return (
     <div className="setting" data-setting={k}>
-      {children}
       {overridden === true && (
         <button
           type="button"
-          className="link"
+          className="setting-reset"
           onClick={onReset}
           aria-label={`Use the world default for ${k}`}
+          title="Overridden here. Reset to the world default."
         >
-          Use world default
+          ↺
         </button>
       )}
-      {overridden === false && <span className="hint">world default</span>}
+      {overridden === false && (
+        <span className="badge setting-badge" title="Inherited from the world defaults">
+          world default
+        </span>
+      )}
+      {children}
     </div>
   );
 }

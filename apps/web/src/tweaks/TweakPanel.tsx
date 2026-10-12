@@ -31,6 +31,8 @@ export function TweakPanel(props: {
   names: Names;
   /** The selected flowchart node, if any. */
   node: FlowNode | undefined;
+  /** The tweak list is shown (UX-2); a selected node's actions show either way. */
+  open?: boolean;
   /** The factory's current numbers; previews wait for them. */
   baseline: Baseline | undefined;
   run(action: WorldAction): Promise<SolveOutcome | null>;
@@ -76,8 +78,8 @@ export function TweakPanel(props: {
 
   const tweaks = factory.tweaks;
   return (
-    <section className="tweaks" aria-label="Plan tweaks">
-      <div className="tweak-bar">
+    <section className="tweaks" aria-label="Plan tweaks" hidden={props.open === false && !target}>
+      <div className="tweak-bar" hidden={props.open === false}>
         <strong>Manual tweaks ({tweaks.length})</strong>
         <button
           type="button"

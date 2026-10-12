@@ -11,6 +11,11 @@ import type { CatalogRecipe } from '../solver/protocol';
 import { paletteMatches } from './manual';
 
 /** The two-state switch at the top of the factory view. */
+const MANUAL_NOTE =
+  'Manual: the solver is paused for this factory. Flows are plain arithmetic on your machine counts and are not solver-checked.';
+const SOLVER_NOTE =
+  'Solver: the plan is solved from your targets and settings. Switch to Manual to freeze it and edit it by hand.';
+
 export function ModeSwitch(props: {
   manual: boolean;
   /** Why Manual can't be picked yet (the plan is still solving). */
@@ -20,7 +25,12 @@ export function ModeSwitch(props: {
   const { manual, blocked } = props;
   return (
     <div className={manual ? 'mode-bar manual' : 'mode-bar'}>
-      <div className="mode-switch" role="radiogroup" aria-label="Plan mode">
+      <div
+        className="mode-switch"
+        role="radiogroup"
+        aria-label="Plan mode"
+        title={manual ? MANUAL_NOTE : SOLVER_NOTE}
+      >
         <button
           type="button"
           role="radio"
@@ -40,11 +50,12 @@ export function ModeSwitch(props: {
           Manual
         </button>
       </div>
-      <p className="mode-note" role="status">
-        {manual
-          ? 'Manual: the solver is paused for this factory. Flows are plain arithmetic on your machine counts and are not solver-checked.'
-          : 'Solver: the plan is solved from your targets and settings. Switch to Manual to freeze it and edit it by hand.'}
-      </p>
+      {/* Compact toolbar (UX-2): the solver note is a tooltip; manual keeps its warning. */}
+      {manual && (
+        <p className="mode-note" role="status">
+          {MANUAL_NOTE}
+        </p>
+      )}
     </div>
   );
 }

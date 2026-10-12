@@ -1,13 +1,23 @@
 import type { ObjectiveId } from '@sps/solver';
 import { useId } from 'react';
 
+/** Plain names (UX-5); the O-codes of ARCHITECTURE §3.3 show in a tooltip. */
 export const OBJECTIVE_LABELS: Record<ObjectiveId, string> = {
-  resources: 'Raw resources (O1)',
-  scarcity: 'Scarcity-weighted resources (O2)',
-  machines: 'Machines (O3)',
-  power: 'Power draw (O4)',
-  output: 'Maximize output (O5)',
-  resourceTypes: 'Resource types (O6)',
+  resources: 'Fewest raw resources',
+  scarcity: 'Scarcity-weighted resources',
+  machines: 'Fewest machines',
+  power: 'Lowest power draw',
+  output: 'Maximize output',
+  resourceTypes: 'Fewest resource types',
+};
+
+export const OBJECTIVE_CODES: Record<ObjectiveId, string> = {
+  resources: 'O1',
+  scarcity: 'O2',
+  machines: 'O3',
+  power: 'O4',
+  output: 'O5',
+  resourceTypes: 'O6',
 };
 
 /** The order the "Add objective" list offers them in: the default, scarcity, first. */
@@ -55,7 +65,7 @@ export function ObjectiveStack({ stack, onChange }: Props) {
       <ol aria-label="Objective stack">
         {stack.map((o, k) => (
           <li key={o}>
-            <span>{OBJECTIVE_LABELS[o]}</span>
+            <span title={`Objective ${OBJECTIVE_CODES[o]}`}>{OBJECTIVE_LABELS[o]}</span>
             <button
               type="button"
               aria-label={`Move ${OBJECTIVE_LABELS[o]} up`}

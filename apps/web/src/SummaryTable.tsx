@@ -17,6 +17,10 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Selection } from './selection';
 import { itemIcon } from './icons/icons';
 import { StatusChip } from './ui/StatusChip';
+import { OBJECTIVE_CODES, OBJECTIVE_LABELS } from './controls/ObjectiveStack';
+
+const NNE_TIP =
+  'NNE: normal-node equivalents. An impure node counts ½, a normal node 1, a pure node 2.';
 
 /** Row selection, shared with the flowchart (rows are keyed by flowchart node id). */
 interface Pick {
@@ -46,8 +50,15 @@ export function SummaryTable({
           </>
         ) : (
           <>
-            Status: <StatusChip status={plan.status} /> · Objective: {plan.objective}
-            {plan.objectiveValue !== undefined && ` = ${fmt(plan.objectiveValue)}`}
+            {/* The objective is a tooltip on the status (UX-7). */}
+            Status:{' '}
+            <span
+              title={`Objective: ${OBJECTIVE_LABELS[plan.objective]} (${OBJECTIVE_CODES[plan.objective]})${
+                plan.objectiveValue !== undefined ? ` = ${fmt(plan.objectiveValue)}` : ''
+              }`}
+            >
+              <StatusChip status={plan.status} />
+            </span>
           </>
         )}
       </p>
@@ -75,6 +86,7 @@ export function SummaryTable({
             <Table
               title="Nodes"
               head={['Node', 'Used', 'Budget', 'NNE']}
+              headTips={{ NNE: NNE_TIP }}
               rows={plan.nodes.map((n) => [n.label, fmt(n.used), fmt(n.budget), fmt(n.nne)])}
             />
           )}
@@ -129,6 +141,8 @@ function Table(
   props: {
     title: string;
     head: string[];
+    /** A tooltip per heading, for jargon (UX-7). */
+    headTips?: Record<string, string>;
     rows: string[][];
     textColumns?: number;
     /** Flowchart node id per row; rows are selectable when given with `onSelect`. */
@@ -149,6 +163,7 @@ function Table(
     onSelect,
     filterable,
     icons,
+    headTips,
   } = props;
   // Rows keep the plan's order until a heading is clicked: ascending, descending, then back.
   const [sort, setSort] = useState<Sort>();
@@ -193,7 +208,7 @@ function Table(
               <button
                 type="button"
                 className="sort"
-                title={`Sort by ${h}`}
+                title={headTips?.[h] ? `${headTips[h]} Sort by ${h}.` : `Sort by ${h}`}
                 onClick={() => cycle(c)}
               >
                 {h}

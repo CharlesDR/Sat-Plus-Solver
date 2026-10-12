@@ -25,13 +25,13 @@ export function NestPanel(props: {
     <div className="nest-bar" data-testid="nest-bar">
       <div className="nest-head">
         <label>
-          Inside{' '}
+          Part of{' '}
           <select
-            aria-label="Inside factory"
+            aria-label="Part of factory"
             value={factory.parentId ?? ''}
             onChange={(e) => props.onMove(e.target.value || undefined)}
           >
-            <option value="">(top level)</option>
+            <option value="">—</option>
             {parentOptions(world, factory.id).map((o) => (
               <option key={o.id} value={o.id}>
                 {o.name}

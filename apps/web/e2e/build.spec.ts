@@ -13,6 +13,8 @@ test('mark as built, drift, restore, clear', async ({ page }) => {
   await page.getByLabel('Target item').fill('Iron Plate');
   await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
 
+  // The Build panel starts closed until the factory is marked (UX-2).
+  await page.getByRole('button', { name: /^Build not marked/ }).click();
   await page.getByRole('button', { name: 'Mark as built' }).click();
   const bar = page.getByTestId('build-bar');
   await expect(bar).toContainText('Matches build');
