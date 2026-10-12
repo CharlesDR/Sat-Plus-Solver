@@ -114,7 +114,7 @@ test('World → JSON → World and World → URL → World are deep-equal', asyn
 
 test('an old save migrates, and a data-hash mismatch warns but loads', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Open Factory', exact: true })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Start here' })).toBeVisible();
   // v1 (M3) save, made against other game data ("abc123").
   await upload(page, 'old.json', await readFile(V1, 'utf8'));
   await expect(page.getByRole('alert')).toContainText('different game data (abc123)');
@@ -141,6 +141,7 @@ test('an old save migrates, and a data-hash mismatch warns but loads', async ({ 
 
 test('an oversized world falls back to export', async ({ page }) => {
   await page.goto('/');
+  await addFactory(page, 'Factory');
   // Notes that compress badly push the payload past 8 KB.
   let s = 7;
   const noise = Array.from({ length: 20000 }, () => {

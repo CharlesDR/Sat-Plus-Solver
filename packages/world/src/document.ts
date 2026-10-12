@@ -295,12 +295,20 @@ export function createWorld(dataHash = ''): World {
 }
 
 /**
- * A fresh world (N1, N2): one blank factory and no groups or links. With
+ * A world with no factories yet (UX-8): what a new world starts as in the
+ * app, so the canvas shows only the start screen until the user adds one.
+ */
+export function emptyWorld(dataHash = ''): World {
+  return { ...createWorld(dataHash), factories: [] };
+}
+
+/**
+ * A fresh world (N1, N2): no factories, groups or links (UX-8). With
  * `keepSettings` it keeps `world`'s defaults and node pool edits; a blank
  * `name` leaves it unnamed.
  */
 export function freshWorld(world: World, keepSettings: boolean, name = ''): World {
-  const out = createWorld(world.meta.dataHash);
+  const out = emptyWorld(world.meta.dataHash);
   const trimmed = name.trim();
   if (trimmed) out.meta.name = trimmed;
   if (!keepSettings) return out;

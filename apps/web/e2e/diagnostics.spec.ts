@@ -39,6 +39,7 @@ test('an unreachable target: world diagnostic → factory → one-click recipe f
 
 test('resources turned off: one click per resource turns it back on', async ({ page }) => {
   await page.goto('/');
+  await addFactory(page, 'Factory');
   await page.getByRole('button', { name: 'Open Factory', exact: true }).click();
   await page.getByLabel('Target item').fill('Iron Plate');
   await page.getByLabel('Per minute').fill('20');

@@ -37,7 +37,8 @@ import { TweakPanel } from '../tweaks/TweakPanel';
 import type { Baseline } from '../tweaks/tweaks';
 import type { WorldPlanState } from '../useWorldPlan';
 import { PlanStats } from '../PlanStats';
-import { SidebarIcon } from '../ui/icons';
+import { CloseIcon, SidebarIcon } from '../ui/icons';
+import { DRAWER_QUERY, useMediaQuery } from '../ui/media';
 import { useOpenPref, usePlanView, useSidebarOpen, type PlanView as ViewChoice } from '../ui/prefs';
 import { useToast } from '../ui/toasts';
 import { isShortcut, useEscapeLayer } from '../escape';
@@ -85,7 +86,14 @@ export function FactoryView(props: {
 }) {
   const { store, layout, catalog, factoryId, onOpen, simple = false } = props;
   const toast = useToast();
-  const [sidebarOpen, setSidebarOpen] = useSidebarOpen();
+  const [wideOpen, setWideOpen] = useSidebarOpen();
+  // Under 1100 px the settings are a drawer over the plan (UX-14). It starts
+  // closed on each visit, so the plan stays in view, and Esc or the scrim close it.
+  const narrow = useMediaQuery(DRAWER_QUERY);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const sidebarOpen = narrow ? drawerOpen : wideOpen;
+  const setSidebarOpen = narrow ? setDrawerOpen : setWideOpen;
+  useEscapeLayer(narrow && drawerOpen, () => setDrawerOpen(false));
   const [selection, setSelection] = useState<Selection>();
   // Collapsed flowchart areas (A64), for this visit to this factory only.
   const [collapsed, setCollapsed] = useState<{ factory: string; areas: ReadonlySet<string> }>();
@@ -320,9 +328,17 @@ export function FactoryView(props: {
 
   return (
     <div
-      className={cls('factory-view', manual && 'manual', !sidebarOpen && 'sidebar-closed')}
+      className={cls(
+        'factory-view',
+        manual && 'manual',
+        !sidebarOpen && 'sidebar-closed',
+        narrow && 'drawer',
+      )}
       data-testid="factory-view"
     >
+      {narrow && sidebarOpen && (
+        <div className="drawer-scrim" aria-hidden="true" onClick={() => setDrawerOpen(false)} />
+      )}
       <aside className="sidebar controls" aria-label="Factory controls">
         <div className="sidebar-head">
           <button
@@ -336,9 +352,23 @@ export function FactoryView(props: {
           >
             <SidebarIcon />
           </button>
-          {sidebarOpen && <h2>Settings</h2>}
+          {sidebarOpen && !narrow && <h2>Settings</h2>}
         </div>
         <div id="factory-settings" className="sidebar-body" hidden={!sidebarOpen}>
+          {narrow && (
+            <div className="sidebar-head drawer-head">
+              <h2>Settings</h2>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Close settings"
+                title="Close settings"
+                onClick={() => setDrawerOpen(false)}
+              >
+                <CloseIcon />
+              </button>
+            </div>
+          )}
           {manual ? (
             <>
               <p className="hint frozen-note">

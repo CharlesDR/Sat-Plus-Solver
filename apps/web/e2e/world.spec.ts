@@ -56,6 +56,7 @@ test('two factories, a pull link, ledger, groups, trace, power and drill-down', 
   await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toHaveText('World');
   await addFactory(page, 'A');
   await addFactory(page, 'B');
+  await addFactory(page, 'C');
   await expect(node(page, 'factory:factory-1')).toContainText('A');
   await expect(node(page, 'factory:factory-2')).toContainText('B');
 
@@ -130,7 +131,10 @@ test('two factories, a pull link, ledger, groups, trace, power and drill-down', 
   await page.getByLabel('New group name').fill('Iron');
   await page.getByRole('button', { name: 'Add group' }).click();
   await tab(page, 'Factories');
+  // The table is read-only; each row's ⋯ menu holds its edits (UX-11).
+  await page.getByTitle('Edit A', { exact: true }).click();
   await page.getByLabel('Group of A').selectOption({ label: 'Iron' });
+  await page.getByTitle('Edit B', { exact: true }).click();
   await page.getByLabel('Group of B').selectOption({ label: 'Iron' });
   await settled(page);
   await expect(node(page, 'group:group-1')).toBeVisible();
@@ -154,7 +158,7 @@ test('two factories, a pull link, ledger, groups, trace, power and drill-down', 
   await expect(traced).toHaveCount(2);
   await expect(node(page, 'factory:factory-1').locator('.world-node')).toHaveClass(/traced/);
   await expect(node(page, 'factory:factory-2').locator('.world-node')).toHaveClass(/traced/);
-  await expect(node(page, 'factory:factory-main').locator('.world-node')).toHaveClass(/dimmed/);
+  await expect(node(page, 'factory:factory-3').locator('.world-node')).toHaveClass(/dimmed/);
   await expect(label(page, 'factory:factory-1→factory:factory-2')).toHaveClass(/traced/);
   await expect(canvas(page).locator('.world-edge-label.traced')).toHaveCount(1);
   await page.getByRole('button', { name: 'Clear trace' }).click();
@@ -167,7 +171,7 @@ test('two factories, a pull link, ledger, groups, trace, power and drill-down', 
   const draw = async (key: string) =>
     Number(await power.locator(`tr[data-power="${key}"]`).getAttribute('data-draw'));
   const parts = await Promise.all(
-    ['factory:factory-1', 'factory:factory-2', 'factory:factory-main'].map(draw),
+    ['factory:factory-1', 'factory:factory-2', 'factory:factory-3'].map(draw),
   );
   expect(parts[0]).toBeGreaterThan(0);
   expect(parts[1]).toBeGreaterThan(0);

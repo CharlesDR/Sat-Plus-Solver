@@ -1,4 +1,4 @@
-import { createWorld, freshWorld, parseWorld, serializeWorld } from '@sps/world';
+import { createWorld, emptyWorld, freshWorld, parseWorld, serializeWorld } from '@sps/world';
 import { describe, expect, test } from 'vitest';
 import sample from '../../../../examples/world.json';
 import { createWorldStore } from '../store';
@@ -33,7 +33,7 @@ describe('New world (N1–N3)', () => {
   test('empty and sample starts', () => {
     const { store, saves } = setup();
     startNewWorld(store, saves, { from: 'empty', name: '' });
-    expect(store.getState().world).toEqual(createWorld('h'));
+    expect(store.getState().world).toEqual(emptyWorld('h'));
     startNewWorld(store, saves, { from: 'sample', name: 'Demo' });
     const w = store.getState().world;
     expect(w.meta.name).toBe('Demo');
@@ -56,6 +56,6 @@ describe('New world (N1–N3)', () => {
       undoable: false,
     });
     expect(restorePrevious(store, saves)).toBe('There is no previous world to restore.');
-    expect(serializeWorld(store.getState().world)).toBe(serializeWorld(createWorld('h')));
+    expect(serializeWorld(store.getState().world)).toBe(serializeWorld(emptyWorld('h')));
   });
 });
