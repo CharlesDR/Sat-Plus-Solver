@@ -13,6 +13,7 @@ import type { Boot } from './session';
 import { isShareHash, readShareHash } from './share';
 import { downloadText, modelerFileName, ShareControls } from './ShareControls';
 import { ChevronDownIcon, FileIcon } from '../ui/icons';
+import { FileButton } from '../ui/FileButton';
 import { useToast } from '../ui/toasts';
 
 type Notice = { kind: 'info' | 'error'; text: string; restorable?: boolean };
@@ -335,19 +336,13 @@ export function SavePanel(props: {
         <fieldset>
           <legend>File and link</legend>
           <ShareControls world={() => store.getState().world} name="world" what="world" />
-          <Field label="Import world file">
-            {(id) => (
-              <input
-                id={id}
-                type="file"
-                accept=".json,application/json"
-                onChange={(e) => {
-                  importFile(e.target.files?.[0]);
-                  e.target.value = '';
-                }}
-              />
-            )}
-          </Field>
+          <div className="row">
+            <FileButton
+              label="Import world file"
+              accept=".json,application/json"
+              onFile={importFile}
+            />
+          </div>
         </fieldset>
         {modeler && (
           <fieldset>
@@ -361,20 +356,14 @@ export function SavePanel(props: {
                 Export world to Modeler
               </button>
             </div>
-            <Field label="Import Modeler file (.sfmd)">
-              {(id) => (
-                <input
-                  id={id}
-                  type="file"
-                  accept=".sfmd"
-                  disabled={busy !== undefined}
-                  onChange={(e) => {
-                    importModeler(e.target.files?.[0]);
-                    e.target.value = '';
-                  }}
-                />
-              )}
-            </Field>
+            <div className="row">
+              <FileButton
+                label="Import Modeler file (.sfmd)"
+                accept=".sfmd"
+                disabled={busy !== undefined}
+                onFile={importModeler}
+              />
+            </div>
             {busy && (
               <p role="status" aria-busy="true">
                 {busy}

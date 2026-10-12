@@ -8,7 +8,14 @@
  * expect); edge routes and labels are in root coordinates.
  */
 import type { ElkExtendedEdge, ElkLabel, ElkNode, ElkPoint } from 'elkjs/lib/elk-api';
-import { CHAR_WIDTH, LINE_HEIGHT, rateText, type Box, type LayoutEngine } from './layout';
+import {
+  CHAR_WIDTH,
+  countText,
+  LINE_HEIGHT,
+  rateText,
+  type Box,
+  type LayoutEngine,
+} from './layout';
 import type { WorldEdge, WorldGraph, WorldNode } from './world';
 
 export type PlacedWorldNode = WorldNode & Box;
@@ -75,14 +82,18 @@ function badges(n: WorldNode): string[] {
     : p.generationMW > 0
       ? [`${mw(p.consumptionMW)} draw · ${mw(p.generationMW)} gen`]
       : [`${mw(p.consumptionMW)} draw`];
-  return [...power, `${rateText(n.nodesUsed ?? 0)} nodes · ${rateText(n.machines ?? 0)} machines`];
+  return [...power, `${rateText(n.nodesUsed ?? 0)} nodes · ${countText(n.machines ?? 0)} machines`];
 }
 
 /** The text lines a node shows, which also size it. */
 export function worldNodeLines(n: WorldNode): string[] {
   switch (n.kind) {
     case 'factory':
-      return [n.label, `Status: ${n.status ?? 'ok'}${n.manual ? ' · Manual' : ''}`, ...badges(n)];
+      return [
+        n.label,
+        `Status: ${n.status ?? 'empty'}${n.manual ? ' · Manual' : ''}`,
+        ...badges(n),
+      ];
     case 'group':
       if (!n.collapsed) return [n.label];
       if (n.nest)
@@ -133,7 +144,8 @@ export async function layoutWorldGraph(
             lines.length * LINE_HEIGHT +
             2 * PADDING_Y +
             (n.kind === 'stub' ? 0 : ACTION_ROW) +
-            (n.products?.length ? ICON_ROW : 0),
+            (n.products?.length ? ICON_ROW : 0) +
+            (n.build ? LINE_HEIGHT : 0),
         };
     if (frame) node.width = Math.max(MIN_NODE_WIDTH, textWidth(lines) + 2 * PADDING_X + 80);
     elk.set(n.id, node);

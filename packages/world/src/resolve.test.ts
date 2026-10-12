@@ -45,6 +45,19 @@ describe('scenarios (§9 world scenarios)', () => {
     expect(row(r.ledger, 'iron-plate')).toMatchObject({ unmet: 0, surplus: 0 });
   });
 
+  test('a factory with no targets, links or machines is empty (A75)', async () => {
+    const world = buildWorld(
+      [{ id: 'idle' }, { id: 'a' }, { id: 'b', targets: [{ item: 'iron-plate', rate: 6 }] }],
+      [pull('ab', 'a', 'b', 'iron-plate')],
+    );
+    const r = await resolveWorld(world, model, solveFactory);
+    expect(r.factories.map((f) => [f.id, f.status])).toEqual([
+      ['a', 'ok'],
+      ['b', 'ok'],
+      ['idle', 'empty'],
+    ]);
+  });
+
   test('diamond: two branches pull from one producer, which sums their demand', async () => {
     const world = buildWorld(
       [

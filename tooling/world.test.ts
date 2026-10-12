@@ -111,6 +111,14 @@ describe('full SF+ model', () => {
     expect(stdout).toMatch(/^Factories/m);
   }, 60_000);
 
+  test("the example world's power plant nets world power to 0 MW (B4)", async () => {
+    const { code, stdout } = await runWorldCli(['solve', 'examples/world.json', '--json']);
+    expect(code).toBe(0);
+    const r = JSON.parse(stdout) as { power: { netMW: number; deficitMW: number } };
+    expect(r.power.deficitMW).toBe(0);
+    expect(Math.abs(r.power.netMW)).toBeLessThan(0.01);
+  }, 60_000);
+
   test('"size power plant" with a heater plant: exact MW, fuel for whole heaters (A17)', async () => {
     const w = world([
       { id: 'plant', exclude: coalSteamOnly() },

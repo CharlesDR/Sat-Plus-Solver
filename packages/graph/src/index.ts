@@ -50,6 +50,7 @@ export {
   multiStageInputs,
   TRAY_PAD,
   rateText,
+  countText,
   SMALL_PLAN,
   wrapText,
 } from './layout';

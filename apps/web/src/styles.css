@@ -8,6 +8,8 @@
   color-scheme: light;
   --bg: #f4f5f7;
   --surface: #ffffff;
+  /* Behind part and machine icons: none in light, a light chip in dark (B12). */
+  --icon-backdrop: transparent;
   --surface-2: #f0f2f5;
   --fg: #16181d;
   --muted: #555c68;
@@ -73,6 +75,7 @@
     color-scheme: dark;
     --bg: #0e1014;
     --surface: #171a20;
+    --icon-backdrop: #c9ced8;
     --surface-2: #1f232b;
     --fg: #e8eaee;
     --muted: #a3abb8;
@@ -122,6 +125,7 @@
   color-scheme: dark;
   --bg: #0e1014;
   --surface: #171a20;
+  --icon-backdrop: #c9ced8;
   --surface-2: #1f232b;
   --fg: #e8eaee;
   --muted: #a3abb8;
@@ -1289,6 +1293,11 @@ th.num button.sort {
   font-size: 14px;
   padding: 4px 8px;
 }
+/* One select style in tables (B9): always the chevron, with room for it. */
+.panel select {
+  padding-right: 28px;
+  background-position: right 8px center;
+}
 .panel .actions {
   white-space: nowrap;
 }
@@ -1876,6 +1885,12 @@ input.flow-area-name {
 .world-products .world-icon {
   margin-right: 0;
 }
+/* Dark icons stay readable on the dark theme (B12). */
+img:is(.world-icon, .flow-icon, .flow-item-icon, .cell-icon),
+.palette-dialog li img {
+  background: var(--icon-backdrop);
+  border-radius: 4px;
+}
 .start-cards {
   display: grid;
   gap: 6px;
@@ -2092,10 +2107,11 @@ input.flow-area-name {
 }
 
 /* ---------- Toasts ---------- */
+/* Top right, just under the top bar, clear of the plan's tables and flowchart (B11). */
 .toasts {
   position: fixed;
   right: 16px;
-  bottom: 16px;
+  top: calc(var(--topbar-h) + 8px);
   z-index: 50;
   display: grid;
   gap: 8px;
@@ -2126,7 +2142,7 @@ input.flow-area-name {
 @keyframes toast-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(-8px);
   }
 }
 @media (prefers-reduced-motion: reduce) {

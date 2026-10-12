@@ -13,6 +13,8 @@ test('simple mode: one factory, own saves, share link', async ({ page, freshPage
   await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toHaveCount(0);
   await expect(page.getByRole('radiogroup', { name: 'Settings apply to' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Search/ })).toHaveCount(0);
+  // No world, so no "world default" hints under the settings (B7).
+  await expect(page.locator('.settings').getByText(/world default/i)).toHaveCount(0);
 
   await page.getByLabel('Per minute').fill('60');
   await page.getByLabel('Target item').fill('Iron Plate');
