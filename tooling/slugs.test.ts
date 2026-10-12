@@ -38,6 +38,16 @@ describe('slug production on the SF+ model (S2, A74)', () => {
     expect(r.starters).toBeUndefined();
   });
 
+  test('Slug Slime is not supplied from outside to a plan that needs no loop', async () => {
+    const r = await solve(
+      model,
+      { targets: [{ item: 'iron-plate', rate: 30 }], minerFluidSupply: 'outside' },
+      backend,
+    );
+    expect(r.status).toBe('ok');
+    expect(r.minerSupply?.map((m) => m.item) ?? []).not.toContain('slug-slime');
+  });
+
   test('the plan notes its starter, with no count', async () => {
     const r = await solve(
       model,

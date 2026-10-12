@@ -235,12 +235,15 @@ export async function solve(
     [...importCaps.keys(), ...fluids.map(minerSupplyItem)].sort();
   // Each supplied fluid the plan may use is costed at a standalone plan's
   // cost per m³; a fluid no plan can make is left out, as it is when made here.
+  // So is one only a breeding loop makes (A74), such as Slug Slime: a plan
+  // that doesn't need a loop doesn't get one from outside either.
   const supply: Problem['supply'] = new Map();
   if (outside) {
     const all = fluidsOf(enabled);
+    const plain = reachableFor(enabled, sourcesOf([]), []).have;
     const used = fluidsOf(
       prune(enabled, reachableFor(enabled, sourcesOf(all), wanted).have, wanted),
-    );
+    ).filter((f) => plain.has(f));
     for (const fluid of used) {
       const c = await embodiedCost(
         model,
