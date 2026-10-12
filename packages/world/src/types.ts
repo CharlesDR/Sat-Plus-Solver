@@ -58,6 +58,16 @@ export interface ScopeTotals {
   machines: number;
 }
 
+/** A stats scope's totals (A81): `ScopeTotals` plus what the plan summary also shows. */
+export interface ScopeStats extends ScopeTotals {
+  /** The factories summed, sorted. */
+  factories: string[];
+  /** Raw resources extracted, sorted by item. */
+  extraction: ItemRate[];
+  /** Machines running (Σ plan machines; a heater counts its boiler load). */
+  running: number;
+}
+
 /** A parent factory with everything below it (A52): "with sub-factories". */
 export interface SubtreeTotals extends ScopeTotals {
   /** The parent and every factory below it, sorted. */

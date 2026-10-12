@@ -1088,6 +1088,13 @@ label.inline {
 }
 
 /* Headline numbers: one line (UX-2). */
+.stats-scope {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 0.9em;
+}
 .plan-stats {
   display: flex;
   flex-wrap: wrap;

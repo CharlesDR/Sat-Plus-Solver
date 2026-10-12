@@ -5,6 +5,7 @@
  */
 import { formatExact, groupThousands, type PlanSummary } from '@sps/solver';
 import type { ReactNode } from 'react';
+import type { ScopeView } from './stats/scope';
 import { OBJECTIVE_CODES, OBJECTIVE_LABELS } from './controls/ObjectiveStack';
 import { StatusChip } from './ui/StatusChip';
 import { useNumbers } from './ui/numbers';
@@ -21,13 +22,21 @@ function Stat(props: { label: string; children: ReactNode; detail?: ReactNode; t
   );
 }
 
-export function PlanStats(props: { plan: PlanSummary; manual: boolean; timing: string }) {
-  const { plan, manual, timing } = props;
+export function PlanStats(props: {
+  plan: PlanSummary;
+  manual: boolean;
+  timing: string;
+  /** The stats scope (A81), when it is not the open factory's plan alone. */
+  scope?: ScopeView | undefined;
+}) {
+  const { plan, manual, timing, scope } = props;
   const fmt = useNumbers().rate;
-  const p = plan.power;
-  const built = plan.recipes.reduce((s, r) => s + r.machinesCeil, 0);
-  const running = plan.recipes.reduce((s, r) => s + r.machines, 0);
-  const nodes = plan.nodes.reduce((s, n) => s + n.used, 0);
+  const totals = scope?.kind === 'scope' ? scope.totals : undefined;
+  const p = totals?.power ?? plan.power;
+  const built = totals?.machines ?? plan.recipes.reduce((s, r) => s + r.machinesCeil, 0);
+  const running = totals?.running ?? plan.recipes.reduce((s, r) => s + r.machines, 0);
+  const nodes = (totals?.nodes ?? plan.nodes).reduce((s, n) => s + n.used, 0);
+  const pick = scope?.kind === 'pick';
   const objective =
     !manual && plan.objectiveValue !== undefined
       ? `Objective: ${OBJECTIVE_LABELS[plan.objective]} (${OBJECTIVE_CODES[plan.objective]}) = ${formatExact(plan.objectiveValue)}`
@@ -41,16 +50,20 @@ export function PlanStats(props: { plan: PlanSummary; manual: boolean; timing: s
           <StatusChip status={plan.status} />
         )}
       </Stat>
-      <Stat
-        label="Power net"
-        detail={`${fmt(p.consumptionMW)} draw · ${fmt(p.generationMW)} generated`}
-      >
-        {fmt(p.netMW)} MW
-      </Stat>
-      <Stat label="Machines" detail={`${fmt(running)} running`}>
-        {groupThousands(String(built))}
-      </Stat>
-      {nodes > 0 && <Stat label="Resource nodes used">{fmt(nodes)}</Stat>}
+      {!pick && (
+        <Stat
+          label="Power net"
+          detail={`${fmt(p.consumptionMW)} draw · ${fmt(p.generationMW)} generated`}
+        >
+          {fmt(p.netMW)} MW
+        </Stat>
+      )}
+      {!pick && (
+        <Stat label="Machines" detail={`${fmt(running)} running`}>
+          {groupThousands(String(built))}
+        </Stat>
+      )}
+      {!pick && nodes > 0 && <Stat label="Resource nodes used">{fmt(nodes)}</Stat>}
     </dl>
   );
 }

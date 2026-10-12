@@ -16,6 +16,7 @@ import {
 } from '@sps/solver';
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Selection } from './selection';
+import type { ScopeTotalsView, ScopeView } from './stats/scope';
 import { itemIcon } from './icons/icons';
 import { StatusChip } from './ui/StatusChip';
 import { useNumbers } from './ui/numbers';
@@ -48,9 +49,12 @@ export function SummaryTable({
   plan,
   missing = [],
   manual = false,
+  scope,
   ...pick
 }: {
   plan: PlanSummary;
+  /** The stats scope (A81); the plan's own stats show without one, or when it is `plan`. */
+  scope?: ScopeView | undefined;
   /** Manual mode (A36): the plan is hand-edited arithmetic, with these inputs missing. */
   manual?: boolean;
   missing?: SummaryFlow[] | undefined;
@@ -94,64 +98,124 @@ export function SummaryTable({
       {plan.status === 'ok' && (
         <>
           {starterNote(plan) && <p data-testid="starters">{starterNote(plan)}</p>}
-          <Flows title="Targets" rows={plan.targets} id={targetNodeId} {...pick} />
-          <Flows title="Raw resources" rows={plan.extraction} />
-          <Flows title="Missing inputs" rows={missing} id={missingNodeId} {...pick} />
-          <Fold
-            section="imports"
-            title="Imports"
-            count={plan.imports.length}
-            fold={plan.imports.length > FOLD_ROWS}
-            keys={plan.imports.map((r) => importNodeId(r.item))}
-            selection={pick.selection}
-          >
-            <Flows title="Imports" rows={plan.imports} id={importNodeId} {...pick} />
-          </Fold>
-          <Fold
-            section="surplus"
-            title="Surplus and byproducts"
-            count={plan.byproducts.length}
-            keys={plan.byproducts.map((r) => byproductNodeId(r.item))}
-            selection={pick.selection}
-          >
-            <Flows
-              title="Surplus and byproducts"
-              rows={plan.byproducts}
-              id={byproductNodeId}
-              {...pick}
-            />
-          </Fold>
-          <Fold section="nodes" title="Nodes" count={plan.nodes.length}>
-            <Table
-              title="Nodes"
-              head={['Node', 'Used', 'Budget', 'NNE']}
-              headTips={{ NNE: NNE_TIP }}
-              rows={plan.nodes.map((n) => [
-                n.label,
-                num.rate(n.used),
-                num.rate(n.budget),
-                num.rate(n.nne),
-              ])}
-              {...(num.precise
-                ? {}
-                : {
-                    titles: plan.nodes.map((n) => [
-                      '',
-                      formatExact(n.used),
-                      formatExact(n.budget),
-                      formatExact(n.nne),
-                    ]),
-                  })}
-            />
-          </Fold>
-          <p data-testid="power">
-            Power: {num.rate(p.consumptionMW)} MW draw, {num.rate(p.generationMW)} MW generated, net{' '}
-            {num.rate(p.netMW)} MW
-          </p>
+          {scope?.kind === 'scope' ? (
+            <ScopeStats totals={scope.totals} />
+          ) : scope?.kind === 'pick' ? (
+            <p className="hint" data-testid="scope-pick">
+              Pick a recipe group or sub-factory, in the flowchart or the Recipes table, to see its
+              stats.
+            </p>
+          ) : (
+            <>
+              <Flows title="Targets" rows={plan.targets} id={targetNodeId} {...pick} />
+              <Flows title="Raw resources" rows={plan.extraction} />
+              <Flows title="Missing inputs" rows={missing} id={missingNodeId} {...pick} />
+              <Fold
+                section="imports"
+                title="Imports"
+                count={plan.imports.length}
+                fold={plan.imports.length > FOLD_ROWS}
+                keys={plan.imports.map((r) => importNodeId(r.item))}
+                selection={pick.selection}
+              >
+                <Flows title="Imports" rows={plan.imports} id={importNodeId} {...pick} />
+              </Fold>
+              <Fold
+                section="surplus"
+                title="Surplus and byproducts"
+                count={plan.byproducts.length}
+                keys={plan.byproducts.map((r) => byproductNodeId(r.item))}
+                selection={pick.selection}
+              >
+                <Flows
+                  title="Surplus and byproducts"
+                  rows={plan.byproducts}
+                  id={byproductNodeId}
+                  {...pick}
+                />
+              </Fold>
+              <Fold section="nodes" title="Nodes" count={plan.nodes.length}>
+                <Table
+                  title="Nodes"
+                  head={['Node', 'Used', 'Budget', 'NNE']}
+                  headTips={{ NNE: NNE_TIP }}
+                  rows={plan.nodes.map((n) => [
+                    n.label,
+                    num.rate(n.used),
+                    num.rate(n.budget),
+                    num.rate(n.nne),
+                  ])}
+                  {...(num.precise
+                    ? {}
+                    : {
+                        titles: plan.nodes.map((n) => [
+                          '',
+                          formatExact(n.used),
+                          formatExact(n.budget),
+                          formatExact(n.nne),
+                        ]),
+                      })}
+                />
+              </Fold>
+              <p data-testid="power">
+                Power: {num.rate(p.consumptionMW)} MW draw, {num.rate(p.generationMW)} MW generated,
+                net {num.rate(p.netMW)} MW
+              </p>
+            </>
+          )}
           <PlanTables plan={plan} {...pick} />
         </>
       )}
     </section>
+  );
+}
+
+/**
+ * The stats of a scope other than the open factory (A81): the same sections
+ * summed over it, with links inside it netted out and Exports for what leaves.
+ */
+function ScopeStats({ totals }: { totals: ScopeTotalsView }) {
+  const num = useNumbers();
+  const p = totals.power;
+  return (
+    <div className="scope-stats" data-testid="scope-stats">
+      <p className="hint" data-testid="scope-label">
+        {totals.label}
+      </p>
+      <Flows title="Targets" rows={totals.targets} />
+      <Flows title="Raw resources" rows={totals.extraction} />
+      <Fold
+        section="imports"
+        title="Imports"
+        count={totals.imports.length}
+        fold={totals.imports.length > FOLD_ROWS}
+      >
+        <Flows title="Imports" rows={totals.imports} />
+      </Fold>
+      <Fold
+        section="exports"
+        title="Exports"
+        count={totals.exports.length}
+        fold={totals.exports.length > FOLD_ROWS}
+      >
+        <Flows title="Exports" rows={totals.exports} />
+      </Fold>
+      <Fold section="surplus" title="Surplus and byproducts" count={totals.surplus.length}>
+        <Flows title="Surplus and byproducts" rows={totals.surplus} />
+      </Fold>
+      <Fold section="nodes" title="Nodes" count={totals.nodes.length}>
+        <Table
+          title="Nodes"
+          head={['Node', 'Used']}
+          rows={totals.nodes.map((n) => [n.label, num.rate(n.used)])}
+          {...(num.precise ? {} : { titles: totals.nodes.map((n) => ['', formatExact(n.used)]) })}
+        />
+      </Fold>
+      <p data-testid="power">
+        Power: {num.rate(p.consumptionMW)} MW draw, {num.rate(p.generationMW)} MW generated, net{' '}
+        {num.rate(p.netMW)} MW
+      </p>
+    </div>
   );
 }
 
