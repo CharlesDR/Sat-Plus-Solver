@@ -218,7 +218,7 @@ export function FactoryView(props: {
           </div>
         </div>
       )}
-      <SettingsPanel store={store} scope={scope} catalog={catalog} />
+      <SettingsPanel store={store} scope={scope} catalog={catalog} simple={simple} />
       <details className="card">
         <summary>Recipes</summary>
         <RecipeToggles store={store} scope={scope} recipes={catalog.recipes} />

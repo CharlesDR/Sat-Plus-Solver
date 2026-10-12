@@ -256,6 +256,11 @@ export function rateText(n: number): string {
   return `${n < 0 ? '-' : ''}${whole}.${frac || '0'}`;
 }
 
+/** A count of whole things (machines, factories): an integer with commas between thousands (B6). */
+export function countText(n: number): string {
+  return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
 /** The text lines a node shows, which also size it. */
 export function nodeLines(n: FlowNode): string[] {
   switch (n.kind) {

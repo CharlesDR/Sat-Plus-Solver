@@ -153,7 +153,10 @@ export function analyze(
       }
       factoryRows.set(f.id, rows);
       const short = incoming.some((l) => l.used - l.delivered > FLOW_TOL * Math.max(1, l.used));
-      const status: FactoryStatus = result.status !== 'ok' ? 'infeasible' : short ? 'short' : 'ok';
+      const idle =
+        !request.targets.length && !incoming.length && !outgoing.length && !result.recipes.length;
+      const status: FactoryStatus =
+        result.status !== 'ok' ? 'infeasible' : short ? 'short' : idle ? 'empty' : 'ok';
       if (result.status !== 'ok')
         diagnostics.push({
           code: 'factory-failed',

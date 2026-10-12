@@ -268,6 +268,43 @@ describe('worldGraph', () => {
   });
 });
 
+describe('world card text (F1)', () => {
+  const card = (patch: Partial<WorldGraphInput['factories'][number]>) => {
+    const f = { ...result.factories[0]!, ...patch };
+    delete f.groupId;
+    return worldGraph({ factories: [f], groups: [], links: [] }, { itemName }).nodes[0]!;
+  };
+
+  test('counts machines as integers (B6)', () => {
+    expect(worldNodeLines(card({ machines: 1234 })).at(-1)).toBe('1.5 nodes · 1,234 machines');
+  });
+
+  test('an empty factory says so, and a collapsed group of empties is empty (B5)', () => {
+    expect(worldNodeLines(card({ status: 'empty' }))[1]).toBe('Status: empty');
+    const empty = { ...result.factories[0]!, status: 'empty' as const };
+    const g = worldGraph(
+      {
+        factories: [empty, { ...empty, id: 'factory-9', name: 'Spare' }],
+        groups: [{ ...result.groups[0]!, factories: ['factory-1', 'factory-9'] }],
+        links: [],
+      },
+      { itemName, collapsed: ['group-1'] },
+    );
+    expect(g.nodes.find((n) => n.id === 'group:group-1')!.status).toBe('empty');
+  });
+
+  test('a card with a build chip is one line taller (B1)', async () => {
+    const plain = card({});
+    const built = card({
+      build: { state: 'matches', flags: [], causes: [], markedAt: '2026-10-12' },
+    });
+    expect(built.build).toBe('matches');
+    const height = async (n: typeof plain) =>
+      (await layoutWorldGraph({ nodes: [n], edges: [] }, new ELK())).nodes[0]!.height;
+    expect((await height(built)) - (await height(plain))).toBe(16);
+  });
+});
+
 describe('layoutWorldGraph', () => {
   test('members sit inside their group frame; layout is deterministic', async () => {
     const g = worldGraph(result, { itemName });

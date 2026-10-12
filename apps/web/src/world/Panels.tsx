@@ -2,6 +2,7 @@
  * The world view's panels (PLAN M8, §4.5): item ledger (save-wide, per group
  * or per factory), factory table, link table, power, node pool and groups.
  */
+import { countText } from '@sps/graph';
 import { formatRate as fmt, type PowerSummary } from '@sps/solver';
 import { StatusChip } from '../ui/StatusChip';
 import { groupAncestors, type World } from '@sps/world';
@@ -484,7 +485,7 @@ export function GroupsPanel(props: { world: World; summary: WorldSummary; store:
                   ))}
               </select>
             </td>
-            {num(members.get(g.id) ?? 0)}
+            <td className="num">{countText(members.get(g.id) ?? 0)}</td>
             <td className="num">
               <input
                 type="checkbox"

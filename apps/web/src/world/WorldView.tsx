@@ -23,7 +23,8 @@ import {
   NodesPanel,
   PowerPanel,
 } from './Panels';
-import { traceableItems } from './viewModel';
+import { traceableItems, worldStatus } from './viewModel';
+import { StatusChip } from '../ui/StatusChip';
 import { WorldCanvas, type CanvasActions } from './WorldCanvas';
 import { PlusIcon } from '../ui/icons';
 import { useToast } from '../ui/toasts';
@@ -214,6 +215,11 @@ export function WorldView(props: {
         >
           Mark every factory as built
         </button>
+        {summary && (
+          <span data-testid="world-status" title="World status">
+            <StatusChip {...worldStatus(summary)} />
+          </span>
+        )}
         {summary && offBuildText(summary.factories) && (
           <span className="chip build-count" role="status">
             {offBuildText(summary.factories)}

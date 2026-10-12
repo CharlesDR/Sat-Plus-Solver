@@ -3,6 +3,7 @@
  * shows, computed from the world summary and the document, so they can be
  * tested without a browser.
  */
+import { countText } from '@sps/graph';
 import type { PowerSummary } from '@sps/solver';
 import {
   factoryAncestors,
@@ -147,4 +148,34 @@ export function sumPower(rows: readonly PowerRow[]): PowerSummary {
     }),
     { consumptionMW: 0, generationMW: 0, netMW: 0 },
   );
+}
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * The world header's status chip (B4, UX-16, A75): the worst problem first,
+ * then the rest. `status` picks the chip's colour: `infeasible` when a
+ * factory failed or the single grid runs a deficit, `short` when a link runs
+ * short or an import is unmet, `empty` when no factory has anything to do.
+ */
+export function worldStatus(summary: WorldSummary): { status: string; label: string } {
+  const count = (s: string) => summary.factories.filter((f) => f.status === s).length;
+  const failed = count('infeasible');
+  const short = count('short');
+  const unmet = summary.ledger.filter((r) => r.item !== 'mw' && r.unmet > 1e-6).length;
+  const deficit = summary.power.deficitMW;
+  const errors = [
+    ...(failed ? [`${plural(failed, 'factory', 'factories')} failed`] : []),
+    ...(deficit > 1e-6 ? [`Deficit ${countText(Math.ceil(deficit - 1e-6))} MW`] : []),
+  ];
+  const warnings = [
+    ...(short ? [`${short} short`] : []),
+    ...(unmet ? [plural(unmet, 'unmet import')] : []),
+  ];
+  const parts = [...errors, ...warnings];
+  if (parts.length)
+    return { status: errors.length ? 'infeasible' : 'short', label: parts.join(' · ') };
+  if (summary.factories.every((f) => f.status === 'empty'))
+    return { status: 'empty', label: 'World empty' };
+  return { status: 'ok', label: 'World ok' };
 }

@@ -16,14 +16,16 @@ interface Props {
   store: WorldStore;
   scope: Scope;
   catalog: Catalog;
+  /** Simple mode (A72) has no world, so no inherit/override labels (B7). */
+  simple?: boolean;
 }
 
 /**
  * Solve settings in a scope: the world defaults, or this factory's overrides.
  * In the factory scope each setting shows whether it is inherited, and an
- * override can be reset to the world default.
+ * override can be reset to the world default. Simple mode shows neither.
  */
-export function SettingsPanel({ store, scope, catalog }: Props) {
+export function SettingsPanel({ store, scope, catalog, simple = false }: Props) {
   const world = useStore(store, (s) => s.world);
   const setSetting = useStore(store, (s) => s.setSetting);
   const setFactoryAreas = useStore(store, (s) => s.setFactoryAreas);
@@ -38,7 +40,7 @@ export function SettingsPanel({ store, scope, catalog }: Props) {
 
   const meta = (k: SettingKey) => ({
     k,
-    overridden: overridden?.[k],
+    overridden: simple ? undefined : overridden?.[k],
     onReset: () => setSetting(scope, k, undefined),
   });
 

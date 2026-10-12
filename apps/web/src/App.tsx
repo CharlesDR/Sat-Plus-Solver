@@ -78,7 +78,7 @@ function AppFrame(props: {
         const menu = document.querySelector<HTMLDetailsElement>('details.saves');
         if (!menu) return;
         menu.open = true;
-        menu.querySelector<HTMLInputElement>('input[type=file]')?.focus();
+        menu.querySelector<HTMLButtonElement>('button.file-button')?.focus();
       },
     }),
     [saves, store, toast],

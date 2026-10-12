@@ -13,8 +13,10 @@ export type SolveFactory = (request: SolveRequest) => Promise<SolveResult>;
  * `ok`: solved, and every incoming link delivers what it draws. `short`:
  * solved, but an upstream factory failed, so a link it draws on is short.
  * `infeasible`: the factory's own solve failed (any status but `ok`).
+ * `empty`: solved with nothing to do: no targets, no links and no machines
+ * (A75).
  */
-export type FactoryStatus = 'ok' | 'short' | 'infeasible';
+export type FactoryStatus = 'empty' | 'ok' | 'short' | 'infeasible';
 
 /**
  * One item's flows in a scope (a factory, a group or the save). Conservation:

@@ -123,7 +123,7 @@ const FLOW_TOL = 1e-6;
 const POWER_ITEM = 'mw';
 
 const byKey = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
-const SEVERITY: Record<FactoryStatus, number> = { ok: 0, short: 1, infeasible: 2 };
+const SEVERITY: Record<FactoryStatus, number> = { empty: 0, ok: 1, short: 2, infeasible: 3 };
 
 export const groupNodeId = (id: string) => `group:${id}`;
 export const factoryNodeId = (id: string) => `factory:${id}`;

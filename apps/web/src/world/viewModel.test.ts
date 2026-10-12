@@ -23,6 +23,7 @@ import {
   powerRows,
   sumPower,
   traceableItems,
+  worldStatus,
 } from './viewModel';
 
 const mini = miniJson as unknown as Model;
@@ -174,5 +175,28 @@ describe('item trace on a solved world', () => {
     expect(plates.edges.filter((e) => e.traced).map((e) => e.id)).toEqual([
       'factory:factory-1→factory:factory-2',
     ]);
+  });
+});
+
+describe('world status chip (B4, A75)', () => {
+  const summary = (statuses: string[], deficitMW = 0, unmet: number[] = []): WorldSummary =>
+    ({
+      factories: statuses.map((status, k) => ({ id: `f${k}`, status })),
+      ledger: unmet.map((u, k) => ({ item: `i${k}`, unmet: u })),
+      power: { consumptionMW: 0, generationMW: 0, netMW: deficitMW, deficitMW },
+    }) as unknown as WorldSummary;
+
+  test('ok, empty, then problems worst first', () => {
+    expect(worldStatus(summary(['ok', 'empty']))).toEqual({ status: 'ok', label: 'World ok' });
+    expect(worldStatus(summary(['empty']))).toEqual({ status: 'empty', label: 'World empty' });
+    expect(worldStatus(summary(['ok', 'short'], 0, [0, 2]))).toEqual({
+      status: 'short',
+      label: '1 short · 1 unmet import',
+    });
+    expect(worldStatus(summary(['ok', 'short'], 1205.02))).toEqual({
+      status: 'infeasible',
+      label: 'Deficit 1,206 MW · 1 short',
+    });
+    expect(worldStatus(summary(['infeasible', 'infeasible'])).label).toBe('2 factories failed');
   });
 });
