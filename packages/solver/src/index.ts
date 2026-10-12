@@ -49,7 +49,7 @@ export type { RawResource } from './factory/resources';
 export { compareAlternates } from './factory/alternates';
 export type { AlternatesReport } from './factory/alternates';
 export type * from './factory/types';
-export { summarizePlan, recipeTable } from './factory/summary';
+export { summarizePlan, recipeTable, starterNote } from './factory/summary';
 export {
   exactFraction,
   exactText,

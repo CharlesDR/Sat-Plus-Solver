@@ -1,0 +1,20 @@
+{
+  "name": "sfplus-montanion-pure-slime-1800",
+  "description": "Montanion Ore 1800/min on one pure node (pinned by the node budget), Slug Slime imported. In game (Charles 2026-10-09): 1 Modular Miner Mk.3 with Fluid Module, 30 Slug Slime in.",
+  "model": "sfplus",
+  "request": {
+    "targets": [{ "item": "montanion-ore", "rate": 1800 }],
+    "nodeBudget": { "node:montanion-ore:pure": 1 },
+    "imports": [{ "item": "slug-slime", "cap": null }]
+  },
+  "expected": {
+    "status": "ok",
+    "recipes": {
+      "mine:montanion-ore:pure:raw:slug-slime": 1
+    },
+    "imports": {
+      "slug-slime": 30
+    },
+    "surplus": {}
+  }
+}

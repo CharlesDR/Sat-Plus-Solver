@@ -1,0 +1,27 @@
+{
+  "name": "sfplus-lime-slug-9.6",
+  "description": "Lime Slug 9.6/min from imported Sweet Meal and Water (A74). In game (Charles 2026-10-09): 2 Slug Terrariums, 1 Slug Hatchery, 12 Sweet Meal + 30 Water in, 3 White and 0.12 Red Slug left over; needs starter Lime Slugs.",
+  "model": "sfplus",
+  "request": {
+    "targets": [{ "item": "lime-slug", "rate": 9.6 }],
+    "imports": [
+      { "item": "sweet-meal", "cap": null },
+      { "item": "water", "cap": null }
+    ]
+  },
+  "expected": {
+    "status": "ok",
+    "recipes": {
+      "lime-egg-terrarium": 2,
+      "lime-slug-breeding": 1
+    },
+    "imports": {
+      "sweet-meal": 12,
+      "water": 30
+    },
+    "surplus": {
+      "white-slug": 3,
+      "red-slug": 0.12
+    }
+  }
+}

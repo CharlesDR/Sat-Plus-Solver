@@ -1,7 +1,9 @@
 /**
  * Golden harness (docs/ARCHITECTURE.md §9): each `fixtures/golden/*.json`
- * holds a request and the plan satisfactory-tools gives for it. Machine
- * counts, imports, surplus, objective and power must match within 1e-6 relative.
+ * holds a request and the plan satisfactory-tools gives for it (on the
+ * vanilla-mini model), or for `sfplus` cases the full SF+ model's plan as
+ * verified in game. Machine counts, imports, surplus, objective and power
+ * must match within 1e-6 relative.
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -12,7 +14,7 @@ import { ROOT } from './build-data';
 export interface GoldenCase {
   name: string;
   description: string;
-  model: 'vanilla-mini';
+  model: 'vanilla-mini' | 'sfplus';
   /** As SolveRequest, except an import `cap` of null means unlimited (JSON has no Infinity). */
   request: SolveRequest;
   expected: {

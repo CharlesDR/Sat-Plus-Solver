@@ -310,6 +310,11 @@ export interface SolveResult {
   imports: ItemRate[];
   /** The fluid miner routes take from outside (A69), sorted by item; absent unless supplied. */
   minerSupply?: ItemRate[];
+  /**
+   * Loop items the plan breeds from a starter (A74), sorted: the player brings
+   * a few once to begin (such as Lime Slugs). Absent when none.
+   */
+  starters?: string[];
   /** Byproducts and free disposal; at the world level this is available supply. */
   surplus: ItemRate[];
   /** Node classes in use, sorted by id. */
