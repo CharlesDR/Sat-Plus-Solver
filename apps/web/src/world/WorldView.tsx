@@ -245,14 +245,10 @@ export function WorldView(props: {
           onFix={fix}
         />
       )}
-      <div className="canvas-wrap">
-        {structure && traced && (
-          <ErrorBoundary what="the world canvas" resetKey={structure}>
-            <WorldCanvas engine={layout} graph={structure} traced={traced} actions={actions} />
-          </ErrorBoundary>
-        )}
+      {/* Docked above the canvas, not floating over its nodes (B3). */}
+      <div className="canvas-head">
         <form
-          className="canvas-overlay add-factory"
+          className="add-factory"
           onSubmit={(e) => {
             e.preventDefault();
             store.getState().addFactory(newName);
@@ -269,6 +265,13 @@ export function WorldView(props: {
             <PlusIcon /> Add factory
           </button>
         </form>
+      </div>
+      <div className="canvas-wrap">
+        {structure && traced && (
+          <ErrorBoundary what="the world canvas" resetKey={structure}>
+            <WorldCanvas engine={layout} graph={structure} traced={traced} actions={actions} />
+          </ErrorBoundary>
+        )}
         {unplanned && (
           <div className="canvas-overlay canvas-hint" role="group" aria-label="Start here">
             <p>

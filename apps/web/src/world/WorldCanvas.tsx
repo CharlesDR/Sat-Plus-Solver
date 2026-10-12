@@ -18,6 +18,7 @@ import {
 import {
   Background,
   BaseEdge,
+  ControlButton,
   Controls,
   EdgeLabelRenderer,
   Handle,
@@ -25,6 +26,7 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
+  useStore,
   type Connection,
   type Edge,
   type EdgeProps,
@@ -42,6 +44,7 @@ import {
   useState,
 } from 'react';
 import { itemIcon } from '../icons/icons';
+import { FitIcon } from '../ui/icons';
 import { StatusChip } from '../ui/StatusChip';
 
 /** What the canvas's nodes can ask the view to do. */
@@ -335,23 +338,75 @@ function Canvas(props: {
         }}
         zoomOnDoubleClick={false}
         minZoom={0.05}
-        fitView
-        fitViewOptions={FIT}
         proOptions={{ hideAttribution: true }}
       >
         <Background />
-        <Controls showInteractive={false} />
+        <Controls showInteractive={false} showFitView={false}>
+          <FitButton layout={layout} />
+        </Controls>
         <Refit layout={layout} />
       </ReactFlow>
     </div>
   );
 }
 
-/** Refits the view when the layout changes. */
+/** Room around the drawing when it is fitted, px. */
+const FIT_PAD = 16;
+
+/**
+ * The view that shows the whole drawing (B3): ELK's own bounds, edge labels
+ * included, centred in the canvas and never zoomed past 1.
+ */
+export function fitLayout(
+  layout: Pick<WorldLayout, 'width' | 'height'>,
+  width: number,
+  height: number,
+): { x: number; y: number; zoom: number } {
+  const zoom = Math.max(
+    0.05,
+    Math.min(
+      FIT.maxZoom,
+      (width - 2 * FIT_PAD) / Math.max(1, layout.width),
+      (height - 2 * FIT_PAD) / Math.max(1, layout.height),
+    ),
+  );
+  return {
+    zoom,
+    x: (width - layout.width * zoom) / 2,
+    y: (height - layout.height * zoom) / 2,
+  };
+}
+
+/**
+ * Fits the view to each new layout, such as a group collapsing or expanding
+ * (B3), and once the canvas has its size. It reads the layout's bounds, not
+ * React Flow's node list, which can still hold the previous layout's nodes.
+ */
 function Refit({ layout }: { layout: WorldLayout }) {
   const flow = useReactFlow();
+  const width = useStore((s) => s.width);
+  const height = useStore((s) => s.height);
+  const sized = width > 0 && height > 0;
   useEffect(() => {
-    void flow.fitView(FIT);
-  }, [flow, layout]);
+    if (sized) void flow.setViewport(fitLayout(layout, width, height));
+    // Only a new layout or the canvas's first size refits, not each resize.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flow, layout, sized]);
   return null;
+}
+
+/** Shows the whole world, its edge labels included (B3). */
+function FitButton({ layout }: { layout: WorldLayout }) {
+  const flow = useReactFlow();
+  const width = useStore((s) => s.width);
+  const height = useStore((s) => s.height);
+  return (
+    <ControlButton
+      onClick={() => void flow.setViewport(fitLayout(layout, width, height), { duration: 200 })}
+      title="Fit the whole world"
+      aria-label="Fit the whole world"
+    >
+      <FitIcon />
+    </ControlButton>
+  );
 }

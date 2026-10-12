@@ -22,3 +22,47 @@ test('the README sample world opens from its link and solves without errors', as
   await expect(page.getByTestId('world-status')).toHaveText('World ok');
   await expect(page.getByRole('region', { name: 'World diagnostics' })).toHaveCount(0);
 });
+
+test('the world canvas refits as groups collapse and expand, under a docked Add factory (B3)', async ({
+  page,
+}) => {
+  const readme = await readFile(README, 'utf8');
+  const hash = /https:\/\/charlesdr\.github\.io\/Sat-Plus-Solver\/(#w=[\w$+\-.]+)/.exec(
+    readme,
+  )![1]!;
+  await page.goto(`/${hash}`);
+  await worldSettled(page);
+  const canvas = page.getByTestId('world-canvas');
+  const group = (id: string) => canvas.locator(`.react-flow__node[data-id="group:${id}"]`);
+  // Every box and line label drawn on the canvas, by its text, that sticks out of it.
+  const outside = () =>
+    canvas.evaluate((el) => {
+      const c = el.getBoundingClientRect();
+      return [...el.querySelectorAll('.react-flow__node, .world-edge-label')]
+        .filter((x) => {
+          const r = x.getBoundingClientRect();
+          return (
+            r.left < c.left - 1 ||
+            r.right > c.right + 1 ||
+            r.top < c.top - 1 ||
+            r.bottom > c.bottom + 1
+          );
+        })
+        .map((x) => x.textContent ?? '');
+    });
+  await expect.poll(outside).toEqual([]);
+  // Add factory sits above the canvas, not over it.
+  const form = await page.locator('form.add-factory').boundingBox();
+  const box = await canvas.boundingBox();
+  expect(form!.y + form!.height).toBeLessThanOrEqual(box!.y);
+
+  await group('starter').getByRole('button', { name: 'Collapse' }).click();
+  await expect(group('starter')).toContainText('Group of 2');
+  await expect.poll(outside).toEqual([]);
+  await group('power').getByRole('button', { name: 'Collapse' }).click();
+  await expect(group('power')).toContainText('Group of 1');
+  await expect.poll(outside).toEqual([]);
+  await group('starter').getByRole('button', { name: 'Expand' }).click();
+  await expect(canvas.locator('.react-flow__node[data-id^="factory:"]').first()).toBeVisible();
+  await expect.poll(outside).toEqual([]);
+});

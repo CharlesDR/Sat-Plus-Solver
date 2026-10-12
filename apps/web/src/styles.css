@@ -1842,16 +1842,15 @@ input.flow-area-name {
   position: absolute;
   z-index: 5;
 }
+/* The canvas header (B3): Add factory docked above the canvas, clear of its nodes. */
+.canvas-head {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
 .add-factory {
-  top: 12px;
-  right: 12px;
   display: flex;
   gap: 6px;
-  padding: 6px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-md);
 }
 .add-factory input {
   width: 190px;
@@ -1859,7 +1858,7 @@ input.flow-area-name {
 .canvas-hint {
   left: 12px;
   top: 12px;
-  max-width: min(380px, calc(100% - 420px));
+  max-width: min(380px, calc(100% - 24px));
   padding: 10px 14px;
   font-size: 14px;
   background: var(--accent-soft);

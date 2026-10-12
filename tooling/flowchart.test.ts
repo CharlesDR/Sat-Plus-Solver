@@ -5,6 +5,7 @@
  */
 import type { Model } from '@sps/data';
 import {
+  areaNodeId,
   factoryGraph,
   GASES,
   groupAreas,
@@ -14,6 +15,7 @@ import {
   type GraphLabels,
 } from '@sps/graph';
 import { createHighsBackend, solve, type SolveRequest } from '@sps/solver';
+import { createWorld, factorySolveRequest } from '@sps/world';
 import ELK from 'elkjs/lib/elk.bundled.js';
 import { beforeAll, describe, expect, test } from 'vitest';
 import { runPipeline } from './build-data';
@@ -133,6 +135,38 @@ describe('factory flowchart on the SF+ model', () => {
     expect(performance.now() - t0).toBeLessThan(2000);
     expect(overlaps(layout)).toEqual([]);
     expect(layout.areas?.map((a) => a.id)).toEqual(g.areas!.map((a) => a.id));
+  }, 60_000);
+
+  test('a collapsed area is one box in a block of its own, its lines splitting beside it (B2)', async () => {
+    // Before B2 the box and its split points were laid out as loose nodes among
+    // the frames, wrapped into rows apart: a split could land a frame away.
+    for (const [item, rate] of [
+      ['plastic', 20],
+      ['modular-frame', 5],
+    ] as const) {
+      const world = createWorld();
+      world.factories[0]!.request.targets = [{ item, rate }];
+      const flat = await graphOf(factorySolveRequest(world, model, world.factories[0]!.id));
+      const catalog = areaCatalog(model);
+      const areas = groupAreas(flat, catalog).areas ?? [];
+      expect(areas.length).toBeGreaterThan(1);
+      let splits = 0;
+      for (const a of areas) {
+        const g = groupAreas(flat, catalog, {}, new Set([a.id]));
+        const layout = await layoutFactoryGraph(g, new ELK(), { iconSize: 32, labelIconSize: 16 });
+        expect(overlaps(layout)).toEqual([]);
+        expect(layout.areas?.map((f) => f.id)).not.toContain(a.id);
+        const box = layout.nodes.find((n) => n.id === areaNodeId(a.id))!;
+        for (const b of layout.bundles.filter((x) => x.source === box.id)) {
+          splits++;
+          const right = b.split.x - (box.x + box.width);
+          expect(right, `${item} ${a.id} ${b.item}`).toBeGreaterThan(0);
+          expect(right, `${item} ${a.id} ${b.item}`).toBeLessThan(150);
+          expect(Math.abs(b.split.y - (box.y + box.height / 2))).toBeLessThan(box.height);
+        }
+      }
+      expect(splits, item).toBeGreaterThan(0);
+    }
   }, 60_000);
 
   test('every listed gas is a fluid in the model (A48)', () => {
