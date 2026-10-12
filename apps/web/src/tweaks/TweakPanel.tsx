@@ -7,6 +7,7 @@
 import type { FlowNode } from '@sps/graph';
 import type { Factory, Tweak, World } from '@sps/world';
 import { useEffect, useMemo, useState } from 'react';
+import { AlternateBadge } from '../controls/AlternateBadge';
 import type { SolveOutcome } from '../solver/client';
 import type { CatalogRecipe, SwapPreview, WorldAction } from '../solver/protocol';
 import {
@@ -190,7 +191,7 @@ function SwapList(props: {
           </button>
           <span className="meta">
             {recipe.machine}
-            {recipe.alternate && <span className="badge">alternate</span>}
+            <AlternateBadge recipe={recipe} />
           </span>
           <span className="effect" aria-live="polite">
             {blocked ? 'Above the max tier' : effect(recipe.id)}

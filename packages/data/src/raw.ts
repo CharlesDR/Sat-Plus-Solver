@@ -145,6 +145,23 @@ export const AreasConfig = z.object({
 });
 export type AreasConfig = z.infer<typeof AreasConfig>;
 
+/** data/alternate-unlocks.json: how each alternate recipe is unlocked (D1, A82). */
+export const AlternateUnlocksConfig = z.object({
+  alternates: z.array(
+    z.object({
+      /** game_data.json recipe name. */
+      recipe: z.string().min(1),
+      unlock: z.enum(['mam', 'hard-drive']),
+      schematic: z.string().min(1),
+      /** The unlock tier, given: a hard drive's milestone, or worked out by hand. */
+      tier: z.number().int().min(0).optional(),
+      /** Research costs (game_data.json parts): the unlock tier is their highest major tier. */
+      costs: z.array(z.string()).optional(),
+    }),
+  ),
+});
+export type AlternateUnlocksConfig = z.infer<typeof AlternateUnlocksConfig>;
+
 /** Drops `$`-prefixed documentation keys before schema validation. */
 export function stripComments(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stripComments);

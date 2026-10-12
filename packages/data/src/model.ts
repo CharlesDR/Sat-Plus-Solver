@@ -4,7 +4,7 @@
  * Every rate in `inputs`/`outputs` is positive and per machine.
  */
 
-export const MODEL_SCHEMA_VERSION = 4;
+export const MODEL_SCHEMA_VERSION = 5;
 
 /** Id of the power pseudo-item output by generator recipes. Its rate unit is MW. */
 export const MW_ITEM_ID = 'mw';
@@ -92,6 +92,17 @@ export interface Recipe {
    * machines; the rest (the boiler pair) scale with boiler throughput.
    */
   heater?: true;
+  /** Alternates: how and from which major tier it can be unlocked (A82). */
+  unlock?: RecipeUnlock;
+}
+
+export interface RecipeUnlock {
+  /** MAM research, or a Hard Drive schematic. */
+  via: 'mam' | 'hard-drive';
+  /** Major tier from which it can be researched. */
+  tier: number;
+  /** The schematic's display name. */
+  schematic: string;
 }
 
 export interface ResourceNode {

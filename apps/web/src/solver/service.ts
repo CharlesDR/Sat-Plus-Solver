@@ -304,6 +304,7 @@ export function modelCatalog(model: Model): Catalog {
         machine: machine.get(r.machine) ?? r.machine,
         alternate: r.alternate,
         tier: r.tier,
+        ...(r.unlock ? { unlock: r.unlock } : {}),
         products: r.outputs.filter((o) => o.item !== MW_ITEM_ID).map((o) => name(o.item)),
         outputs: r.outputs.filter((o) => o.item !== MW_ITEM_ID).map((o) => o.item),
       }))

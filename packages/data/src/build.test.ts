@@ -11,6 +11,7 @@ const inputs: BuildInputs = {
   minerModel: read('data/miner-model.json'),
   overrides: read('data/overrides.json'),
   areas: read('data/areas.json'),
+  alternateUnlocks: read('data/alternate-unlocks.json'),
 };
 
 const errorsOf = (r: BuildResult) => r.issues.filter((i) => i.severity === 'error');
@@ -137,6 +138,22 @@ describe('real dataset', () => {
   test('is deterministic', () => {
     expect(buildModel(inputs).model).toEqual(model);
   });
+
+  test('alternates carry their unlock tier (A82)', () => {
+    const named = (name: string) => model.recipes.find((r) => r.name === name)!;
+    // A hard drive waits on its milestone.
+    expect(named('Alclad Busbar').unlock).toEqual({
+      via: 'hard-drive',
+      tier: 7,
+      schematic: 'Alternate: Alclad Busbar',
+    });
+    // MAM research: the highest tier among its costs (Bar Magnet, Magnetic Core 6-3).
+    expect(named('Electric Motor').unlock).toMatchObject({ via: 'mam', tier: 6 });
+    // Researchable long before the recipe's own dataset tier (9-2).
+    expect(named('SAM Regulator')).toMatchObject({ tier: '9-2', unlock: { tier: 2 } });
+    for (const r of model.recipes) if (!r.alternate) expect(r.unlock, r.id).toBeUndefined();
+    expect(result.details!.unlocks!.unlisted).toEqual(['Synthetic Power Shard']);
+  });
 });
 
 describe('invalid inputs fail the build with a clear message', () => {
@@ -154,6 +171,25 @@ describe('invalid inputs fail the build with a clear message', () => {
     };
     data.Recipes.find((r) => r.Name === 'Iron Plate')!.Parts[1]!.Amount = 'two';
     expectError({ gameData: JSON.stringify(data) }, 'number', /Iron Plate.*cannot parse "two"/);
+  });
+
+  test('alternate unlock for an unknown recipe or part', () => {
+    const unlocks = JSON.parse(inputs.alternateUnlocks) as {
+      alternates: { recipe: string; costs?: string[] }[];
+    };
+    unlocks.alternates[0]!.recipe = 'Iron Plate';
+    unlocks.alternates[1]!.costs = ['Unobtainium Ingot'];
+    const text = JSON.stringify(unlocks);
+    expectError(
+      { alternateUnlocks: text },
+      'unlocks.unknownRecipe',
+      /"Iron Plate" is not an alternate/,
+    );
+    expectError(
+      { alternateUnlocks: text },
+      'unlocks.unknownPart',
+      /unknown part "Unobtainium Ingot"/,
+    );
   });
 
   test('unknown part', () => {

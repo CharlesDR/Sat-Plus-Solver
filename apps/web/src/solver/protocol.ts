@@ -1,5 +1,5 @@
 /** Messages between the main thread and the solver worker. */
-import type { Area, BeltCapacity, NodePurity } from '@sps/data';
+import type { Area, BeltCapacity, NodePurity, RecipeUnlock } from '@sps/data';
 import type { FactoryGraph } from '@sps/graph';
 import type { Diagnostic, ItemRate, PlanSummary, SummaryFlow } from '@sps/solver';
 import type { FactoryResult, ModelerReportLine, World, WorldResult } from '@sps/world';
@@ -21,6 +21,8 @@ export interface CatalogRecipe {
   alternate: boolean;
   /** Dataset tier, `"<major>-<minor>"`. */
   tier: string;
+  /** Alternates: how and from which tier it can be researched (A82). */
+  unlock?: RecipeUnlock;
   /** Output item names, for search. */
   products: string[];
   /** Output item ids (no MW), for the swap list (A35). */

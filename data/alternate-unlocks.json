@@ -1,0 +1,772 @@
+{
+  "$comment": "Alternate recipe unlocks (D1, A82), from the SF+ wiki schematics (k-mods.com, exported 2026-08-30). Each game_data.json alternate lists how it is unlocked: \"mam\" (MAM research) or \"hard-drive\" (a Hard Drive schematic), and the schematic name. \"tier\" is the milestone tier a hard-drive schematic waits on, or a tier worked out by hand (see the entry's $comment). \"costs\" lists the research costs as game_data.json parts (K-MODS Coupons and Hard Drives left out: neither is produced); the unlock tier is then the highest major tier among those parts. The MAM tree nodes before a research never raise its tier, so they are not listed. data/generated/report.md lists every alternate and its unlock tier.",
+  "$costNames": "Wiki cost item -> game_data.json part, where they differ: Biofuel -> Solid Biofuel; CarbonDust -> Carbon Powder; Cement -> Concrete; CryoliteResidue -> Kyalite Residue; DarkMatter -> Dark Matter Crystal; Diamond -> Diamonds; FicsiteMesh -> Ficsite Trigon; Fuel -> Packaged Fuel; Gunpowder -> Black Powder; HighSpeedWire -> Quickwire; InvarPipe -> Magnetic Core; InvarPlates -> Bar Magnet; IronPlateReinforced -> Reinforced Iron Plate; NC_CryoTankEmpty -> Empty Cryo Tank; PackagedCoolingWater -> Packaged Coolant; PackagedGas_CarbonDioxide -> Packaged Flue Gas; PhotovoltaicCell -> Solar Cell; PlutoniumCell -> Encased Plutonium Cell; PowerShardCrystal -> Power Shard; Res_KerrCrystal -> Kerr Crystal; SAMIngot -> Reanimated SAM; SpaceElevatorPart_9 -> Nuclear Pasta; TitanPipe -> Titanium Pipe; TitanPlates -> Titanium Plates; TurboFuel -> Packaged Turbofuel; UraniumCell -> Encased Uranium Cell",
+  "alternates": [
+    {
+      "recipe": "Adaptive Command Unit",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Quartz Electronics",
+      "costs": ["Computer", "Quartz Crystal"]
+    },
+    {
+      "recipe": "Alclad Bronze Plate",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Aluminum Alloy Parts",
+      "costs": ["Brass Ingot", "Bronze Ingot", "Aluminum Ingot"]
+    },
+    {
+      "recipe": "Alclad Busbar",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Alclad Busbar",
+      "tier": 7
+    },
+    {
+      "recipe": "Alternator",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Electromagnetic Components",
+      "costs": ["Bar Magnet", "Magnetic Core", "Quickwire"]
+    },
+    {
+      "recipe": "Aluminum Belt Drive",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Aluminum Belt Drive",
+      "tier": 7
+    },
+    {
+      "recipe": "Aluminum Brass Casing",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Aluminum Alloy Parts",
+      "costs": ["Brass Ingot", "Bronze Ingot", "Aluminum Ingot"]
+    },
+    {
+      "recipe": "Aluminum Fluid Tank",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Aluminum Alloy Parts",
+      "costs": ["Brass Ingot", "Bronze Ingot", "Aluminum Ingot"]
+    },
+    {
+      "recipe": "Aluminum Rod",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Aluminum Alloy Parts",
+      "costs": ["Brass Ingot", "Bronze Ingot", "Aluminum Ingot"]
+    },
+    {
+      "recipe": "Automated Portable Miner",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Automated Portable Miner",
+      "costs": ["Rotor"]
+    },
+    {
+      "recipe": "Black Magnitar",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Black Magnitar™",
+      "tier": 6
+    },
+    {
+      "recipe": "Brass Heatsink",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Brass Heatsink",
+      "costs": ["Brass Plates"]
+    },
+    {
+      "recipe": "Brazed Busbar",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Brazing",
+      "costs": ["Copper Sheet", "Brass Ingot"]
+    },
+    {
+      "recipe": "Brazing Rod",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Brazing",
+      "costs": ["Copper Sheet", "Brass Ingot"]
+    },
+    {
+      "recipe": "Brazing Wire",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Brazing",
+      "costs": ["Copper Sheet", "Brass Ingot"]
+    },
+    {
+      "recipe": "Cast Bronze Ingot",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Cast Bronze Ingot",
+      "tier": 3
+    },
+    {
+      "recipe": "Cast Iron Screw",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Cast Iron Parts",
+      "costs": ["Iron Ingot"]
+    },
+    {
+      "recipe": "Cast Iron Wire",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Cast Iron Parts",
+      "costs": ["Iron Ingot"]
+    },
+    {
+      "recipe": "Cast Tin Plate",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Cast Tin Parts",
+      "costs": ["Tin Ingot"]
+    },
+    {
+      "recipe": "Caterium Circuit Board",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Caterium Electronics",
+      "costs": ["Plastic", "Quickwire"]
+    },
+    {
+      "recipe": "Caterium Computer",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Caterium Electronics",
+      "costs": ["Plastic", "Quickwire"]
+    },
+    {
+      "recipe": "Classic Steel Ingot",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Classic Steel Ingot",
+      "tier": 3
+    },
+    {
+      "recipe": "Compact Biomass",
+      "unlock": "mam",
+      "schematic": "Alternate Recipe: Compact Biomass",
+      "costs": ["Solid Biofuel"]
+    },
+    {
+      "recipe": "Compacted Iron Plate",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Compacted Iron Plate",
+      "costs": ["Iron Plate"]
+    },
+    {
+      "recipe": "Condensed Graphene",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Condensed Graphene",
+      "tier": 5
+    },
+    {
+      "recipe": "Cooling Device",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Cryogenic Parts",
+      "costs": ["Packaged Coolant", "Empty Cryo Tank"]
+    },
+    {
+      "recipe": "Crystal Resonator",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Quartz Electronics",
+      "costs": ["Computer", "Quartz Crystal"]
+    },
+    {
+      "recipe": "Dark Matter Condensate",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Dark Matter Crystallization",
+      "costs": ["Dark Matter Crystal"]
+    },
+    {
+      "recipe": "Dark Matter Trap",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Dark Matter Crystallization",
+      "costs": ["Dark Matter Crystal"]
+    },
+    {
+      "recipe": "Dark Neutron Fuel",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Dark Neutron Fuel",
+      "tier": 9
+    },
+    {
+      "recipe": "Dark-Kerr Crystal",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Dark Matter Crystallization",
+      "costs": ["Dark Matter Crystal"]
+    },
+    {
+      "recipe": "Desalted Crude Oil",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Crude Oil Distillation",
+      "costs": ["Steel Ingot"]
+    },
+    {
+      "recipe": "Detonation Diamonds",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Diamonds",
+      "costs": ["Carbon Powder", "Black Powder"]
+    },
+    {
+      "recipe": "Diamond Power Fragment",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Diamond Power Fragment",
+      "tier": 3,
+      "$comment": "Hard drive, gated on either MAM research \"Slug Slime Processing\" (slugs, after a node whose costs reach tier 3) or \"Diamond Synthesis\" (Salt, tier 4): the earlier is tier 3."
+    },
+    {
+      "recipe": "Diamond Simulant",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Time Crystal Synthesis",
+      "costs": ["Diamonds", "Quartz Crystal"]
+    },
+    {
+      "recipe": "Diluted Bitumen",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Diluted Bitumen",
+      "tier": 5
+    },
+    {
+      "recipe": "Diluted Sulfuric Acid",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Diluted Sulfuric Acid",
+      "tier": 5
+    },
+    {
+      "recipe": "Direct Steel",
+      "unlock": "mam",
+      "schematic": "Alternate Recipe: Direct Steel",
+      "costs": ["Iron Ingot", "Carbon Powder"]
+    },
+    {
+      "recipe": "Distilled Oil Residue",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Crude Oil Distillation",
+      "costs": ["Steel Ingot"]
+    },
+    {
+      "recipe": "EMF Generator",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Titanium Superconductors",
+      "costs": ["Titanium Pipe", "Cobalt Plates"]
+    },
+    {
+      "recipe": "Electric Motor",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Electromagnetic Components",
+      "costs": ["Bar Magnet", "Magnetic Core", "Quickwire"]
+    },
+    {
+      "recipe": "Electric Turbo Motor",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Electric Turbomotor",
+      "tier": 8
+    },
+    {
+      "recipe": "Electronic Control Rod",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Electromagnetic Components",
+      "costs": ["Bar Magnet", "Magnetic Core", "Quickwire"]
+    },
+    {
+      "recipe": "Encased Industrial Pipe",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Steel Components",
+      "costs": ["Concrete", "Steel Pipe"]
+    },
+    {
+      "recipe": "Encoded Crystal Computer",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Quantum Electronics",
+      "costs": ["Ficsite Trigon"]
+    },
+    {
+      "recipe": "Fastened Frame",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Fastened Modular Frame",
+      "costs": ["Reinforced Iron Plate"]
+    },
+    {
+      "recipe": "Fertile Uranium",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Uranium Fuel Production",
+      "costs": ["Encased Uranium Cell"]
+    },
+    {
+      "recipe": "Ficsite Pipe",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Ficsite™ Pipe",
+      "tier": 9
+    },
+    {
+      "recipe": "Fine Black Powder",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Fine Black Powder",
+      "costs": ["Sulfur", "Coal"],
+      "$comment": "Hard drive, gated on the Sulfur tree's MAM research \"Explosive\" (costs Sulfur and Coal)."
+    },
+    {
+      "recipe": "Flexible Framework",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Titanium Parts",
+      "costs": ["Titanium Pipe", "Titanium Plates"]
+    },
+    {
+      "recipe": "Forged Steel Bolt",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Pure Steel Parts",
+      "costs": ["Steel Ingot"]
+    },
+    {
+      "recipe": "Fused Alloy Quickwire",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Fused Alloy Wires",
+      "costs": ["Wire", "Quickwire"]
+    },
+    {
+      "recipe": "Fused Wire",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Fused Alloy Wires",
+      "costs": ["Wire", "Quickwire"]
+    },
+    {
+      "recipe": "Fusion Welded Frame",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Part Welding",
+      "costs": ["Packaged Fuel", "Packaged Methane"]
+    },
+    {
+      "recipe": "Gravity Cell",
+      "unlock": "mam",
+      "schematic": "Alternate Recipe: Gravity Cell",
+      "costs": ["Nuclear Pasta", "Dark Matter Crystal"]
+    },
+    {
+      "recipe": "Heat Exchanger",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Cryogenic Parts",
+      "costs": ["Packaged Coolant", "Empty Cryo Tank"]
+    },
+    {
+      "recipe": "Heavy Fastened Frame",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Heavy Fastened Frame",
+      "tier": 4
+    },
+    {
+      "recipe": "Heavy Welded Frame",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Part Welding",
+      "costs": ["Packaged Fuel", "Packaged Methane"]
+    },
+    {
+      "recipe": "Holographic Kerr Crystal",
+      "unlock": "mam",
+      "schematic": "Alternate Recipe: Holographic Kerr Crystal",
+      "costs": ["Kerr Crystal", "Solar Cell"]
+    },
+    {
+      "recipe": "Hydro Diamonds",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Diamonds",
+      "costs": ["Carbon Powder", "Black Powder"]
+    },
+    {
+      "recipe": "Instant Bar Magnet",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Instant Bar Magnet",
+      "tier": 6
+    },
+    {
+      "recipe": "Instant Titanium Plate",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Titanium Parts",
+      "costs": ["Titanium Pipe", "Titanium Plates"]
+    },
+    {
+      "recipe": "Insulated Cable",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Insulated Cable",
+      "tier": 5
+    },
+    {
+      "recipe": "Insulated Cryo Tank",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Cryogenic Parts",
+      "costs": ["Packaged Coolant", "Empty Cryo Tank"]
+    },
+    {
+      "recipe": "Integrated Silicon Circuit",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Quantum Electronics",
+      "costs": ["Ficsite Trigon"]
+    },
+    {
+      "recipe": "Ionized Fuel",
+      "unlock": "mam",
+      "schematic": "Alternative Power: Ionized Rocketfuel",
+      "costs": ["Packaged Rocket Fuel", "Power Shard"]
+    },
+    {
+      "recipe": "Leached Alumina",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Leached Alumina",
+      "tier": 7
+    },
+    {
+      "recipe": "Leaded Copper Powder",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Leaded Copper Powder",
+      "tier": 9
+    },
+    {
+      "recipe": "Leaded Fuel",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Leaded Fuel",
+      "tier": 5
+    },
+    {
+      "recipe": "MOX Uranium Cells",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Plutonium Fuel Production",
+      "costs": ["Encased Plutonium Cell"]
+    },
+    {
+      "recipe": "Magnitide Billet",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Magnitide™ Billet",
+      "tier": 7
+    },
+    {
+      "recipe": "Modular Steel Frame",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Steel Components",
+      "costs": ["Concrete", "Steel Pipe"]
+    },
+    {
+      "recipe": "Modular Turbo Engine",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Combustion Engines",
+      "costs": ["Packaged Fuel", "Packaged Turbofuel", "Packaged Ionized Fuel"]
+    },
+    {
+      "recipe": "Modular Welded Frame",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Part Welding",
+      "costs": ["Packaged Fuel", "Packaged Methane"]
+    },
+    {
+      "recipe": "Nickel-Aluminum Coil",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Aluminum Alloy Parts",
+      "costs": ["Brass Ingot", "Bronze Ingot", "Aluminum Ingot"]
+    },
+    {
+      "recipe": "Nickel-Aluminum Ingot",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Aluminum Alloy Parts",
+      "costs": ["Brass Ingot", "Bronze Ingot", "Aluminum Ingot"]
+    },
+    {
+      "recipe": "Nickel-Zinc Battery",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Nickel-Zinc Battery",
+      "tier": 5
+    },
+    {
+      "recipe": "Nitrate Coolant",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Coolants",
+      "costs": ["Packaged Flue Gas", "Copper Sheet"]
+    },
+    {
+      "recipe": "Nitro Rocket Fuel",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Nitro Rocket Fuel",
+      "tier": 9
+    },
+    {
+      "recipe": "OC Supercomputer",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Quartz Electronics",
+      "costs": ["Computer", "Quartz Crystal"]
+    },
+    {
+      "recipe": "PetCoke Dust",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: PetCoke Dust",
+      "tier": 5
+    },
+    {
+      "recipe": "Photovoltaic Cell",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Quantum Electronics",
+      "costs": ["Ficsite Trigon"]
+    },
+    {
+      "recipe": "Plastic Smart Plating",
+      "unlock": "mam",
+      "schematic": "Alternate Recipe: Plastic Smart Plating",
+      "costs": ["Plastic", "Rotor"]
+    },
+    {
+      "recipe": "Plutonium Fuel Unit",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Plutonium Fuel Production",
+      "costs": ["Encased Plutonium Cell"]
+    },
+    {
+      "recipe": "Polymer Resin",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Polymer Resin",
+      "tier": 5
+    },
+    {
+      "recipe": "Power Conversion Cube",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Power Conversion Cube",
+      "tier": 9
+    },
+    {
+      "recipe": "Proto-Ficsonium",
+      "unlock": "mam",
+      "schematic": "Alternate Recipe: Proto-Ficsonium",
+      "costs": ["Nuclear Pasta", "Dark Matter Crystal"]
+    },
+    {
+      "recipe": "Pure Coolant Oil",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Coolants",
+      "costs": ["Packaged Flue Gas", "Copper Sheet"]
+    },
+    {
+      "recipe": "Pure Ethylene",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Pure Ethylene",
+      "tier": 5
+    },
+    {
+      "recipe": "Pure Natural Gas",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Pure Natural Gas",
+      "tier": 8
+    },
+    {
+      "recipe": "Pure Solder Wire",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Pure Solder Wire",
+      "tier": 5
+    },
+    {
+      "recipe": "Pure Steel Beam",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Pure Steel Parts",
+      "costs": ["Steel Ingot"]
+    },
+    {
+      "recipe": "Pure Steel Pipe",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Pure Steel Parts",
+      "costs": ["Steel Ingot"]
+    },
+    {
+      "recipe": "Pure Time Crystal",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Time Crystal Synthesis",
+      "costs": ["Diamonds", "Quartz Crystal"]
+    },
+    {
+      "recipe": "Pure Tin Wire",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Cast Tin Parts",
+      "costs": ["Tin Ingot"]
+    },
+    {
+      "recipe": "RF Connection Unit",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Quantum Electronics",
+      "costs": ["Ficsite Trigon"]
+    },
+    {
+      "recipe": "Radio Control System",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Quartz Electronics",
+      "costs": ["Computer", "Quartz Crystal"]
+    },
+    {
+      "recipe": "Recycled Caustic Soda",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Acid-Base Recycling",
+      "costs": ["Kyalite Residue"]
+    },
+    {
+      "recipe": "Recycled Muriatic Acid",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Acid-Base Recycling",
+      "costs": ["Kyalite Residue"]
+    },
+    {
+      "recipe": "Red Brass Ingot",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Red Brass Ingot",
+      "tier": 3
+    },
+    {
+      "recipe": "Refined Slurry",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Refined Slurry",
+      "tier": 5
+    },
+    {
+      "recipe": "Resonance Crystal",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Time Crystal Synthesis",
+      "costs": ["Diamonds", "Quartz Crystal"]
+    },
+    {
+      "recipe": "Rolled Bronze Pipe",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Rolled Bronze Pipe",
+      "tier": 2
+    },
+    {
+      "recipe": "Rolled Tin Sheet",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Cast Tin Parts",
+      "costs": ["Tin Ingot"]
+    },
+    {
+      "recipe": "SAM Regulator",
+      "unlock": "mam",
+      "schematic": "Alternate Recipe: SAM Regulator",
+      "costs": ["Reanimated SAM"]
+    },
+    {
+      "recipe": "Salty Slag",
+      "unlock": "mam",
+      "schematic": "Salty Slag",
+      "costs": ["Salt", "Magnesium Granules"]
+    },
+    {
+      "recipe": "Silicon High-speed Interface",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Quantum Electronics",
+      "costs": ["Ficsite Trigon"]
+    },
+    {
+      "recipe": "Solid Brass Ingot",
+      "unlock": "mam",
+      "schematic": "Alternate Recipe: Solid Brass Ingot",
+      "costs": ["Copper Ingot", "Zinc Ingot"]
+    },
+    {
+      "recipe": "Solid-State Brass Drive",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Solid-State Brass Drive",
+      "tier": 3
+    },
+    {
+      "recipe": "Sour Ionized Fuel",
+      "unlock": "mam",
+      "schematic": "Alternative Power: Ionized Rocketfuel",
+      "costs": ["Packaged Rocket Fuel", "Power Shard"]
+    },
+    {
+      "recipe": "Sour Packaged Rocket Fuel",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Sour Packaged Rocket Fuel",
+      "tier": 7
+    },
+    {
+      "recipe": "Sour Packaged Turbofuel",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Sour Packaged Turbofuel",
+      "costs": ["Sulfur Powder", "Plastic"],
+      "$comment": "Hard drive, gated on the Sulfur tree's MAM research \"Alternative Power: Turbofuel\" (costs Sulfur Powder, Plastic and a Hard Drive)."
+    },
+    {
+      "recipe": "Steel Cast Plate",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Steel Cast Plate",
+      "tier": 3
+    },
+    {
+      "recipe": "Steel Rotor",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Steel Rotor",
+      "tier": 3
+    },
+    {
+      "recipe": "Stitched Iron Plate",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Stitched Iron Plate",
+      "tier": 0,
+      "$comment": "Hard drive with no prerequisite."
+    },
+    {
+      "recipe": "Super-state Computer",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Quantum Electronics",
+      "costs": ["Ficsite Trigon"]
+    },
+    {
+      "recipe": "TITAN Rocket System",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Combustion Engines",
+      "costs": ["Packaged Fuel", "Packaged Turbofuel", "Packaged Ionized Fuel"]
+    },
+    {
+      "recipe": "Tempered Steel Rod",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Steel Components",
+      "costs": ["Concrete", "Steel Pipe"]
+    },
+    {
+      "recipe": "Titanium Stator",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Titanium Superconductors",
+      "costs": ["Titanium Pipe", "Cobalt Plates"]
+    },
+    {
+      "recipe": "Transformer Core",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Electromagnetic Components",
+      "costs": ["Bar Magnet", "Magnetic Core", "Quickwire"]
+    },
+    {
+      "recipe": "Turbo Thermoplastic",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Turbo Thermoplastic",
+      "tier": 5
+    },
+    {
+      "recipe": "Turbofuel",
+      "unlock": "mam",
+      "schematic": "Alternative Power: Turbofuel",
+      "costs": ["Sulfur Powder", "Plastic"]
+    },
+    {
+      "recipe": "Turbofuel Engine",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Combustion Engines",
+      "costs": ["Packaged Fuel", "Packaged Turbofuel", "Packaged Ionized Fuel"]
+    },
+    {
+      "recipe": "Uranium Fuel Unit",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Uranium Fuel Production",
+      "costs": ["Encased Uranium Cell"]
+    },
+    {
+      "recipe": "Volatile Turbofuel",
+      "unlock": "hard-drive",
+      "schematic": "Alternate: Volatile Turbofuel",
+      "tier": 7
+    },
+    {
+      "recipe": "Water-cooled Radiator",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Cryogenic Parts",
+      "costs": ["Packaged Coolant", "Empty Cryo Tank"]
+    },
+    {
+      "recipe": "Welded Bronze Frame",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Part Welding",
+      "costs": ["Packaged Fuel", "Packaged Methane"]
+    },
+    {
+      "recipe": "Welded Iron Plate",
+      "unlock": "mam",
+      "schematic": "Alternate Recipes: Part Welding",
+      "costs": ["Packaged Fuel", "Packaged Methane"]
+    }
+  ]
+}
