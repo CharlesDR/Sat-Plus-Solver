@@ -2,14 +2,15 @@
  * The link editor (PLAN M8): from and to factories, the item, `fixed` or
  * `pull`, and the transport with its belt or pipe count. Opened by dragging
  * between two factories on the canvas, by "Add link", or by "Edit" in the
- * link table.
+ * link table. The part is picked from the source's products, or any part
+ * under "Other…" (UX-18); a drag from a part's port pre-fills it (A80).
  */
 import type { Link, LinkSpec, Transport, World } from '@sps/world';
 import { useId, useState } from 'react';
 import { Field } from '../controls/Field';
 import { useItemLookup } from '../controls/itemRows';
 import type { Catalog, WorldSummary } from '../solver/protocol';
-import { carriersFor, exportsOf, transportTiers } from './viewModel';
+import { carriersFor, productsOf, transportTiers } from './viewModel';
 
 const TRANSPORTS: { kind: Transport; label: string }[] = [
   { kind: 'unspecified', label: 'Unspecified' },
@@ -21,7 +22,10 @@ const TRANSPORTS: { kind: Transport; label: string }[] = [
 ];
 
 /** A link being drawn: a new one between two factories, or an existing one. */
-export type LinkDraft = { from: string; to: string; link?: Link };
+export type LinkDraft = { from: string; to: string; link?: Link; item?: string };
+
+/** The Part select's entry that opens the search over every part. */
+const OTHER = '\u0000other';
 
 export function LinkEditor(props: {
   world: World;
@@ -37,23 +41,36 @@ export function LinkEditor(props: {
   const fluids = new Set(catalog.fluids);
   const link = draft.link;
   const editing = link?.id;
-  const [from, setFrom] = useState(draft.from);
+  const [from, pickFrom] = useState(draft.from);
   const [to, setTo] = useState(draft.to);
-  const [itemText, setItemText] = useState(link ? items.name(link.item) : '');
+  const productsFrom = (f: string) =>
+    productsOf(summary, f).sort((a, b) => items.name(a).localeCompare(items.name(b)));
+  const products = productsFrom(from);
+  const start = link?.item ?? draft.item;
+  const [choice, setChoice] = useState(
+    start === undefined ? '' : products.includes(start) ? start : OTHER,
+  );
+  const [itemText, setItemText] = useState(
+    start !== undefined && !products.includes(start) ? items.name(start) : '',
+  );
   const [mode, setMode] = useState<'pull' | 'fixed'>(link?.mode.kind ?? 'pull');
   const [rateText, setRateText] = useState(
     link?.mode.kind === 'fixed' ? String(link.mode.rate) : '60',
   );
-  const [kind, setKind] = useState<Transport>(link?.transport?.kind ?? 'unspecified');
-  const [tier, setTier] = useState<number | undefined>(link?.transport?.tier);
+  // A part pre-filled by a drag (A80) gets belts or pipes, as a picked one does.
+  const startKind: Transport =
+    link?.transport?.kind ??
+    (draft.item !== undefined ? (fluids.has(draft.item) ? 'pipe' : 'belt') : 'unspecified');
+  const [kind, setKind] = useState<Transport>(startKind);
+  const [tier, setTier] = useState<number | undefined>(
+    link ? link.transport?.tier : transportTiers(catalog, startKind)[0]?.tier,
+  );
   const [error, setError] = useState<string>();
 
-  const item = items.find(itemText);
+  const item = choice === OTHER ? items.find(itemText) : choice ? { id: choice } : undefined;
   const rate = Number(rateText);
   const rateOk = rateText.trim() !== '' && Number.isFinite(rate) && rate >= 0;
   const tiers = transportTiers(catalog, kind);
-  const suggested = exportsOf(summary, from);
-  const others = catalog.items.filter((c) => !suggested.includes(c.id));
   const shown = summary?.links.find((l) => l.id === editing);
   const previewRate = mode === 'fixed' ? (rateOk ? rate : 0) : shown?.requested;
   const carriers =
@@ -66,16 +83,33 @@ export function LinkEditor(props: {
     const t = transportTiers(catalog, k);
     setTier(t.length ? t[0]!.tier : undefined);
   };
+  // A fresh link picks belts or pipes for what it carries.
+  const carrierFor = (id: string | undefined) => {
+    if (id !== undefined && !link && (kind === 'unspecified' || kind === 'belt' || kind === 'pipe'))
+      pickKind(fluids.has(id) ? 'pipe' : 'belt');
+  };
   const pickItem = (text: string) => {
     setItemText(text);
-    const found = items.find(text);
-    // A fresh link picks belts or pipes for what it carries.
-    if (found && !link && (kind === 'unspecified' || kind === 'belt' || kind === 'pipe'))
-      pickKind(fluids.has(found.id) ? 'pipe' : 'belt');
+    carrierFor(items.find(text)?.id);
+  };
+  const pick = (value: string) => {
+    setChoice(value);
+    if (value !== OTHER) carrierFor(value || undefined);
+  };
+  // Another source has other products: a part it doesn't list moves to Other.
+  const setFrom = (f: string) => {
+    pickFrom(f);
+    if (choice !== OTHER && choice !== '' && !productsFrom(f).includes(choice)) {
+      setChoice(OTHER);
+      setItemText(items.name(choice));
+    }
   };
 
   const save = () => {
-    if (!item) return setError(`Pick an item${itemText ? `: no item named “${itemText}”` : ''}.`);
+    if (!item)
+      return setError(
+        `Pick a part${choice === OTHER && itemText ? `: no part named “${itemText}”` : ''}.`,
+      );
     if (mode === 'fixed' && !rateOk) return setError('A fixed link needs a rate of 0 or more.');
     const spec: LinkSpec = {
       from,
@@ -121,21 +155,36 @@ export function LinkEditor(props: {
         <div className="row">
           {factorySelect('From', from, setFrom)}
           {factorySelect('To', to, setTo)}
-          <Field label="Item">
+          <Field label="Part">
             {(id) => (
-              <input
-                id={id}
-                list={listId}
-                value={itemText}
-                placeholder="Search items…"
-                aria-invalid={itemText.trim() !== '' && !item}
-                onChange={(e) => pickItem(e.target.value)}
-              />
+              <select id={id} value={choice} onChange={(e) => pick(e.target.value)}>
+                <option value="">Pick a part…</option>
+                {products.map((p) => (
+                  <option key={p} value={p}>
+                    {items.name(p)}
+                  </option>
+                ))}
+                <option value={OTHER}>Other…</option>
+              </select>
             )}
           </Field>
+          {choice === OTHER && (
+            <Field label="Other part">
+              {(id) => (
+                <input
+                  id={id}
+                  list={listId}
+                  value={itemText}
+                  placeholder="Search parts…"
+                  aria-invalid={itemText.trim() !== '' && !item}
+                  onChange={(e) => pickItem(e.target.value)}
+                />
+              )}
+            </Field>
+          )}
           <datalist id={listId}>
-            {[...suggested.map((id) => items.name(id)), ...others.map((c) => c.name)].map((n) => (
-              <option key={n} value={n} />
+            {catalog.items.map((c) => (
+              <option key={c.id} value={c.name} />
             ))}
           </datalist>
         </div>

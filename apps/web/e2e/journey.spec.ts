@@ -25,7 +25,9 @@ test('world → link → drill-down → toggle → back → export → import �
   // Link: Plates → Frames, Iron Plate, pulled.
   await drawLink(page, 'factory:factory-1', 'factory:factory-2');
   const editor = page.getByRole('form', { name: 'New link' });
-  await editor.getByLabel('Item', { exact: true }).fill('Iron Plate');
+  // Nothing is made there yet, so the part comes from Other… (UX-18).
+  await editor.getByLabel('Part', { exact: true }).selectOption({ label: 'Other…' });
+  await editor.getByLabel('Other part').fill('Iron Plate');
   await editor.getByRole('button', { name: 'Create link' }).click();
   await worldSettled(page);
   await page.getByRole('tab', { name: 'Factories' }).click();

@@ -30,8 +30,8 @@ async function connect(page: Page, from: string, to: string) {
   await settled(page);
   // dragTo waits for both handles to stop moving: the canvas refits after each solve.
   await node(page, from)
-    .locator('.react-flow__handle.source')
-    .dragTo(node(page, to).locator('.react-flow__handle.target'));
+    .locator('.react-flow__handle[data-handleid="new-out"]')
+    .dragTo(node(page, to).locator('.react-flow__handle[data-handleid="new-in"]'));
 }
 
 /** "<rate> Iron Plate" → rate. */
@@ -75,7 +75,9 @@ test('two factories, a pull link, ledger, groups, trace, power and drill-down', 
   const editor = page.getByRole('form', { name: 'New link' });
   await expect(editor.getByLabel('From', { exact: true })).toHaveValue('factory-1');
   await expect(editor.getByLabel('To', { exact: true })).toHaveValue('factory-2');
-  await editor.getByLabel('Item', { exact: true }).fill('Iron Plate');
+  // Nothing is made there yet, so the part comes from Other… (UX-18).
+  await editor.getByLabel('Part', { exact: true }).selectOption({ label: 'Other…' });
+  await editor.getByLabel('Other part').fill('Iron Plate');
   await expect(editor.getByLabel('Pull (what the consumer needs)')).toBeChecked();
   // A solid item defaults to belts; a fixed 61/min needs two Mk.1 belts.
   await expect(editor.getByLabel('Transport', { exact: true })).toHaveValue('belt');

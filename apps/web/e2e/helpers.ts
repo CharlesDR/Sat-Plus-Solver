@@ -30,8 +30,8 @@ export async function addFactory(page: Page, name: string) {
 export async function drawLink(page: Page, from: string, to: string) {
   await worldSettled(page);
   await canvasNode(page, from)
-    .locator('.react-flow__handle.source')
-    .dragTo(canvasNode(page, to).locator('.react-flow__handle.target'));
+    .locator('.react-flow__handle[data-handleid="new-out"]')
+    .dragTo(canvasNode(page, to).locator('.react-flow__handle[data-handleid="new-in"]'));
 }
 
 /** The world as autosaved in local storage. */

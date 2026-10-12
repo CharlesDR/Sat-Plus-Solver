@@ -164,8 +164,8 @@ export function WorldView(props: {
         nest
           ? store.getState().setFactoryCollapsed(id, c)
           : store.getState().setGroupCollapsed(id, c),
-      connect: (from, to) => {
-        setDraft({ from, to });
+      connect: (from, to, item) => {
+        setDraft({ from, to, ...(item !== undefined ? { item } : {}) });
         setTab('Links');
       },
     }),
@@ -319,7 +319,7 @@ export function WorldView(props: {
       </div>
       {draft && (
         <LinkEditor
-          key={`${draft.link?.id ?? 'new'}:${draft.from}:${draft.to}`}
+          key={`${draft.link?.id ?? 'new'}:${draft.from}:${draft.to}:${draft.item ?? ''}`}
           world={world}
           summary={summary}
           catalog={catalog}

@@ -17,10 +17,10 @@ import { createSolverService, modelCatalog } from '../solver/service';
 import {
   breadcrumb,
   carriersFor,
-  exportsOf,
   ledgerFor,
   ledgerScopes,
   powerRows,
+  productsOf,
   sumPower,
   traceableItems,
   worldStatus,
@@ -97,8 +97,9 @@ describe('ledger', () => {
   test('trace and link-item suggestions come from the flows', () => {
     expect(traceableItems(summary)).toContain('iron-plate');
     expect(traceableItems(summary)).not.toContain('mw');
-    expect(exportsOf(summary, 'factory-1')).toEqual(['iron-ingot', 'iron-ore', 'iron-plate']);
-    expect(exportsOf(undefined, 'factory-1')).toEqual([]);
+    // Ore's products are what it ships, not the ore and ingots it uses up.
+    expect(productsOf(summary, 'factory-1')).toEqual(['iron-plate']);
+    expect(productsOf(undefined, 'factory-1')).toEqual([]);
   });
 });
 
@@ -146,7 +147,7 @@ describe('item trace on a solved world', () => {
       for (const item of items) {
         const g = worldGraph(summary, { collapsed, traceItem: item });
         for (const n of g.nodes) {
-          if (n.kind === 'stub' || (n.kind === 'group' && !n.collapsed)) continue;
+          if (n.kind === 'group' && !n.collapsed) continue;
           const ledger =
             n.kind === 'factory'
               ? summary.factories.find((f) => f.id === n.ref)!.ledger
