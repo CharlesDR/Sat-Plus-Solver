@@ -3,6 +3,7 @@ import { useStore } from 'zustand';
 import { recipeRows, type RecipeRow, type RecipeView } from '../recipeView';
 import type { CatalogRecipe } from '../solver/protocol';
 import type { Scope, WorldStore } from '../store';
+import { AlternateBadge } from './AlternateBadge';
 
 /** Rows rendered at once; a search narrows the rest. */
 export const RECIPE_PAGE = 100;
@@ -104,7 +105,7 @@ export function RecipeToggles({ store, scope, recipes }: Props) {
             </label>
             <span className="meta">
               {r.recipe.machine} · tier {r.recipe.tier}
-              {r.recipe.alternate && <span className="badge">alternate</span>}
+              <AlternateBadge recipe={r.recipe} />
               {r.reason && <span className="badge muted">{REASONS[r.reason]}</span>}
               {r.tweaked && <span className="badge tweak">set by a plan tweak</span>}
               {r.toggle !== undefined && (

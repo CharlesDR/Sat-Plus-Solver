@@ -299,6 +299,27 @@ export function renderReport(result: BuildResult, extra: ReportSection[] = []): 
         );
       }
     }
+    if (details.unlocks && model) {
+      const listed = model.recipes.filter((r) => r.unlock);
+      s.push('', `## Alternate unlocks (data/alternate-unlocks.json, A82)`, '');
+      s.push(
+        'The major tier from which each alternate can be researched: a hard drive’s milestone, ' +
+          'or the highest tier among a MAM research’s costs.',
+        '',
+        table(
+          ['Recipe', 'Unlock', 'Tier', 'Dataset tier', 'Schematic'],
+          listed.map((r) => [
+            r.name,
+            r.unlock!.via === 'mam' ? 'MAM' : 'Hard drive',
+            `T${r.unlock!.tier}`,
+            r.tier,
+            r.unlock!.schematic,
+          ]),
+        ),
+        '',
+        `Alternates not listed: ${details.unlocks.unlisted.join(', ') || '_none_'}.`,
+      );
+    }
     s.push(
       '',
       `## Unused parts (${details.unusedParts.length})`,

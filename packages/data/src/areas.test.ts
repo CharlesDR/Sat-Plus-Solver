@@ -127,6 +127,7 @@ describe('real dataset (A62)', () => {
       minerModel: read('data/miner-model.json'),
       overrides: read('data/overrides.json'),
       areas: read('data/areas.json'),
+      alternateUnlocks: read('data/alternate-unlocks.json'),
     });
   });
   const area = (id: string) => result.model!.items.find((i) => i.id === id)?.area;
@@ -156,6 +157,7 @@ describe('real dataset (A62)', () => {
         minerModel: read('data/miner-model.json'),
         overrides: read('data/overrides.json'),
         areas: read('data/areas.json'),
+        alternateUnlocks: read('data/alternate-unlocks.json'),
       }).details!.areas,
     );
   });
