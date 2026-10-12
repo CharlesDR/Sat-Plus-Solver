@@ -1,7 +1,7 @@
 /**
  * M3 acceptance (docs/PLAN.md): "Iron Plate, 60/min" in the page matches the
- * `pnpm solve` table (alternates off, the app default), and no main-thread
- * task over 50 ms runs during the solve.
+ * `pnpm solve` table (alternates off, the app default; precise numbers), and
+ * no main-thread task over 50 ms runs during the solve.
  */
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -130,6 +130,9 @@ test('Iron Plate 60/min matches the CLI table without blocking the main thread',
     )
     .toBe(1);
 
+  // The CLI writes numbers in full (A41); the page does too in precise mode
+  // (UX-6, A78), which also puts the exact values in the cells.
+  await page.getByLabel('Precise numbers').check();
   expect(await pageTables(page)).toEqual(expected.tables);
   await expect(page.getByTestId('power')).toHaveText(expected.power);
 });

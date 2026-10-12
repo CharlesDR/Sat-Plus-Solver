@@ -4,6 +4,7 @@ import {
   exactFraction,
   exactText,
   formatExact,
+  formatQuiet,
   formatRate,
   MAX_DENOMINATOR,
   mixedText,
@@ -100,5 +101,38 @@ describe('exact fractions (A41)', () => {
     expect(formatExact(7 / 3)).toBe('2.3334 (2 1/3)');
     expect(formatExact(2.5)).toBe('2.5');
     expect(formatExact(Math.PI)).toBe('3.1416');
+  });
+});
+
+describe('formatQuiet (UX-6, A78)', () => {
+  test.each([
+    [0, '0.0'],
+    [1e-12, '0.0'],
+    [0.00004, '<0.01'],
+    [0.004, '<0.01'],
+    [-0.004, '-<0.01'],
+    [0.01, '0.01'],
+    [0.0099999999999, '0.01'],
+    [2 / 3, '0.67'],
+    [7 / 3, '2.34'],
+    [60, '60.0'],
+    [60.00000001, '60.0'],
+    [2.5, '2.5'],
+    [1555.5556, '1,555.56'],
+    [-12.341, '-12.35'],
+  ])('%d → %s', (n, text) => {
+    expect(formatQuiet(n)).toBe(text);
+  });
+
+  test('never shows less than formatRate, and is within 0.01 of it', () => {
+    fc.assert(
+      fc.property(fc.double({ min: 0.01, max: 1e7, noNaN: true }), (x) => {
+        const quiet = Number(formatQuiet(x).replace(/,/g, ''));
+        const precise = Number(formatRate(x).replace(/,/g, ''));
+        expect(quiet).toBeGreaterThanOrEqual(precise - 1e-9);
+        expect(quiet - precise).toBeLessThan(0.01 + 1e-9);
+      }),
+      { seed: 78, numRuns: 1000 },
+    );
   });
 });

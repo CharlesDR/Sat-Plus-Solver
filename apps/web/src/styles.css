@@ -1152,9 +1152,69 @@ label.inline {
 .summary {
   overflow-x: auto;
 }
-.summary > p[data-testid='plan-status'] {
+.summary-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 16px;
   margin: 16px 0 4px;
+}
+.summary-head > p[data-testid='plan-status'] {
+  margin: 0;
   font-size: 14px;
+}
+.precise-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+}
+/* Folded and tabbed tables (UX-B): the summary line or tab is the title, so the caption is read out only. */
+.summary details.fold {
+  margin: 12px 0;
+}
+.summary details.fold > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 15px;
+  padding: 2px 0;
+}
+.summary details.fold caption,
+.plan-tables caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.summary details.fold table {
+  margin-top: 6px;
+}
+.plan-tables > .tabs {
+  margin-bottom: 4px;
+}
+/* A recipe's inputs and outputs as icon chips (UX-4). */
+.io-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.io-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+.io-icon {
+  object-fit: contain;
+  margin: -3px 0;
+}
+.io-name {
+  color: var(--muted);
 }
 .summary > p[data-testid='power'] {
   font-size: 14px;
@@ -1867,7 +1927,7 @@ input.flow-area-name {
   margin-right: 0;
 }
 /* Dark icons stay readable on the dark theme (B12). */
-img:is(.world-icon, .flow-icon, .flow-item-icon, .cell-icon),
+img:is(.world-icon, .flow-icon, .flow-item-icon, .cell-icon, .io-icon),
 .palette-dialog li img {
   background: var(--icon-backdrop);
   border-radius: 4px;

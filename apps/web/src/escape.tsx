@@ -46,6 +46,18 @@ export function isTextField(el: Element | null): el is HTMLElement {
   );
 }
 
+/**
+ * A one-key shortcut (UX-13: F, M, /): the key with no Ctrl, Cmd or Alt,
+ * not repeated, not already handled, and not while the user types in a field
+ * or a modal dialog is open.
+ */
+export function isShortcut(e: KeyboardEvent, key: string): boolean {
+  if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.repeat) return false;
+  if (e.key.toLowerCase() !== key) return false;
+  if (isTextField(document.activeElement)) return false;
+  return document.querySelector('[aria-modal="true"]') === null;
+}
+
 export const EscapeContext = createContext<EscapeStack | undefined>(undefined);
 
 /**

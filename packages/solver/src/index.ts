@@ -49,17 +49,31 @@ export type { RawResource } from './factory/resources';
 export { compareAlternates } from './factory/alternates';
 export type { AlternatesReport } from './factory/alternates';
 export type * from './factory/types';
-export { summarizePlan, recipeTable, starterNote } from './factory/summary';
+export {
+  summarizePlan,
+  recipeTable,
+  starterNote,
+  PRECISE_NUMBERS,
+  QUIET_NUMBERS,
+} from './factory/summary';
 export {
   exactFraction,
   exactText,
   formatExact,
+  formatQuiet,
   formatRate,
   groupThousands,
   mixedText,
   MAX_DENOMINATOR,
   type MixedNumber,
 } from './factory/numbers';
-export type { PlanSummary, SummaryFlow, SummaryNode, SummaryRecipe } from './factory/summary';
+export type {
+  NumberFormat,
+  PlanSummary,
+  SummaryFlow,
+  SummaryItem,
+  SummaryNode,
+  SummaryRecipe,
+} from './factory/summary';
 export { sizeNetwork } from './network/size';
 export type { Network, NetworkEdge, NetworkFlow, NetworkNode, NetworkSizing } from './network/size';

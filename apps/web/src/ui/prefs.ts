@@ -13,6 +13,9 @@ const KEY = {
   sidebar: 'sps:pref:sidebar',
   view: 'sps:pref:view',
   recent: 'sps:pref:recent-targets',
+  precise: 'sps:pref:precise-numbers',
+  viewports: 'sps:pref:viewports',
+  planTab: 'sps:pref:plan-tab',
 } as const;
 
 function read(key: string): string | undefined {
@@ -121,4 +124,73 @@ export function withRecent(recent: readonly string[], items: readonly string[]):
 
 export function writeRecentTargets(items: readonly string[]): void {
   write(KEY.recent, JSON.stringify(items));
+}
+
+/** Whether numbers show in full (A41) instead of the quiet 2 decimals (UX-6, A78). */
+export function usePreciseNumbers(): [boolean, (precise: boolean) => void] {
+  const [precise, setPrecise] = useState(() => read(KEY.precise) === 'on');
+  const set = useCallback((p: boolean) => {
+    setPrecise(p);
+    write(KEY.precise, p ? 'on' : 'off');
+  }, []);
+  return [precise, set];
+}
+
+/** Which table the bottom of the plan summary shows (UX-4). */
+export type PlanTab = 'recipes' | 'items';
+
+export function usePlanTab(): [PlanTab, (t: PlanTab) => void] {
+  const [tab, setTab] = useState<PlanTab>(() =>
+    read(KEY.planTab) === 'items' ? 'items' : 'recipes',
+  );
+  const set = useCallback((t: PlanTab) => {
+    setTab(t);
+    write(KEY.planTab, t);
+  }, []);
+  return [tab, set];
+}
+
+/** A flowchart's pan and zoom, with the size of the plan drawing it was left on. */
+export interface Viewport {
+  x: number;
+  y: number;
+  zoom: number;
+  width: number;
+  height: number;
+}
+
+/** How many factories' flowchart views are remembered (UX-13); the oldest go first. */
+export const VIEWPORTS = 50;
+
+const isViewport = (v: unknown): v is Viewport =>
+  typeof v === 'object' &&
+  v !== null &&
+  ['x', 'y', 'zoom', 'width', 'height'].every((k) =>
+    Number.isFinite((v as Record<string, unknown>)[k]),
+  ) &&
+  (v as Viewport).zoom > 0;
+
+function readViewports(): [string, Viewport][] {
+  try {
+    const v: unknown = JSON.parse(read(KEY.viewports) ?? '[]');
+    return Array.isArray(v)
+      ? v.filter(
+          (e): e is [string, Viewport] =>
+            Array.isArray(e) && typeof e[0] === 'string' && isViewport(e[1]),
+        )
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+/** The flowchart view last left in this factory (UX-13), if any. */
+export function readViewport(factory: string): Viewport | undefined {
+  return readViewports().find(([id]) => id === factory)?.[1];
+}
+
+/** Remembers a factory's flowchart view, newest first, keeping the last `VIEWPORTS`. */
+export function writeViewport(factory: string, view: Viewport): void {
+  const rest = readViewports().filter(([id]) => id !== factory);
+  write(KEY.viewports, JSON.stringify([[factory, view], ...rest].slice(0, VIEWPORTS)));
 }

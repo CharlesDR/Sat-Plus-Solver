@@ -27,6 +27,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import type { Model } from '@sps/data';
+import { productionOrder } from '@sps/graph';
 import {
   compareAlternates,
   createHighsBackend,
@@ -286,9 +287,6 @@ export function renderPlan(model: Model, result: SolveResult): string {
   const starters = starterNote(plan);
   if (starters) out.push(starters);
 
-  out.push('', 'Recipes');
-  const recipes = recipeTable(plan);
-  out.push(table(recipes.head, recipes.rows, 2));
   const flows = (title: string, rows: SummaryFlow[]) => {
     if (!rows.length) return;
     out.push(
@@ -301,6 +299,7 @@ export function renderPlan(model: Model, result: SolveResult): string {
     );
   };
   flows('Targets', plan.targets);
+  flows('Raw resources', plan.extraction);
   flows('Imports', plan.imports);
   if (result.importCosts?.length) {
     const item = new Map(model.items.map((i) => [i.id, i.name]));
@@ -337,6 +336,11 @@ export function renderPlan(model: Model, result: SolveResult): string {
     '',
     `Power: ${fmt(p.consumptionMW)} MW draw, ${fmt(p.generationMW)} MW generated, net ${fmt(p.netMW)} MW`,
   );
+  // The Recipes table comes last, in production order, with each recipe's
+  // inputs and outputs (UX-B, A78), as in the web summary.
+  out.push('', 'Recipes');
+  const recipes = recipeTable({ recipes: productionOrder(plan.recipes) }, { io: true });
+  out.push(table(recipes.head, recipes.rows, 4));
   return out.join('\n') + '\n';
 }
 

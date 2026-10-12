@@ -102,8 +102,10 @@ export interface FactoryLayout {
 }
 
 export interface LayoutOptions {
-  /** Node text lines, used to size it. Default: `nodeLines`. */
+  /** Node text lines, used to size it. Default: `nodeLines` with `rate`. */
   nodeLines?: (n: FlowNode) => string[];
+  /** How rates and counts are written in nodes, labels and trays. Default: `rateText` (A41). */
+  rate?: (n: number) => string;
   /**
    * Side of a square icon drawn left of each node's text, in px. Default 0
    * (no icon). Nodes grow by the icon and its gap, and are at least as tall.
@@ -256,28 +258,48 @@ export function rateText(n: number): string {
   return `${n < 0 ? '-' : ''}${whole}.${frac || '0'}`;
 }
 
+/**
+ * The quiet number format (UX-6, A78): 1 to 2 decimals rounded up to the next
+ * 0.01, "<0.01" for dust. The same rule as the solver's `formatQuiet`; a
+ * tooling test keeps the two equal.
+ */
+export function quietText(n: number): string {
+  if (!Number.isFinite(n)) return String(n);
+  if (rateText(n) === '0.0') return '0.0';
+  const size = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+  const noise = Math.min(1e-9 * Math.max(1, size), 0.01 / 1e4) * 100;
+  if (size * 100 < 1 - noise) return `${sign}<0.01`;
+  const steps = Math.ceil(size * 100 - noise);
+  const whole = String(Math.floor(steps / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const frac = String(steps % 100)
+    .padStart(2, '0')
+    .replace(/0+$/, '');
+  return `${sign}${whole}.${frac || '0'}`;
+}
+
 /** A count of whole things (machines, factories): an integer with commas between thousands (B6). */
 export function countText(n: number): string {
   return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 /** The text lines a node shows, which also size it. */
-export function nodeLines(n: FlowNode): string[] {
+export function nodeLines(n: FlowNode, rate: (n: number) => string = rateText): string[] {
   switch (n.kind) {
     case 'recipe':
     case 'resource': {
-      const count = `${rateText(n.machines ?? 0)} × ${n.machine ?? ''}`;
-      const boiler = n.boilerLoad !== undefined ? [`boiler ${rateText(n.boilerLoad * 100)}%`] : [];
+      const count = `${rate(n.machines ?? 0)} × ${n.machine ?? ''}`;
+      const boiler = n.boilerLoad !== undefined ? [`boiler ${rate(n.boilerLoad * 100)}%`] : [];
       return [n.label, count, ...boiler];
     }
     case 'import':
-      return [`Import: ${n.label}`, `${rateText(n.rate ?? 0)}/min`];
+      return [`Import: ${n.label}`, `${rate(n.rate ?? 0)}/min`];
     case 'missing':
-      return [`Missing: ${n.label}`, `${rateText(n.rate ?? 0)}/min`];
+      return [`Missing: ${n.label}`, `${rate(n.rate ?? 0)}/min`];
     case 'target':
-      return [`Target: ${n.label}`, `${rateText(n.rate ?? 0)}/min`];
+      return [`Target: ${n.label}`, `${rate(n.rate ?? 0)}/min`];
     case 'byproduct':
-      return [`Byproduct: ${n.label}`, `${rateText(n.rate ?? 0)}/min`];
+      return [`Byproduct: ${n.label}`, `${rate(n.rate ?? 0)}/min`];
     case 'sub-factory':
       return [n.label, 'Sub-factory · double-click to open'];
     case 'area':
@@ -423,7 +445,8 @@ export async function layoutFactoryGraph(
   engine: LayoutEngine,
   options: LayoutOptions = {},
 ): Promise<FactoryLayout> {
-  const lines = options.nodeLines ?? nodeLines;
+  const rate = options.rate ?? rateText;
+  const lines = options.nodeLines ?? ((n: FlowNode) => nodeLines(n, rate));
   const icon = options.iconSize ?? 0;
   const iconSpace = icon > 0 ? icon + ICON_GAP : 0;
   const labelIcon = options.labelIconSize ?? 0;
@@ -440,8 +463,8 @@ export async function layoutFactoryGraph(
   }
   const bundled = new Map([...fanOut].filter(([, list]) => list.length > 1));
   const isBranch = (e: FlowEdge) => bundled.has(`${e.source}\n${e.item}`);
-  const labelOf = (rate: number): Label => {
-    const text = rateText(rate);
+  const labelOf = (value: number): Label => {
+    const text = rate(value);
     return {
       text,
       width: labelIconSpace + text.length * FLOW_CHAR_WIDTH,
@@ -502,7 +525,7 @@ export async function layoutFactoryGraph(
     const tray = n.outputs.length
       ? 2 * TRAY_PAD +
         labelIconSpace +
-        longest(n.outputs.map((f) => rateText(f.rate))) * FLOW_CHAR_WIDTH
+        longest(n.outputs.map((f) => rate(f.rate))) * FLOW_CHAR_WIDTH
       : 0;
     const inLabels = n.inputs.flatMap((f) => into.get(inPort(n.id, f.item)) ?? []);
     const pad = inLabels.length

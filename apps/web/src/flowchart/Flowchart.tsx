@@ -8,7 +8,6 @@ import {
   areaStats,
   flowForm,
   nodeLines,
-  rateText,
   type Bundle,
   type FlowForm,
   type FactoryGraph,
@@ -47,12 +46,14 @@ import {
   useState,
   type RefObject,
 } from 'react';
-import { useEscapeLayer } from '../escape';
+import { isShortcut, useEscapeLayer } from '../escape';
 import { flowNodeIcon, itemIcon } from '../icons/icons';
 import type { Selection } from '../selection';
 import { formatExact } from '@sps/solver';
 import type { Catalog, CatalogRecipe } from '../solver/protocol';
 import { FitIcon, FullscreenIcon } from '../ui/icons';
+import { useNumbers } from '../ui/numbers';
+import { readViewport, writeViewport } from '../ui/prefs';
 import { ICON_SIZE, LABEL_ICON_SIZE, useLayout } from './useLayout';
 
 type FlowNodeData = {
@@ -294,6 +295,7 @@ const FlowNodeView = memo(function FlowNodeView({ data }: NodeProps<FlowchartNod
   const { title, details } = n.text;
   const { height: h, slant: s, tray } = n;
   const w = n.width - tray;
+  const rate = useNumbers().graphRate;
   const outline = `${s},0.5 ${w - s},0.5 ${w - 0.5},${h / 2} ${w - s},${h - 0.5} ${s},${h - 0.5} 0.5,${h / 2}`;
   const ys = n.rows.map((r) => r.y);
   const top = Math.min(...ys) - TRAY_ROW / 2;
@@ -342,7 +344,7 @@ const FlowNodeView = memo(function FlowNodeView({ data }: NodeProps<FlowchartNod
               title={`${data.name(r.item)}: ${formatExact(r.rate)}/min`}
             >
               <ItemIcon src={itemIcon(r.item)} name={data.name(r.item)} />
-              <span className="num">{rateText(r.rate)}</span>
+              <span className="num">{rate(r.rate)}</span>
             </div>
           ))}
         </div>
@@ -434,8 +436,11 @@ export function Flowchart(props: {
   onOpenFactory?: (id: string) => void;
   /** The plan is grouped in areas (A64). */
   areas?: AreaControls;
+  /** Remembers the pan and zoom under this key (the factory id, UX-13). */
+  viewKey?: string;
 }) {
-  const state = useLayout(props.engine, props.graph);
+  const rate = useNumbers().graphRate;
+  const state = useLayout(props.engine, props.graph, rate);
   const recipes = useMemo(
     () => new Map(props.catalog.recipes.map((r) => [r.id, r])),
     [props.catalog.recipes],
@@ -466,6 +471,8 @@ export function Flowchart(props: {
             onSelect={props.onSelect}
             full={full}
             onFullscreen={setFull}
+            rate={rate}
+            {...(props.viewKey !== undefined ? { viewKey: props.viewKey } : {})}
             {...(props.onOpenFactory ? { onOpenFactory: props.onOpenFactory } : {})}
             {...(props.areas ? { areas: props.areas } : {})}
           />
@@ -504,8 +511,11 @@ function Canvas(props: {
   areas?: AreaControls;
   full: boolean;
   onFullscreen(full: boolean): void;
+  rate: (n: number) => string;
+  viewKey?: string;
 }) {
-  const { layout, recipes, fluids, selection, onSelect, onOpenFactory, areas, full } = props;
+  const { layout, recipes, fluids, selection, onSelect, onOpenFactory, areas, full, viewKey } =
+    props;
   const selected = selection?.id;
   const box = useRef<HTMLDivElement>(null);
   // Measured before the first paint, so the plan opens at its view without a jump.
@@ -519,7 +529,16 @@ function Canvas(props: {
     return () => watch.disconnect();
   }, []);
   // A resize changes the canvas height only; the view moves only for a new plan.
-  const view = width === undefined ? undefined : opening(layout, width, full);
+  // A factory opens where it was last left, while its plan draws the same
+  // (UX-13); a changed plan opens at its readable view.
+  const view = useMemo(() => {
+    if (width === undefined) return undefined;
+    const open = opening(layout, width, full);
+    const saved = viewKey !== undefined ? readViewport(viewKey) : undefined;
+    return saved && saved.width === layout.width && saved.height === layout.height
+      ? { ...open, x: saved.x, y: saved.y, zoom: saved.zoom }
+      : open;
+  }, [layout, width, full, viewKey]);
 
   // The node or line under the pointer, and the node whose tooltip is open (A48).
   const [hoverNode, setHoverNode] = useState<string>();
@@ -599,13 +618,13 @@ function Canvas(props: {
         selected: n.id === selected,
         draggable: false,
         connectable: false,
-        ariaLabel: `${KIND_LABEL[n.kind]}: ${nodeLines(n).join(', ')}`,
+        ariaLabel: `${KIND_LABEL[n.kind]}: ${nodeLines(n, props.rate).join(', ')}`,
       })),
     ],
     // A fresh node list when the tooltip closes: React Flow drops a node's
     // selection itself on Esc, and this puts it back when Esc only closed
     // the tooltip.
-    [frames, layout, selected, recipes, focus, form, name, tip],
+    [frames, layout, selected, recipes, focus, form, name, tip, props.rate],
   );
   const edges = useMemo<FlowchartEdge[]>(() => {
     const trunks = new Map(layout.bundles.map((b) => [`${b.source}\n${b.item}`, b]));
@@ -678,6 +697,13 @@ function Canvas(props: {
             onEdgeMouseEnter={(_, e) => setHoverEdge(e.id)}
             onEdgeMouseLeave={() => setHoverEdge(undefined)}
             defaultViewport={view}
+            onMoveEnd={(_, v) => {
+              if (viewKey === undefined) return;
+              writeViewport(viewKey, {
+                ...{ x: v.x, y: v.y, zoom: v.zoom },
+                ...{ width: layout.width, height: layout.height },
+              });
+            }}
             minZoom={0.05}
             maxZoom={4}
             proOptions={{ hideAttribution: true }}
@@ -835,16 +861,25 @@ function Legend({ layout, form }: { layout: FactoryLayout; form: (item: string) 
  */
 function FitButton({ layout }: { layout: FactoryLayout }) {
   const flow = useReactFlow();
+  const fit = useCallback(
+    () =>
+      void flow
+        .fitBounds({ x: 0, y: 0, width: layout.width, height: layout.height }, FIT)
+        .then(() => (flow.getZoom() > MAX_ZOOM ? flow.zoomTo(MAX_ZOOM) : undefined)),
+    [flow, layout],
+  );
+  // F fits the plan (UX-13), unless the user is typing or holds a modifier.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!isShortcut(e, 'f')) return;
+      e.preventDefault();
+      fit();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [fit]);
   return (
-    <ControlButton
-      onClick={() =>
-        void flow
-          .fitBounds({ x: 0, y: 0, width: layout.width, height: layout.height }, FIT)
-          .then(() => (flow.getZoom() > MAX_ZOOM ? flow.zoomTo(MAX_ZOOM) : undefined))
-      }
-      title="Fit the whole plan"
-      aria-label="Fit the whole plan"
-    >
+    <ControlButton onClick={fit} title="Fit the whole plan (F)" aria-label="Fit the whole plan">
       <FitIcon />
     </ControlButton>
   );
