@@ -535,14 +535,23 @@ export async function layoutFactoryGraph(
   // output, at the area's right edge, and enters through a gate, one per
   // output, at the left edge of each area it feeds. ELK's own compound nodes
   // misplace ports on the edge of a compound node, so the two levels are
-  // laid out separately and joined here.
+  // laid out separately and joined here. A collapsed area is a block too,
+  // with its one box and no frame (B2): placed among the frames like an open
+  // area, its lines leave and enter through gates the same way, instead of
+  // the box and its split points being wrapped into rows of their own.
   const open = new Map((graph.areas ?? []).filter((a) => !a.collapsed).map((a) => [a.id, a]));
+  const shut = new Set(
+    graph.nodes.flatMap((n) => (n.kind === 'area' && n.area !== undefined ? [n.area] : [])),
+  );
+  const blockIds = (graph.areas ?? [])
+    .map((a) => a.id)
+    .filter((id) => open.has(id) || shut.has(id));
   const ROOT = '';
   const containerOf = new Map<string, string>();
   for (const n of graph.nodes)
     containerOf.set(
       n.id,
-      n.kind !== 'area' && n.area !== undefined && open.has(n.area) ? n.area : ROOT,
+      n.area !== undefined && (n.kind === 'area' ? shut : open).has(n.area) ? n.area : ROOT,
     );
   for (const t of trunks) containerOf.set(t.split, containerOf.get(t.first.source)!);
   const segments = [
@@ -711,28 +720,29 @@ export async function layoutFactoryGraph(
     seen?: Map<string, ElkNode>,
   ): Promise<Drawn> => {
     const inner = new Map<string, ElkNode>();
-    for (const a of open.values()) {
+    for (const id of blockIds) {
+      const framed = open.has(id);
       // The second pass starts each node where the first left it.
-      const children = childrenOf(a.id, orders).map((c) => {
+      const children = childrenOf(id, orders).map((c) => {
         const at = seen?.get(c.id);
         return at ? { ...c, x: at.x ?? 0, y: at.y ?? 0 } : c;
       });
       inner.set(
-        a.id,
+        id,
         await engine.layout({
-          id: frameId(a.id),
+          id: frameId(id),
           layoutOptions: {
             ...elkOptions(children.length),
             ...(orders ? {} : ORDER_ONLY),
             ...(seen ? KEEP_ORDER : {}),
-            'elk.padding': `[top=${PAD + AREA_TITLE},left=${PAD},bottom=${PAD},right=${PAD}]`,
+            'elk.padding': `[top=${PAD + (framed ? AREA_TITLE : 0)},left=${PAD},bottom=${PAD},right=${PAD}]`,
           },
           children,
-          edges: edgesIn.get(a.id) ?? [],
+          edges: edgesIn.get(id) ?? [],
         }),
       );
     }
-    const blocks = [...open.keys()].map((id): ElkNode => {
+    const blocks = blockIds.map((id): ElkNode => {
       const box = inner.get(id)!;
       const width = box.width ?? 0;
       return {
@@ -757,11 +767,11 @@ export async function layoutFactoryGraph(
     // The first pass only learns each node's port order; with no node outside
     // an area, the blocks' places don't matter yet.
     const top: ElkNode =
-      !orders && open.size && !roots.length
+      !orders && blocks.length && !roots.length
         ? { id: 'root', children: blocks }
         : await engine.layout({
             id: 'root',
-            layoutOptions: open.size ? AREA_ROOT_OPTIONS : elkOptions(graph.nodes.length),
+            layoutOptions: blocks.length ? AREA_ROOT_OPTIONS : elkOptions(graph.nodes.length),
             children: [...blocks, ...roots],
             edges: edgesIn.get(ROOT)!,
           });
