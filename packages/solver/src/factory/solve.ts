@@ -1002,7 +1002,8 @@ async function simplify(
     ]);
     // A drop that leaves a target with no way to be made needs no LP to rule out.
     const left = p.recipes.filter((r) => !vars.has(recipeVar(r.id)));
-    const have = producible(left, sources);
+    // Loops count only when the plan already needed one (A74).
+    const have = p.bred.size ? producible(left, sources) : reachableFor(left, sources, []).have;
     if (wanted.some((i) => !have.has(i))) return false;
     bounds++;
     const first = await bound(vars);
