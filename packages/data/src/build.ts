@@ -167,6 +167,21 @@ export function buildModel(inputs: BuildInputs): BuildResult {
       if (!ctx.parts.has(part))
         issues.error('override.unknownPart', `overrides.boilerPairs: unknown part "${part}"`);
 
+  // Recipe tier overrides (A83): each names exactly one dataset recipe and changes its tier.
+  for (const [name, o] of Object.entries(ctx.overrides.recipeTiers)) {
+    const found = data.Recipes.filter((r) => r.Name === name);
+    if (found.length !== 1)
+      issues.error(
+        'override.unknownRecipe',
+        `overrides.recipeTiers: "${name}" names ${found.length} recipes in game_data.json, not 1`,
+      );
+    else if (found[0]!.Tier === o.tier)
+      issues.error(
+        'override.redundant',
+        `overrides.recipeTiers: "${name}" is already tier ${o.tier}`,
+      );
+  }
+
   const drafts: DraftRecipe[] = normalizeDatasetRecipes(ctx);
   const extraction = buildExtraction(ctx);
   drafts.push(...extraction.drafts);

@@ -124,6 +124,11 @@ export const OverridesConfig = z.object({
   boilerPairs: z.array(
     z.object({ input: z.string(), output: z.string(), ratio: RationalString, reason: z.string() }),
   ),
+  /** Milestone tier per dataset recipe name, where the dataset's `Tier` is wrong (A83). */
+  recipeTiers: z.record(
+    z.string(),
+    z.object({ tier: z.string().regex(/^\d+-\d+$/), reason: z.string() }),
+  ),
 });
 export type OverridesConfig = z.infer<typeof OverridesConfig>;
 

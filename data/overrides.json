@@ -91,5 +91,259 @@
       "ratio": "1",
       "reason": "A17: boiler side of slime heaters; every dataset heater energizes slime 1:1."
     }
-  ]
+  ],
+  "recipeTiers": {
+    "Acid-Base Mix": {
+      "tier": "6-1",
+      "reason": "SF+ wiki: unlocked by milestone T6-M1 \"Industrial Washing\"; dataset says T5-M2 (Charles 2026-10-13)."
+    },
+    "AlClad Belt Drive": {
+      "tier": "7-2",
+      "reason": "SF+ wiki: unlocked by milestone T7-M2 \"Logistics Mk.5\"; dataset says T7-M1 (Charles 2026-10-13)."
+    },
+    "Assembly Director System": {
+      "tier": "7-3",
+      "reason": "SF+ wiki: unlocked by milestone T7-M3 \"Control System Development\"; dataset says T7-M2 (Charles 2026-10-13)."
+    },
+    "Ballistic Warp Drive": {
+      "tier": "9-3",
+      "reason": "SF+ wiki: unlocked by milestone T9-M3 \"Spatio-Temporal Manipulation\"; dataset says T9-M5 (Charles 2026-10-13)."
+    },
+    "Coarse Sand": {
+      "tier": "1-0",
+      "reason": "SF+ wiki: unlocked by milestone T1-M0 \"Windows\"; dataset says T0-M0 (Charles 2026-10-13)."
+    },
+    "Condensed Neutrium Gas": {
+      "tier": "9-4",
+      "reason": "SF+ wiki: unlocked by milestone T9-M4 \"Stellar Genesis\"; dataset says T9-M2 (Charles 2026-10-13)."
+    },
+    "Coolant": {
+      "tier": "7-1",
+      "reason": "SF+ wiki: unlocked by milestone T7-M1 \"Advanced Aluminum Production\"; dataset says T7-M3 (Charles 2026-10-13)."
+    },
+    "Cooling System": {
+      "tier": "7-1",
+      "reason": "SF+ wiki: unlocked by milestone T7-M1 \"Advanced Aluminum Production\"; dataset says T7-M3 (Charles 2026-10-13)."
+    },
+    "Copper Ingot": {
+      "tier": "1-5",
+      "reason": "SF+ wiki: unlocked by milestone T1-M5 \"Ore Sorting\"; dataset says T0-M0 (Charles 2026-10-13)."
+    },
+    "Copper Powder": {
+      "tier": "9-4",
+      "reason": "SF+ wiki: unlocked by milestone T9-M4 \"Stellar Genesis\"; dataset says T9-M1 (Charles 2026-10-13)."
+    },
+    "Crushed Copper": {
+      "tier": "2-1",
+      "reason": "SF+ wiki: unlocked by milestone T2-M1 \"Advanced Sorting\"; dataset says T0-M0 (Charles 2026-10-13)."
+    },
+    "Crushed Iron": {
+      "tier": "1-5",
+      "reason": "SF+ wiki: unlocked by milestone T1-M5 \"Ore Sorting\"; dataset says T0-M0 (Charles 2026-10-13)."
+    },
+    "Crushed Lead (Aurovite)": {
+      "tier": "6-0",
+      "reason": "SF+ wiki: unlocked by milestone T6-M0 \"Industrial Sorting\"; dataset says T6-M1 (Charles 2026-10-13)."
+    },
+    "Crushed Zinc": {
+      "tier": "2-1",
+      "reason": "SF+ wiki: unlocked by milestone T2-M1 \"Advanced Sorting\"; dataset says T2-M2 (Charles 2026-10-13)."
+    },
+    "Dark Matter Crystal": {
+      "tier": "9-0",
+      "reason": "SF+ wiki: unlocked by milestone T9-M0 \"Matter Conversion\"; dataset says T8-M3 (Charles 2026-10-13)."
+    },
+    "EDM Fluctuator": {
+      "tier": "9-0",
+      "reason": "SF+ wiki: unlocked by milestone T9-M0 \"Matter Conversion\"; dataset says T9-M1 (Charles 2026-10-13)."
+    },
+    "Empty Cryo Tank": {
+      "tier": "5-3",
+      "reason": "SF+ wiki: unlocked by milestone T5-M3 \"Alternative Fluid & Pioneer Transport\"; dataset says T5-M4 (Charles 2026-10-13)."
+    },
+    "Empty Fluid Tank": {
+      "tier": "5-3",
+      "reason": "SF+ wiki: unlocked by milestone T5-M3 \"Alternative Fluid & Pioneer Transport\"; dataset says T5-M4 (Charles 2026-10-13)."
+    },
+    "Encased Plutonium Cell": {
+      "tier": "8-3",
+      "reason": "SF+ wiki: unlocked by milestone T8-M3 \"Particle Enrichment\"; dataset says T8-M2 (Charles 2026-10-13)."
+    },
+    "Energetic Dark Matter": {
+      "tier": "9-1",
+      "reason": "SF+ wiki: unlocked by milestone T9-M1 \"Quantum Encoding\"; dataset says T9-M2 (Charles 2026-10-13)."
+    },
+    "Enriched Uranium": {
+      "tier": "8-1",
+      "reason": "SF+ wiki: unlocked by milestone T8-M1 \"Nuclear Power\" (as \"Encased Uranium Cell\", matched by parts); dataset says T8-M2 (Charles 2026-10-13)."
+    },
+    "Excited Photonic Matter": {
+      "tier": "9-1",
+      "reason": "SF+ wiki: unlocked by milestone T9-M1 \"Quantum Encoding\"; dataset says T9-M2 (Charles 2026-10-13)."
+    },
+    "Ficsonium Fuel Rod": {
+      "tier": "9-4",
+      "reason": "SF+ wiki: unlocked by milestone T9-M4 \"Stellar Genesis\"; dataset says T9-M1 (Charles 2026-10-13)."
+    },
+    "Fissile Uranium": {
+      "tier": "8-1",
+      "reason": "SF+ wiki: unlocked by milestone T8-M1 \"Nuclear Power\"; dataset says T8-M2 (Charles 2026-10-13)."
+    },
+    "Fused Modular Frame": {
+      "tier": "7-1",
+      "reason": "SF+ wiki: unlocked by milestone T7-M1 \"Advanced Aluminum Production\"; dataset says T7-M3 (Charles 2026-10-13)."
+    },
+    "Heavy Neutrium Gas": {
+      "tier": "9-4",
+      "reason": "SF+ wiki: unlocked by milestone T9-M4 \"Stellar Genesis\"; dataset says T9-M2 (Charles 2026-10-13)."
+    },
+    "Iron Ingot": {
+      "tier": "1-5",
+      "reason": "SF+ wiki: unlocked by milestone T1-M5 \"Ore Sorting\"; dataset says T0-M0 (Charles 2026-10-13)."
+    },
+    "Magnesium Granules": {
+      "tier": "2-1",
+      "reason": "SF+ wiki: unlocked by milestone T2-M1 \"Advanced Sorting\"; dataset says T0-M0 (Charles 2026-10-13)."
+    },
+    "Modular Frame": {
+      "tier": "2-0",
+      "reason": "SF+ wiki: unlocked by milestone T2-M0 \"Basic Bronze Production\"; dataset says T2-M1 (Charles 2026-10-13)."
+    },
+    "Nitric Acid": {
+      "tier": "7-4",
+      "reason": "SF+ wiki: unlocked by milestone T7-M4 \"Auronautical Engineering\"; dataset says T8-M2 (Charles 2026-10-13)."
+    },
+    "Non-Fissile Uranium": {
+      "tier": "8-3",
+      "reason": "SF+ wiki: unlocked by milestone T8-M3 \"Particle Enrichment\"; dataset says T8-M2 (Charles 2026-10-13)."
+    },
+    "Nuclear Pasta": {
+      "tier": "9-4",
+      "reason": "SF+ wiki: unlocked by milestone T9-M4 \"Stellar Genesis\"; dataset says T9-M3 (Charles 2026-10-13)."
+    },
+    "Plutonium Fuel Rod": {
+      "tier": "8-3",
+      "reason": "SF+ wiki: unlocked by milestone T8-M3 \"Particle Enrichment\"; dataset says T8-M2 (Charles 2026-10-13)."
+    },
+    "Power Management Relay": {
+      "tier": "6-4",
+      "reason": "SF+ wiki: unlocked by milestone T6-M4 \"High Voltage Energy Production\"; dataset says T6-M5 (Charles 2026-10-13)."
+    },
+    "Pressure Conversion Cube": {
+      "tier": "9-3",
+      "reason": "SF+ wiki: unlocked by milestone T9-M3 \"Spatio-Temporal Manipulation\"; dataset says T9-M0 (Charles 2026-10-13)."
+    },
+    "Radiator": {
+      "tier": "7-1",
+      "reason": "SF+ wiki: unlocked by milestone T7-M1 \"Advanced Aluminum Production\"; dataset says T7-M3 (Charles 2026-10-13)."
+    },
+    "Radio Control Unit": {
+      "tier": "7-3",
+      "reason": "SF+ wiki: unlocked by milestone T7-M3 \"Control System Development\"; dataset says T7-M2 (Charles 2026-10-13)."
+    },
+    "Residual Coolant": {
+      "tier": "7-1",
+      "reason": "SF+ wiki: unlocked by milestone T7-M1 \"Advanced Aluminum Production\"; dataset says T7-M3 (Charles 2026-10-13)."
+    },
+    "Rotor": {
+      "tier": "1-3",
+      "reason": "SF+ wiki: unlocked by milestone T1-M3 \"Part Assembly\"; dataset says T2-M1 (Charles 2026-10-13)."
+    },
+    "SAM Fluctuator": {
+      "tier": "9-0",
+      "reason": "SF+ wiki: unlocked by milestone T9-M0 \"Matter Conversion\"; dataset says T5-M1 (Charles 2026-10-13)."
+    },
+    "Singularity Cell": {
+      "tier": "9-3",
+      "reason": "SF+ wiki: unlocked by milestone T9-M3 \"Spatio-Temporal Manipulation\"; dataset says T9-M2 (Charles 2026-10-13)."
+    },
+    "Slag Concrete": {
+      "tier": "2-3",
+      "reason": "SF+ wiki: unlocked by milestone T2-M3 \"Modular Miner: Smelting Module\"; dataset says T2-M6 (Charles 2026-10-13)."
+    },
+    "Slag Sand": {
+      "tier": "3-4",
+      "reason": "SF+ wiki: unlocked by milestone T3-M4 \"Basic Steel Production\"; dataset says T0-M0 (Charles 2026-10-13)."
+    },
+    "Sloppy Glass": {
+      "tier": "1-0",
+      "reason": "SF+ wiki: unlocked by milestone T1-M0 \"Windows\"; dataset says T0-M3 (Charles 2026-10-13)."
+    },
+    "Smart Plating": {
+      "tier": "2-4",
+      "reason": "SF+ wiki: unlocked by milestone T2-M4 \"Project Assembly: Platform\"; dataset says T2-M3 (Charles 2026-10-13)."
+    },
+    "Smooth Belt Drive": {
+      "tier": "1-4",
+      "reason": "SF+ wiki: unlocked by milestone T1-M4 \"Logistics Mk. 2\"; dataset says T3-M2 (Charles 2026-10-13)."
+    },
+    "Solar Cell": {
+      "tier": "2-1",
+      "reason": "SF+ wiki: unlocked by milestone T2-M1 \"Advanced Sorting\"; dataset says T0-M0 (Charles 2026-10-13)."
+    },
+    "Sulfuric Acid": {
+      "tier": "5-1",
+      "reason": "SF+ wiki: unlocked by milestone T5-M1 \"Liquid & Gas Energy\"; dataset says T5-M2 (Charles 2026-10-13)."
+    },
+    "Supercharged Slug Slime": {
+      "tier": "8-3",
+      "reason": "SF+ wiki: unlocked by milestone T8-M3 \"Particle Enrichment\"; dataset says T8-M6 (Charles 2026-10-13)."
+    },
+    "Supercomputer": {
+      "tier": "7-3",
+      "reason": "SF+ wiki: unlocked by milestone T7-M3 \"Control System Development\"; dataset says T7-M2 (Charles 2026-10-13)."
+    },
+    "Synthetic Quartz Crystal": {
+      "tier": "6-1",
+      "reason": "SF+ wiki: unlocked by milestone T6-M1 \"Industrial Washing\"; dataset says T5-M2 (Charles 2026-10-13)."
+    },
+    "TITAN Frame": {
+      "tier": "8-0",
+      "reason": "SF+ wiki: unlocked by milestone T8-M0 \"Titanium Refinement\"; dataset says T8-M3 (Charles 2026-10-13)."
+    },
+    "Thermal Propulsion Rocket": {
+      "tier": "8-2",
+      "reason": "SF+ wiki: unlocked by milestone T8-M2 \"Leading-edge Production\"; dataset says T8-M3 (Charles 2026-10-13)."
+    },
+    "Thermal Silica": {
+      "tier": "2-1",
+      "reason": "SF+ wiki: unlocked by milestone T2-M1 \"Advanced Sorting\"; dataset says T2-M0 (Charles 2026-10-13)."
+    },
+    "Time Crystal": {
+      "tier": "9-1",
+      "reason": "SF+ wiki: unlocked by milestone T9-M1 \"Quantum Encoding\"; dataset says T9-M2 (Charles 2026-10-13)."
+    },
+    "Tin Ingot": {
+      "tier": "1-5",
+      "reason": "SF+ wiki: unlocked by milestone T1-M5 \"Ore Sorting\"; dataset says T0-M0 (Charles 2026-10-13)."
+    },
+    "Tin Sheet": {
+      "tier": "1-3",
+      "reason": "SF+ wiki: unlocked by milestone T1-M3 \"Part Assembly\"; dataset says T1-M2 (Charles 2026-10-13)."
+    },
+    "Tinned Wire": {
+      "tier": "2-0",
+      "reason": "SF+ wiki: unlocked by milestone T2-M0 \"Basic Bronze Production\"; dataset says T1-M5 (Charles 2026-10-13)."
+    },
+    "Turbo Motor": {
+      "tier": "8-2",
+      "reason": "SF+ wiki: unlocked by milestone T8-M2 \"Leading-edge Production\"; dataset says T8-M3 (Charles 2026-10-13)."
+    },
+    "Universal Paint": {
+      "tier": "9-2",
+      "reason": "SF+ wiki: unlocked by milestone T9-M2 \"Peak Efficiency Production\"; dataset says T9-M0 (Charles 2026-10-13)."
+    },
+    "Universal Paint (Iron Slug)": {
+      "tier": "9-2",
+      "reason": "SF+ wiki: unlocked by milestone T9-M2 \"Peak Efficiency Production\"; dataset says T9-M3 (Charles 2026-10-13)."
+    },
+    "Zinc Ingot": {
+      "tier": "2-1",
+      "reason": "SF+ wiki: unlocked by milestone T2-M1 \"Advanced Sorting\"; dataset says T2-M2 (Charles 2026-10-13)."
+    },
+    "Zinc Plates": {
+      "tier": "2-1",
+      "reason": "SF+ wiki: unlocked by milestone T2-M1 \"Advanced Sorting\"; dataset says T0-M0 (Charles 2026-10-13)."
+    }
+  }
 }

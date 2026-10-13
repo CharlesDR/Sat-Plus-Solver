@@ -34,6 +34,13 @@ describe('real dataset', () => {
     expect(model).toBeDefined();
   });
 
+  test('recipe tier overrides replace the dataset tier (A83)', () => {
+    expect(recipe('rotor').tier).toBe('1-3');
+    expect(recipe('thermal-propulsion-rocket').tier).toBe('8-2');
+    expect(recipe('enriched-uranium').tier).toBe('8-1');
+    expect(recipe('ai-limiter').tier).toBe('2-6');
+  });
+
   test('generated miner routes match every dataset Modular Miner row at zero boosters', () => {
     const cc = result.details!.extraction.crossCheck;
     expect(cc.checked).toBeGreaterThan(370);
@@ -225,6 +232,16 @@ describe('invalid inputs fail the build with a clear message', () => {
     const overrides = JSON.parse(inputs.overrides) as { minerOres: Record<string, string> };
     delete overrides.minerOres.Siterite;
     expectError({ overrides: JSON.stringify(overrides) }, 'miner.ore', /prefix "Siterite"/);
+  });
+
+  test('recipe tier override naming no recipe, or the tier it already has (A83)', () => {
+    type O = { recipeTiers: Record<string, { tier: string; reason: string }> };
+    const unknown = JSON.parse(inputs.overrides) as O;
+    unknown.recipeTiers['No Such Recipe'] = { tier: '1-0', reason: 'test' };
+    expectError({ overrides: JSON.stringify(unknown) }, 'override.unknownRecipe', /No Such Recipe/);
+    const same = JSON.parse(inputs.overrides) as O;
+    same.recipeTiers['AI Limiter'] = { tier: '2-6', reason: 'test' };
+    expectError({ overrides: JSON.stringify(same) }, 'override.redundant', /AI Limiter/);
   });
 
   test('dataset row that disagrees with the miner rate model', () => {
