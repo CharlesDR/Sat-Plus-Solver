@@ -135,7 +135,7 @@ export function normalizeOne(ctx: Ctx, r: RawRecipe): DraftRecipe | undefined {
     machine: machine.Name,
     kind,
     alternate: r.Alternate === true,
-    tier: r.Tier,
+    tier: ctx.overrides.recipeTiers[r.Name]?.tier ?? r.Tier,
     ...flows,
     powerMW,
     clock: 1,

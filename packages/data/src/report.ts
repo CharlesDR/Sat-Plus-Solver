@@ -242,6 +242,11 @@ export function renderReport(result: BuildResult, extra: ReportSection[] = []): 
       ...Object.entries(o.virtualTargetMachines).map(([k, v]) => ['Virtual target', k, v]),
       ...Object.entries(o.crossCheckWhitelist).map(([k, v]) => ['Cross-check whitelist', k, v]),
       ...Object.entries(o.freeLunchWhitelist).map(([k, v]) => ['Free-lunch whitelist', k, v]),
+      ...Object.entries(o.recipeTiers).map(([k, v]) => [
+        'Recipe tier',
+        `${k}: ${v.tier}`,
+        v.reason,
+      ]),
     ];
     s.push(
       '',
