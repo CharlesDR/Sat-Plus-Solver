@@ -2,6 +2,7 @@ import type { UnassignedImport } from '@sps/world';
 import { useId, useState } from 'react';
 import type { CatalogItem } from '../solver/protocol';
 import { newRowKey, positive, useItemLookup, type DraftRow } from './itemRows';
+import { CloseIcon } from '../ui/icons';
 
 interface Props {
   catalog: CatalogItem[];
@@ -83,10 +84,12 @@ export function ImportsEditor({ catalog, imports, onChange }: Props) {
             </label>
             <button
               type="button"
+              className="icon-button"
               aria-label={`Remove import ${k + 1}`}
+              title="Remove this import"
               onClick={() => update(rows.filter((x) => x.key !== r.key))}
             >
-              Remove
+              <CloseIcon />
             </button>
             {unknown && <p className="hint">No item named “{r.itemText}”.</p>}
           </div>

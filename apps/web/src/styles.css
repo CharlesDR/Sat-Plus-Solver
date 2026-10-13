@@ -823,6 +823,13 @@ label.inline {
 .targets .row > label {
   display: flex;
 }
+.imports .row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px auto;
+  align-items: end;
+  gap: 8px;
+}
+.imports .row .hint,
 .targets .row .hint {
   grid-column: 1 / -1;
   margin: 0;
@@ -1842,11 +1849,13 @@ input.flow-area-name {
   top: 8px;
   left: 8px;
   z-index: 5;
+  display: flex;
+  gap: 6px;
   opacity: 0;
   transition: opacity 0.12s;
 }
 .flow-canvas:hover .flow-expand-all,
-.flow-expand-all:focus-visible {
+.flow-expand-all:focus-within {
   opacity: 1;
 }
 .flow-legend {
@@ -1907,6 +1916,16 @@ input.flow-area-name {
 .canvas-hint {
   left: 12px;
   top: 12px;
+}
+/* Centred in an empty canvas, as is the name prompt for a link dropped on empty canvas. */
+.canvas-hint.centred,
+.drop-prompt {
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+}
+.canvas-hint,
+.drop-prompt {
   max-width: min(380px, calc(100% - 24px));
   padding: 10px 14px;
   font-size: 14px;
@@ -1914,8 +1933,19 @@ input.flow-area-name {
   border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
   border-radius: var(--radius);
 }
-.canvas-hint p {
+.canvas-hint p,
+.drop-prompt p {
   margin: 0 0 8px;
+}
+.drop-prompt {
+  display: grid;
+  gap: 8px;
+  width: 320px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.drop-prompt p {
+  margin: 0;
 }
 .world-icon {
   display: inline-block;
@@ -2171,6 +2201,10 @@ img:is(.world-icon, .flow-icon, .flow-item-icon, .cell-icon, .io-icon),
 .link-editor fieldset {
   border-color: var(--accent);
 }
+/* A link just drawn on the canvas, in the Links tab. */
+tr.flash td {
+  background: var(--accent-soft);
+}
 .tabs {
   display: flex;
   flex-wrap: wrap;
@@ -2259,6 +2293,33 @@ img:is(.world-icon, .flow-icon, .flow-item-icon, .cell-icon, .io-icon),
 }
 @media (prefers-reduced-motion: reduce) {
   .toast {
+    animation: none;
+  }
+}
+
+/* ---------- Panel transitions ---------- */
+/* Sections that open and panes that appear ease in, so the eye goes to what changed. */
+@keyframes pane-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.pane-in,
+.world > .panel,
+.world-raw,
+.world-more-list,
+.menu-panel,
+details[open] > :not(summary) {
+  animation: pane-in 0.18s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane-in,
+  .world > .panel,
+  .world-raw,
+  .world-more-list,
+  .menu-panel,
+  details[open] > :not(summary) {
     animation: none;
   }
 }

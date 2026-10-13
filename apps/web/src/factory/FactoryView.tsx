@@ -766,6 +766,7 @@ function PlanFlowchart(props: {
     return {
       choices: areaChoices(catalog, settings),
       collapsed: grouped.areas.some((a) => a.collapsed),
+      expanded: grouped.areas.some((a) => !a.collapsed),
       moves: settings?.moves ?? {},
       setCollapsed: (area, shut) => {
         const next = new Set(collapsed);
@@ -774,6 +775,7 @@ function PlanFlowchart(props: {
         onCollapse(next);
       },
       expandAll: () => onCollapse(NONE),
+      collapseAll: () => onCollapse(new Set(grouped.areas!.map((a) => a.id))),
       // A name back to the default drops the rename.
       rename: (area, name) =>
         onChange({ names: { [area]: name.trim() === defaults.get(area) ? undefined : name } }),

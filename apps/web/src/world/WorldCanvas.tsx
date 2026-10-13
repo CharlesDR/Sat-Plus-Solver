@@ -63,6 +63,11 @@ export interface CanvasActions {
   setCollapsed(id: string, collapsed: boolean, nest?: boolean): void;
   /** A link drawn from one factory to another, carrying `item` when drawn from or to its port. */
   connect(from: string, to: string, item?: string): void;
+  /**
+   * A link dragged from a factory and dropped on empty canvas: `out` when it
+   * was dragged from an output, carrying `item` when dragged from a part's port.
+   */
+  dropOnPane(factory: string, side: 'in' | 'out', item?: string): void;
 }
 
 const Actions = createContext<CanvasActions | undefined>(undefined);
@@ -392,7 +397,7 @@ export function WorldCanvas(props: {
       {state.kind === 'done' && (
         <Actions.Provider value={props.actions}>
           <ReactFlowProvider>
-            <Canvas layout={state.layout} traced={props.traced} connect={props.actions.connect} />
+            <Canvas layout={state.layout} traced={props.traced} actions={props.actions} />
           </ReactFlowProvider>
         </Actions.Provider>
       )}
@@ -400,12 +405,17 @@ export function WorldCanvas(props: {
   );
 }
 
-function Canvas(props: {
-  layout: WorldLayout;
-  traced: WorldGraph;
-  connect: CanvasActions['connect'];
-}) {
-  const { layout, traced, connect } = props;
+/** Whether a drag ended over empty canvas, not over a card, a control or outside. */
+function overPane(event: MouseEvent | TouchEvent): boolean {
+  const at = 'changedTouches' in event ? event.changedTouches[0] : event;
+  if (!at) return false;
+  const el = document.elementFromPoint(at.clientX, at.clientY);
+  return !!el?.closest('.react-flow__pane') && !el.closest('.react-flow__node');
+}
+
+function Canvas(props: { layout: WorldLayout; traced: WorldGraph; actions: CanvasActions }) {
+  const { layout, traced } = props;
+  const { connect, dropOnPane } = props.actions;
   // The factory whose raw resources show (A80); a new layout keeps it if it's still there.
   const [selected, setSelected] = useState<string>();
   const marks = useMemo(() => {
@@ -475,6 +485,12 @@ function Canvas(props: {
           if (!valid(c)) return;
           const item = handleItem(c.sourceHandle) ?? handleItem(c.targetHandle);
           connect(kinds.get(c.source)!.ref, kinds.get(c.target)!.ref, item);
+        }}
+        onConnectEnd={(event, state) => {
+          const from = state.fromNode ? kinds.get(state.fromNode.id) : undefined;
+          if (state.toNode || from?.kind !== 'factory' || !overPane(event)) return;
+          const side = state.fromHandle?.type === 'target' ? 'in' : 'out';
+          dropOnPane(from.ref, side, handleItem(state.fromHandle?.id));
         }}
         onNodeClick={(_, node) => {
           if (kinds.get(node.id)?.kind === 'factory')

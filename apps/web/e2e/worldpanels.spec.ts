@@ -15,7 +15,11 @@ test('a new world starts empty, with one way to add a factory (UX-8)', async ({ 
   const start = page.getByRole('group', { name: 'Start here' });
   await expect(start).toBeVisible();
   await expect(page.getByTestId('world-canvas').locator('.react-flow__node')).toHaveCount(0);
-  await expect(start.getByRole('button')).toHaveText([/Open the sample world/, /Import a file/]);
+  await expect(start.getByRole('button')).toHaveText([
+    /Create a factory/,
+    /Open the sample world/,
+    /Import a file/,
+  ]);
   await expect(page.getByRole('button', { name: /Add (a )?factory/ })).toHaveCount(1);
   await addFactory(page, 'Smelter');
   await expect(page.getByRole('tab', { name: /^Factories/ })).toContainText('1');

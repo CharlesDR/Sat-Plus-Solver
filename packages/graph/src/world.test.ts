@@ -334,7 +334,23 @@ describe('world card text (F1)', () => {
   };
 
   test('counts machines as integers (B6)', () => {
-    expect(worldNodeLines(card({ machines: 1234 })).at(-1)).toBe('1.5 nodes · 1,234 machines');
+    expect(worldNodeLines(card({ machines: 1234 })).at(-1)).toBe('1,234 machines');
+  });
+
+  test('rounds power and shows raw extraction per minute, in whole numbers', () => {
+    const lines = worldNodeLines(
+      card({
+        machines: 3,
+        power: { consumptionMW: 226.7741, generationMW: 0, netMW: 226.7741 },
+        extraction: [
+          { item: 'iron-ore', rate: 120.4 },
+          { item: 'water', rate: 0.3 },
+        ],
+      }),
+    );
+    expect(lines.slice(2)).toEqual(['227 MW draw', '121/min raw extracted · 3 machines']);
+    const small = card({ power: { consumptionMW: 0.2, generationMW: 0, netMW: 0.2 } });
+    expect(worldNodeLines(small)[2]).toBe('<1 MW draw');
   });
 
   test('an empty factory says so, and a collapsed group of empties is empty (B5)', () => {

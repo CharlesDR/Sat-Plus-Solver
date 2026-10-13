@@ -6,11 +6,11 @@
  * under "Other…" (UX-18); a drag from a part's port pre-fills it (A80).
  */
 import type { Link, LinkSpec, Transport, World } from '@sps/world';
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Field } from '../controls/Field';
 import { useItemLookup } from '../controls/itemRows';
 import type { Catalog, WorldSummary } from '../solver/protocol';
-import { carriersFor, productsOf, transportTiers } from './viewModel';
+import { carriersFor, productsOf, SHOW_TRANSPORT, transportTiers } from './viewModel';
 
 const TRANSPORTS: { kind: Transport; label: string }[] = [
   { kind: 'unspecified', label: 'Unspecified' },
@@ -66,6 +66,13 @@ export function LinkEditor(props: {
     link ? link.transport?.tier : transportTiers(catalog, startKind)[0]?.tier,
   );
   const [error, setError] = useState<string>();
+  // The form opens below the canvas: bring it into view with the part to pick focused.
+  const formRef = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    const form = formRef.current;
+    form?.scrollIntoView?.({ block: 'nearest' });
+    form?.querySelector<HTMLSelectElement>('select[data-part]')?.focus({ preventScroll: true });
+  }, []);
 
   const item = choice === OTHER ? items.find(itemText) : choice ? { id: choice } : undefined;
   const rate = Number(rateText);
@@ -116,9 +123,14 @@ export function LinkEditor(props: {
       to,
       item: item.id,
       mode: mode === 'fixed' ? { kind: 'fixed', rate } : { kind: 'pull' },
-      ...(kind !== 'unspecified'
-        ? { transport: tier !== undefined ? { kind, tier } : { kind } }
-        : {}),
+      // With transport hidden, an edit keeps what the link had and a new link writes none.
+      ...(!SHOW_TRANSPORT
+        ? link?.transport
+          ? { transport: link.transport }
+          : {}
+        : kind !== 'unspecified'
+          ? { transport: tier !== undefined ? { kind, tier } : { kind } }
+          : {}),
     };
     try {
       onSave(spec, editing);
@@ -143,7 +155,8 @@ export function LinkEditor(props: {
 
   return (
     <form
-      className="controls link-editor"
+      ref={formRef}
+      className="controls link-editor pane-in"
       aria-label={editing ? 'Edit link' : 'New link'}
       onSubmit={(e) => {
         e.preventDefault();
@@ -157,7 +170,7 @@ export function LinkEditor(props: {
           {factorySelect('To', to, setTo)}
           <Field label="Part">
             {(id) => (
-              <select id={id} value={choice} onChange={(e) => pick(e.target.value)}>
+              <select id={id} data-part value={choice} onChange={(e) => pick(e.target.value)}>
                 <option value="">Pick a part…</option>
                 {products.map((p) => (
                   <option key={p} value={p}>
@@ -221,43 +234,49 @@ export function LinkEditor(props: {
             </label>
           )}
         </div>
-        <div className="row">
-          <Field label="Transport">
-            {(id) => (
-              <select id={id} value={kind} onChange={(e) => pickKind(e.target.value as Transport)}>
-                {TRANSPORTS.map((t) => (
-                  <option key={t.kind} value={t.kind}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            )}
-          </Field>
-          {tiers.length > 0 && (
-            <Field label="Tier">
+        {SHOW_TRANSPORT && (
+          <div className="row">
+            <Field label="Transport">
               {(id) => (
                 <select
                   id={id}
-                  value={tier ?? ''}
-                  onChange={(e) => setTier(Number(e.target.value))}
+                  value={kind}
+                  onChange={(e) => pickKind(e.target.value as Transport)}
                 >
-                  {tiers.map((t) => (
-                    <option key={t.tier} value={t.tier}>
-                      Mk.{t.tier} ({t.perMin}/min)
+                  {TRANSPORTS.map((t) => (
+                    <option key={t.kind} value={t.kind}>
+                      {t.label}
                     </option>
                   ))}
                 </select>
               )}
             </Field>
-          )}
-          <p className="hint" data-testid="carriers">
-            {carriers !== undefined
-              ? `Needs ${carriers} ${kind === 'pipe' ? 'pipe' : 'belt'}${carriers === 1 ? '' : 's'}.`
-              : tiers.length === 0
-                ? 'Label only: no capacity for this transport.'
-                : 'Belt or pipe count shows once the pull rate is solved.'}
-          </p>
-        </div>
+            {tiers.length > 0 && (
+              <Field label="Tier">
+                {(id) => (
+                  <select
+                    id={id}
+                    value={tier ?? ''}
+                    onChange={(e) => setTier(Number(e.target.value))}
+                  >
+                    {tiers.map((t) => (
+                      <option key={t.tier} value={t.tier}>
+                        Mk.{t.tier} ({t.perMin}/min)
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </Field>
+            )}
+            <p className="hint" data-testid="carriers">
+              {carriers !== undefined
+                ? `Needs ${carriers} ${kind === 'pipe' ? 'pipe' : 'belt'}${carriers === 1 ? '' : 's'}.`
+                : tiers.length === 0
+                  ? 'Label only: no capacity for this transport.'
+                  : 'Belt or pipe count shows once the pull rate is solved.'}
+            </p>
+          </div>
+        )}
         {error && (
           <p className="error" role="alert">
             {error}
