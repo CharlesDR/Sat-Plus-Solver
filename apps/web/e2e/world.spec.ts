@@ -79,12 +79,9 @@ test('two factories, a pull link, ledger, groups, trace, power and drill-down', 
   await editor.getByLabel('Part', { exact: true }).selectOption({ label: 'Other…' });
   await editor.getByLabel('Other part').fill('Iron Plate');
   await expect(editor.getByLabel('Pull (what the consumer needs)')).toBeChecked();
-  // A solid item defaults to belts; a fixed 61/min needs two Mk.1 belts.
-  await expect(editor.getByLabel('Transport', { exact: true })).toHaveValue('belt');
-  await editor.getByLabel('Fixed rate').check();
-  await editor.getByLabel('Rate per minute').fill('61');
-  await expect(editor.getByTestId('carriers')).toHaveText('Needs 2 belts.');
-  await editor.getByLabel('Pull (what the consumer needs)').check();
+  // Transport (kind, tier, belt count) is hidden until Phase 2.
+  await expect(editor.getByLabel('Transport', { exact: true })).toHaveCount(0);
+  await expect(editor.getByTestId('carriers')).toHaveCount(0);
   await editor.getByRole('button', { name: 'Create link' }).click();
   await settled(page);
 
@@ -107,12 +104,10 @@ test('two factories, a pull link, ledger, groups, trace, power and drill-down', 
   const rate = plates(demandShown);
   const rateShown = demandShown!.replace(/ Iron Plate$/, '');
   expect(rate).toBeCloseTo(2 * before, 3);
-  // Mk.1 belts carry 60/min.
+  // The Links table has no transport columns until Phase 2.
   await tab(page, 'Links');
   await expect(page.locator('tr[data-link="link-1"]')).toContainText('pull');
-  await expect(page.locator('tr[data-link="link-1"] td').nth(9)).toHaveText(
-    String(Math.ceil(rate / 60)),
-  );
+  await expect(page.getByRole('table', { name: 'Links' })).not.toContainText('Belts/pipes');
 
   // Ledger: A sends its plates out, B takes them in.
   await tab(page, 'Ledger');

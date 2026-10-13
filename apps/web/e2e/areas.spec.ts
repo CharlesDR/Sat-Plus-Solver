@@ -46,6 +46,14 @@ test('Plastic 20/min is drawn in areas that collapse, expand and rename (A63, A6
   await chart(page).getByRole('button', { name: 'Expand all areas' }).click();
   await expect(box).toHaveCount(0);
   await expect(refining).toBeVisible();
+  // "Collapse all areas" shuts every area; Expand all brings them back.
+  await chart(page).hover();
+  await chart(page).getByRole('button', { name: 'Collapse all areas' }).click();
+  await expect(frames(page)).toHaveCount(0);
+  await expect(chart(page).getByRole('button', { name: 'Collapse all areas' })).toHaveCount(0);
+  await chart(page).hover();
+  await chart(page).getByRole('button', { name: 'Expand all areas' }).click();
+  await expect(refining).toBeVisible();
 
   // Rename for this factory; it is saved with the world.
   await fit();

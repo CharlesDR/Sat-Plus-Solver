@@ -98,9 +98,11 @@ const GROUP_OPTIONS = {
   'elk.nodeSize.minimum': `(${MIN_NODE_WIDTH}, ${GROUP_HEADER + 32})`,
 };
 
-const mw = (n: number) => `${rateText(n)} MW`;
+/** A card's figures are whole numbers; a little that would round to 0 shows as "<1". */
+const whole = (n: number) => (n > 0 && n < 0.5 ? '<1' : countText(n));
+const mw = (n: number) => `${whole(n)} MW`;
 
-/** Power, nodes and machines of a factory or collapsed group, one line each. */
+/** Power, raw extraction and machines of a factory or collapsed group, one line each. */
 function badges(n: WorldNode): string[] {
   const p = n.power;
   const power = !p
@@ -108,7 +110,9 @@ function badges(n: WorldNode): string[] {
     : p.generationMW > 0
       ? [`${mw(p.consumptionMW)} draw · ${mw(p.generationMW)} gen`]
       : [`${mw(p.consumptionMW)} draw`];
-  return [...power, `${rateText(n.nodesUsed ?? 0)} nodes · ${countText(n.machines ?? 0)} machines`];
+  const machines = `${countText(n.machines ?? 0)} machines`;
+  const raw = n.rawExtracted ?? 0;
+  return [...power, raw > 0 ? `${whole(raw)}/min raw extracted · ${machines}` : machines];
 }
 
 /** The text lines a node shows, which also size it. */

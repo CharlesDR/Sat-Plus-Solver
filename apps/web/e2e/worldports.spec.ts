@@ -44,7 +44,8 @@ test('ports, the "…" port, raw resources and drag-from-port (UX-D)', async ({ 
   await card('Iron Works').locator('.flow-title').click();
   await expect(raw).toHaveCount(0);
 
-  // Dragging from Steel Mill's beam port pre-fills the part (UX-18).
+  // Dragging from Steel Mill's beam port makes the link at once, with no form,
+  // and marks its row in the Links tab.
   const mill = await page
     .locator('.react-flow__node', { has: card('Steel Mill') })
     .getAttribute('data-id');
@@ -54,7 +55,12 @@ test('ports, the "…" port, raw resources and drag-from-port (UX-D)', async ({ 
   await canvasNode(page, mill!)
     .locator('.react-flow__handle[data-handleid="out:steel-beam"]')
     .dragTo(canvasNode(page, frames!).locator('.react-flow__handle[data-handleid="new-in"]'));
-  const editor = page.getByRole('form', { name: 'New link' });
-  await expect(editor.getByLabel('Part', { exact: true })).toHaveValue('steel-beam');
-  await expect(editor.getByLabel('Transport', { exact: true })).toHaveValue('belt');
+  await expect(page.getByRole('form', { name: 'New link' })).toHaveCount(0);
+  const row = page.getByRole('table', { name: 'Links' }).locator('tr.flash');
+  await expect(row).toHaveCount(1);
+  await expect(row).toContainText('Steel Mill');
+  await expect(row).toContainText('Frame Factory');
+  await expect(row).toContainText('Steel Beam');
+  await expect(row).toContainText('pull');
+  await expect(row).toBeInViewport();
 });

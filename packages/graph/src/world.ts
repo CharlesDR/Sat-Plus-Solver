@@ -94,6 +94,8 @@ export interface WorldNode {
   power?: PowerSummary;
   /** Nodes used, summed over node classes. */
   nodesUsed?: number;
+  /** Factories and collapsed groups: raw resources extracted, summed per minute. */
+  rawExtracted?: number;
   machines?: number;
   /** Groups: how many factories are below it (a nest counts its factory too). */
   members?: number;
@@ -214,6 +216,14 @@ export function worldGraph(input: WorldGraphInput, options: WorldGraphOptions = 
   /** Scope node id → its ledger, for ports. */
   const ledgers = new Map<string, readonly LedgerRow[]>();
 
+  /** Raw resources the factories extract, summed per minute (items and m³ alike). */
+  const extracted = (ids: readonly string[]) => {
+    const rate = input.factories
+      .filter((f) => ids.includes(f.id))
+      .flatMap((f) => f.extraction ?? [])
+      .reduce((s, r) => s + (r.rate > FLOW_TOL ? r.rate : 0), 0);
+    return rate > 0 ? { rawExtracted: rate } : {};
+  };
   const statusOf = (ids: readonly string[]) => {
     const fs = input.factories.filter((f) => ids.includes(f.id));
     if (!fs.length) return undefined;
@@ -250,6 +260,7 @@ export function worldGraph(input: WorldGraphInput, options: WorldGraphOptions = 
         ? {
             power: { ...totals.power },
             nodesUsed: sumNodes(totals.nodes),
+            ...extracted(members),
             machines: totals.machines,
           }
         : {}),
@@ -281,6 +292,7 @@ export function worldGraph(input: WorldGraphInput, options: WorldGraphOptions = 
       ...(f.build ? { build: f.build.state } : {}),
       power: { ...f.power },
       nodesUsed: sumNodes(f.nodes),
+      ...extracted([f.id]),
       machines: f.machines,
       ...(f.extraction?.length
         ? {

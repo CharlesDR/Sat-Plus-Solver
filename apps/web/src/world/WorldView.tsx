@@ -4,7 +4,15 @@
  */
 import { MW_ITEM_ID } from '@sps/data';
 import { worldGraph, type LayoutEngine } from '@sps/graph';
-import { MINER_SUPPORT_NAME, unwiredMinerNeeds, wireMinerSupport, type World } from '@sps/world';
+import {
+  addFactory,
+  addLink,
+  MINER_SUPPORT_NAME,
+  unwiredMinerNeeds,
+  wireMinerSupport,
+  type LinkSpec,
+  type World,
+} from '@sps/world';
 import { useCallback, useId, useMemo, useState } from 'react';
 import { useItemLookup } from '../controls/itemRows';
 import { DiagnosticsList, useNames } from '../Diagnostics';
@@ -23,7 +31,13 @@ import {
   NodesPanel,
   PowerPanel,
 } from './Panels';
-import { traceableItems, worldStatus } from './viewModel';
+import {
+  productsOf,
+  SHOW_TRANSPORT,
+  traceableItems,
+  transportTiers,
+  worldStatus,
+} from './viewModel';
 import { StatusChip } from '../ui/StatusChip';
 import { WorldCanvas, type CanvasActions } from './WorldCanvas';
 import { PlusIcon } from '../ui/icons';
@@ -39,6 +53,9 @@ export interface StartActions {
   sample(): void;
   importFile(): void;
 }
+
+/** A link dropped on empty canvas (see `CanvasActions.dropOnPane`), waiting for a factory name. */
+type Drop = { factory: string; side: 'in' | 'out'; item?: string };
 
 /** Whether the world panels were open when the world view was last shown. */
 let panelWasOpen = false;
@@ -73,6 +90,10 @@ export function WorldView(props: {
   const [traceText, setTraceText] = useState('');
   const [draft, setDraft] = useState<LinkDraft>();
   const [newName, setNewName] = useState('');
+  const [drop, setDrop] = useState<Drop>();
+  const [dropName, setDropName] = useState('');
+  // The link a canvas drag just made, marked in the Links tab.
+  const [drawn, setDrawn] = useState<string>();
   const toast = useToast();
   const traceId = useId();
   const panelId = useId();
@@ -157,6 +178,31 @@ export function WorldView(props: {
     }
   };
 
+  /** A drawn link's spec: pull, on belts or pipes when transport shows. */
+  const quickSpec = useCallback(
+    (from: string, to: string, item: string): LinkSpec => {
+      const kind = catalog.fluids.includes(item) ? 'pipe' : 'belt';
+      const tier = transportTiers(catalog, kind)[0]?.tier;
+      return {
+        from,
+        to,
+        item,
+        mode: { kind: 'pull' },
+        ...(SHOW_TRANSPORT ? { transport: tier !== undefined ? { kind, tier } : { kind } } : {}),
+      };
+    },
+    [catalog],
+  );
+  /** The part a drag carries: its port's, or the source's only product. */
+  const dragPart = useCallback(
+    (from: string, item: string | undefined) => {
+      if (item !== undefined) return item;
+      const products = productsOf(summary, from);
+      return products.length === 1 ? products[0] : undefined;
+    },
+    [summary],
+  );
+
   const actions = useMemo<CanvasActions>(
     () => ({
       openFactory: onOpen,
@@ -164,13 +210,57 @@ export function WorldView(props: {
         nest
           ? store.getState().setFactoryCollapsed(id, c)
           : store.getState().setGroupCollapsed(id, c),
+      // A drag that knows its part makes the link at once (Pull); otherwise the form opens.
       connect: (from, to, item) => {
-        setDraft({ from, to, ...(item !== undefined ? { item } : {}) });
-        setTab('Links');
+        const part = dragPart(from, item);
+        if (part === undefined) {
+          setDraft({ from, to });
+          setDrawn(undefined);
+          return;
+        }
+        try {
+          setDrawn(store.getState().addLink(quickSpec(from, to, part)));
+          setDraft(undefined);
+          setTab('Links');
+        } catch (e) {
+          toast((e as Error).message);
+        }
+      },
+      dropOnPane: (factory, side, item) => {
+        setDropName('');
+        setDrop({
+          factory,
+          side,
+          ...(side === 'out' && dragPart(factory, item) !== undefined
+            ? { item: dragPart(factory, item)! }
+            : item !== undefined
+              ? { item }
+              : {}),
+        });
       },
     }),
-    [onOpen, store, setTab],
+    [onOpen, store, setTab, dragPart, quickSpec, toast],
   );
+  /** Makes the dropped link's new factory, with the link in place when its part is known. */
+  const createDropped = () => {
+    if (!drop) return;
+    try {
+      const made = addFactory(world, dropName);
+      const [from, to] = drop.side === 'out' ? [drop.factory, made.id] : [made.id, drop.factory];
+      if (drop.item === undefined) {
+        store.getState().replaceWorld(made.world);
+        setDraft({ from, to });
+      } else {
+        const linked = addLink(made.world, quickSpec(from, to, drop.item));
+        store.getState().replaceWorld(linked.world);
+        setDrawn(linked.id);
+        setTab('Links');
+      }
+      setDrop(undefined);
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
 
   return (
     <div className="world" aria-busy={plan.kind === 'solving'}>
@@ -295,16 +385,67 @@ export function WorldView(props: {
             <WorldCanvas engine={layout} graph={structure} traced={traced} actions={actions} />
           </ErrorBoundary>
         )}
-        {unplanned && (
-          <div className="canvas-overlay canvas-hint" role="group" aria-label="Start here">
+        {drop && (
+          <form
+            className="canvas-overlay drop-prompt pane-in"
+            aria-label="New factory for this link"
+            onSubmit={(e) => {
+              e.preventDefault();
+              createDropped();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setDrop(undefined);
+            }}
+          >
+            <p>
+              New factory {drop.side === 'out' ? 'taking' : 'making'}{' '}
+              {drop.item !== undefined ? itemName(drop.item) : 'a part'}{' '}
+              {drop.side === 'out' ? 'from' : 'for'}{' '}
+              {world.factories.find((f) => f.id === drop.factory)?.name}
+            </p>
+            <input
+              aria-label="Factory name"
+              placeholder={`Factory ${world.factories.length + 1}`}
+              value={dropName}
+              autoFocus
+              onChange={(e) => setDropName(e.target.value)}
+            />
+            <div className="row">
+              <button type="submit" className="primary">
+                Create factory
+              </button>
+              <button type="button" onClick={() => setDrop(undefined)}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
+        {unplanned && !drop && (
+          <div
+            // Centred on an empty canvas; beside the cards once there are some.
+            className={`canvas-overlay canvas-hint${world.factories.length ? '' : ' centred'}`}
+            role="group"
+            aria-label="Start here"
+          >
             <p>
               <strong>Start here.</strong>{' '}
               {world.factories.length === 0
-                ? 'Name a factory above and add it, then open it and pick what it makes.'
+                ? 'Create a factory, then pick what it makes.'
                 : 'Open a factory and add a target to plan it.'}{' '}
               Drag from one factory’s right edge to another’s left edge to link them.
             </p>
             <div className="start-cards">
+              <button
+                type="button"
+                onClick={() => {
+                  const id = store.getState().addFactory(newName);
+                  setNewName('');
+                  onOpen(id);
+                }}
+              >
+                <strong>Create a factory</strong>
+                <span>Add one and pick what it makes.</span>
+              </button>
               <button type="button" onClick={start.sample}>
                 <strong>Open the sample world</strong>
                 <span>Four linked factories.</span>
@@ -326,8 +467,10 @@ export function WorldView(props: {
           draft={draft}
           onSave={(spec, id) => {
             const s = store.getState();
-            if (id === undefined) s.addLink(spec);
-            else s.updateLink(id, spec);
+            if (id === undefined) {
+              setDrawn(s.addLink(spec));
+              setTab('Links');
+            } else s.updateLink(id, spec);
             setDraft(undefined);
           }}
           onCancel={() => setDraft(undefined)}
@@ -420,6 +563,7 @@ export function WorldView(props: {
               summary={summary}
               store={store}
               itemName={itemName}
+              highlight={drawn}
               onAdd={() => {
                 const [a, b] = world.factories;
                 if (a && b) setDraft({ from: a.id, to: b.id });

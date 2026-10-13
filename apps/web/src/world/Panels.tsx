@@ -7,7 +7,7 @@ import { formatRate as fmt, type PowerSummary } from '@sps/solver';
 import { StatusChip } from '../ui/StatusChip';
 import { groupAncestors, type World } from '@sps/world';
 import { parentOptions } from '../nest/nest';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { MoreMenu } from '../ui/Menu';
 import type { Catalog, WorldSummary } from '../solver/protocol';
 import type { WorldStore } from '../store';
@@ -16,6 +16,7 @@ import {
   ledgerScopes,
   powerRows,
   scopeKey,
+  SHOW_TRANSPORT,
   type LedgerScope,
   type PowerRow,
 } from './viewModel';
@@ -275,8 +276,16 @@ export function LinksPanel(props: {
   itemName: Name;
   onEdit(linkId: string): void;
   onAdd(): void;
+  /** A link just drawn on the canvas: its row is marked and scrolled into view. */
+  highlight?: string | undefined;
 }) {
-  const { world, summary, store, itemName, onEdit, onAdd } = props;
+  const { world, summary, store, itemName, onEdit, onAdd, highlight } = props;
+  useEffect(() => {
+    if (highlight === undefined) return;
+    document
+      .querySelector(`tr[data-link="${CSS.escape(highlight)}"]`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [highlight]);
   const factory = new Map(world.factories.map((f) => [f.id, f.name]));
   const solved = new Map(summary.links.map((l) => [l.id, l]));
   return (
@@ -296,8 +305,7 @@ export function LinksPanel(props: {
           'Delivered',
           'Used',
           'Short',
-          'Transport',
-          'Belts/pipes',
+          ...(SHOW_TRANSPORT ? ['Transport', 'Belts/pipes'] : []),
           '',
         ]}
       >
@@ -305,7 +313,12 @@ export function LinksPanel(props: {
           const r = solved.get(l.id);
           const t = l.transport;
           return (
-            <tr key={l.id} data-link={l.id}>
+            <tr
+              key={l.id}
+              data-link={l.id}
+              className={l.id === highlight ? 'flash' : undefined}
+              aria-current={l.id === highlight ? 'true' : undefined}
+            >
               <td className="text">{factory.get(l.from) ?? l.from}</td>
               <td className="text">{factory.get(l.to) ?? l.to}</td>
               <td className="text">{itemName(l.item)}</td>
@@ -318,10 +331,14 @@ export function LinksPanel(props: {
               <td className={(r?.short ?? 0) > 1e-6 ? 'num warning' : 'num'}>
                 {fmt(r?.short ?? 0)}
               </td>
-              <td className="num">
-                {t ? `${t.kind}${t.tier !== undefined ? ` Mk.${t.tier}` : ''}` : ''}
-              </td>
-              <td className="num">{r?.carriers ?? ''}</td>
+              {SHOW_TRANSPORT && (
+                <>
+                  <td className="num">
+                    {t ? `${t.kind}${t.tier !== undefined ? ` Mk.${t.tier}` : ''}` : ''}
+                  </td>
+                  <td className="num">{r?.carriers ?? ''}</td>
+                </>
+              )}
               <td className="num actions">
                 <button type="button" onClick={() => onEdit(l.id)}>
                   Edit

@@ -78,10 +78,13 @@ export interface AreaControls {
   choices: readonly { id: string; name: string }[];
   /** Some area is collapsed. */
   collapsed: boolean;
+  /** Some area is expanded. */
+  expanded: boolean;
   /** Boxes the factory moved, by node id. */
   moves: Readonly<Record<string, string>>;
   setCollapsed(area: string, collapsed: boolean): void;
   expandAll(): void;
+  collapseAll(): void;
   rename(area: string, name: string): void;
   /** `undefined` sends the box back to its own area. */
   move(node: string, area: string | undefined): void;
@@ -724,10 +727,19 @@ function Canvas(props: {
             <Follow layout={layout} box={box} selection={selection} />
           </ReactFlow>
         )}
-        {areas?.collapsed && (
-          <button type="button" className="flow-expand-all" onClick={areas.expandAll}>
-            Expand all areas
-          </button>
+        {areas && (areas.collapsed || areas.expanded) && (
+          <div className="flow-expand-all">
+            {areas.collapsed && (
+              <button type="button" onClick={areas.expandAll}>
+                Expand all areas
+              </button>
+            )}
+            {areas.expanded && (
+              <button type="button" onClick={areas.collapseAll}>
+                Collapse all areas
+              </button>
+            )}
+          </div>
         )}
       </div>
       <Legend layout={layout} form={form} />
