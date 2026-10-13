@@ -115,10 +115,19 @@ export function normalizeOne(ctx: Ctx, r: RawRecipe): DraftRecipe | undefined {
   }
 
   if (ctx.overrides.virtualTargetMachines[machine.Name] && flows.outputs.length === 0) {
-    // One delivery per batch becomes one unit of a virtual target item.
-    ctx.virtualItems.set(r.Name, r.Tier);
-    const batch = req(ctx, r.BatchTime, `${where} BatchTime`);
-    flows.outputs.push({ part: r.Name, rate: div(rat(60), batch) });
+    // A84: the virtual item's rate is the rate of the recipe's largest input
+    // (the first on a tie), so R/min of a phase makes R/min of its top part
+    // and the other parts in the phase's ratio.
+    const top = flows.inputs.reduce<RFlow | undefined>(
+      (best, f) => (best && cmp(best.rate, f.rate) >= 0 ? best : f),
+      undefined,
+    );
+    if (!top) {
+      ctx.issues.error('recipe.virtual', `${where}: a virtual target recipe needs an input`);
+      return undefined;
+    }
+    ctx.virtualItems.set(r.Name, { tier: r.Tier, per: top.part });
+    flows.outputs.push({ part: r.Name, rate: top.rate });
   }
 
   if (flows.outputs.length === 0) {

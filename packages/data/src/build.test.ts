@@ -12,6 +12,7 @@ const inputs: BuildInputs = {
   overrides: read('data/overrides.json'),
   areas: read('data/areas.json'),
   alternateUnlocks: read('data/alternate-unlocks.json'),
+  scarcityUsage: read('data/scarcity-usage.json'),
 };
 
 const errorsOf = (r: BuildResult) => r.issues.filter((i) => i.severity === 'error');
@@ -32,6 +33,62 @@ describe('real dataset', () => {
   test('builds with no errors', () => {
     expect(errorsOf(result)).toEqual([]);
     expect(model).toBeDefined();
+  });
+
+  test('a Space Elevator phase outputs at its largest input rate (A84)', () => {
+    const phases: [number, string, Record<string, number>][] = [
+      [1, 'smart-plating', { 'smart-plating': 75, 'modular-frame': 25 }],
+      [
+        2,
+        'smart-plating',
+        { 'smart-plating': 500, 'versatile-framework': 500, 'automated-wiring': 250 },
+      ],
+      [
+        3,
+        'versatile-framework',
+        {
+          'versatile-framework': 750,
+          'modular-engine': 150,
+          'adaptive-control-unit': 200,
+          'power-management-relay': 300,
+        },
+      ],
+      [
+        4,
+        'magnetic-field-generator',
+        {
+          'magnetic-field-generator': 750,
+          'assembly-director-system': 750,
+          'thermal-propulsion-rocket': 250,
+          'titan-frame': 125,
+        },
+      ],
+      [
+        5,
+        'ai-expansion-server',
+        {
+          'ai-expansion-server': 2048,
+          'biochemical-sculptor': 1500,
+          'ballistic-warp-drive': 1000,
+          'nuclear-pasta': 1000,
+        },
+      ],
+    ];
+    for (const [n, top, inputs] of phases) {
+      const r = recipe(`space-elevator-phase-${n}`);
+      const item = `virtual:space-elevator-phase-${n}`;
+      expect(Object.fromEntries(r.inputs.map((f) => [f.item, f.rate]))).toEqual(inputs);
+      expect(r.outputs).toEqual([{ item, rate: Math.max(...Object.values(inputs)) }]);
+      expect(model.items.find((i) => i.id === item)?.per).toBe(top);
+    }
+  });
+
+  test('scarcity usage factors are keyed by node resource item id (A85)', () => {
+    const resources = new Set(model.nodes.map((n) => n.resource));
+    for (const [id, u] of Object.entries(model.scarcityUsage ?? {})) {
+      expect(resources.has(id)).toBe(true);
+      expect(u).toBeGreaterThan(0);
+    }
   });
 
   test('recipe tier overrides replace the dataset tier (A83)', () => {
@@ -196,6 +253,25 @@ describe('invalid inputs fail the build with a clear message', () => {
       { alternateUnlocks: text },
       'unlocks.unknownPart',
       /unknown part "Unobtainium Ingot"/,
+    );
+  });
+
+  test('scarcity usage for a non-resource or a non-positive value (A85)', () => {
+    const usage = (u: Record<string, unknown>) => JSON.stringify({ usage: u });
+    expectError(
+      { scarcityUsage: usage({ 'Iron Plate': { usage: 0.5, reason: 'test' } }) },
+      'scarcityUsage.unknown',
+      /"Iron Plate" is not a node resource/,
+    );
+    expectError(
+      { scarcityUsage: usage({ 'Iron Ore': { usage: 0, reason: 'test' } }) },
+      'schema',
+      /scarcity-usage\.json/,
+    );
+    expectError(
+      { scarcityUsage: usage({ 'Iron Ore': { usage: 1 } }) },
+      'schema',
+      /scarcity-usage\.json/,
     );
   });
 

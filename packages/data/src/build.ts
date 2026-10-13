@@ -23,6 +23,7 @@ import {
   MinerModelConfig,
   OverridesConfig,
   RawGameData,
+  ScarcityUsageConfig,
   stripComments,
 } from './raw';
 
@@ -36,6 +37,8 @@ export interface BuildInputs {
   areas: string;
   /** data/alternate-unlocks.json (A82). */
   alternateUnlocks: string;
+  /** data/scarcity-usage.json (A85). */
+  scarcityUsage: string;
 }
 
 export interface BuildResult {
@@ -57,6 +60,8 @@ export interface BuildDetails {
   areas?: AreasResult;
   /** Alternate unlocks (A82). */
   unlocks?: AlternateUnlocksResult;
+  /** O2 likely-usage factors (A85), with their reasons. */
+  scarcityUsage?: ScarcityUsageConfig;
 }
 
 /** Fluid rates above this are assumed to be in litres, not m³ (§6). */
@@ -96,18 +101,23 @@ export function buildModel(inputs: BuildInputs): BuildResult {
   const rawUnlocks = AlternateUnlocksConfig.safeParse(
     stripComments(parseJson(issues, inputs.alternateUnlocks, 'data/alternate-unlocks.json')),
   );
+  const rawUsage = ScarcityUsageConfig.safeParse(
+    stripComments(parseJson(issues, inputs.scarcityUsage, 'data/scarcity-usage.json')),
+  );
   if (!rawGame.success) schemaErrors(issues, 'game_data.json', rawGame.error);
   if (!rawMiner.success) schemaErrors(issues, 'data/miner-model.json', rawMiner.error);
   if (!rawOverrides.success) schemaErrors(issues, 'data/overrides.json', rawOverrides.error);
   if (!rawAreas.success) schemaErrors(issues, 'data/areas.json', rawAreas.error);
   if (!rawUnlocks.success) schemaErrors(issues, 'data/alternate-unlocks.json', rawUnlocks.error);
+  if (!rawUsage.success) schemaErrors(issues, 'data/scarcity-usage.json', rawUsage.error);
   const nodeRows = parseNodesCsv(inputs.nodesCsv, issues);
   if (
     !rawGame.success ||
     !rawMiner.success ||
     !rawOverrides.success ||
     !rawAreas.success ||
-    !rawUnlocks.success
+    !rawUnlocks.success ||
+    !rawUsage.success
   )
     return { issues: issues.list };
 
@@ -204,10 +214,11 @@ export function buildModel(inputs: BuildInputs): BuildResult {
     tier: p.Tier,
   }));
   items.push({ id: MW_ITEM_ID, name: 'Power', form: 'power', sinkPoints: 0, tier: '0-0' });
-  for (const [name, tier] of ctx.virtualItems) {
+  for (const [name, { tier, per }] of ctx.virtualItems) {
     if (ctx.parts.has(name))
       issues.error('virtual.collision', `Virtual target "${name}" collides with a part`);
-    items.push({ id: `virtual:${slug(name)}`, name, form: 'virtual', sinkPoints: 0, tier });
+    const id = `virtual:${slug(name)}`;
+    items.push({ id, name, form: 'virtual', sinkPoints: 0, tier, per: slug(per) });
   }
   const itemId = new Map<string, string>(items.map((i) => [i.name, i.id]));
   itemId.set(MW_PART, MW_ITEM_ID);
@@ -360,6 +371,19 @@ export function buildModel(inputs: BuildInputs): BuildResult {
     if (u) r.unlock = u;
   }
 
+  // ---- O2 likely usage (A85): only node resources can carry a factor. ----
+  const scarcityUsage: Record<string, number> = {};
+  const nodeResources = new Set(nodes.map((n) => n.resource));
+  for (const [name, u] of Object.entries(rawUsage.data.usage)) {
+    const id = itemId.get(name);
+    if (id === undefined || !nodeResources.has(id))
+      issues.error(
+        'scarcityUsage.unknown',
+        `data/scarcity-usage.json: "${name}" is not a node resource (game_data.json part name)`,
+      );
+    else scarcityUsage[id] = u.usage;
+  }
+
   // ---- Unused parts (warning only). ----
   const used = new Set(recipes.flatMap((r) => [...r.inputs, ...r.outputs].map((f) => f.item)));
   const unusedParts = items.filter((i) => i.form !== 'power' && !used.has(i.id)).map((i) => i.name);
@@ -372,6 +396,7 @@ export function buildModel(inputs: BuildInputs): BuildResult {
     maxFluidRate,
     ...(areas ? { areas } : {}),
     unlocks,
+    scarcityUsage: rawUsage.data,
   };
   if (issues.errors.length > 0) return { issues: issues.list, details };
 
@@ -386,6 +411,7 @@ export function buildModel(inputs: BuildInputs): BuildResult {
           inputs.overrides,
           inputs.areas,
           inputs.alternateUnlocks,
+          inputs.scarcityUsage,
         ].join('\u0000'),
         16,
       ),
@@ -397,6 +423,9 @@ export function buildModel(inputs: BuildInputs): BuildResult {
     nodes,
     beltCapacities,
     ...(areas ? { areas: areas.areas } : {}),
+    scarcityUsage: Object.fromEntries(
+      Object.entries(scarcityUsage).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+    ),
   };
   return { model, issues: issues.list, details };
 }

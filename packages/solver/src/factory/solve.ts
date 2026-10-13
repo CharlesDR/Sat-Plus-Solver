@@ -70,6 +70,10 @@ const MAX_FLOW_SOLVES = 6;
 const MAX_PRUNE_ATTEMPTS = 24;
 /** Most an objective may lose to simplicity (A73), relative to the first solve's plan. */
 export const SIMPLICITY_CAP = 0.01;
+/** The farm cap the app uses (A86): a byproduct farm goes when that costs at most 5%. */
+export const FARM_CAP = 0.05;
+/** Most farm drops the simplicity pass tries (A86). */
+const MAX_FARM_SOLVES = 4;
 /** Most stack re-solves the simplicity pass makes (A73). */
 const MAX_SIMPLIFY_SOLVES = 12;
 /** The simplicity pass (A73) stops after this many rejected re-solves in a row. */
@@ -121,6 +125,8 @@ interface Problem {
   minFlow: number;
   /** `request.simplicity` (A73). */
   simplicity: boolean;
+  /** `request.farmCap` (A86), 0 when off. */
+  farmCap: number;
   /** Recipe variables of conversion generators (C1, A73), tidied at CONVERSION_TIDY_WEIGHT. */
   conversion: ReadonlySet<string>;
   /** LP variables held at 0 by the flow prune (A68): recipes (with their machine counts), surpluses, imports. */
@@ -350,6 +356,7 @@ export async function solve(
     minBranch: request.minBranch ?? MIN_BRANCH,
     minFlow: request.minFlow ?? MIN_FLOW,
     simplicity: request.simplicity ?? false,
+    farmCap: request.farmCap ?? 0,
     conversion: new Set(recipes.filter(isConversionGenerator).map((r) => recipeVar(r.id))),
     banned: new Set(),
     bred,
@@ -950,6 +957,11 @@ function withinCost(ref: SolveResult, cap: number, k: number, value: number): bo
  * 3. With `simplicity`, fewest steps (UX-1A): each remaining recipe alone,
  *    smallest first, on the plan's own recipes.
  *
+ * 4. With `simplicity` and `farmCap`, byproduct farms (A86): each with the
+ *    recipes that only feed it, on every recipe, within `farmCap` of the
+ *    first solve's plan; then steps 2 and 3 again against the farm-free
+ *    plan. The farm stays unless that ends with fewer recipes.
+ *
  * Steps 2 and 3 may cost up to SIMPLICITY_CAP on each objective against the
  * first solve's plan; the flow prune that follows shares the same cap. A drop
  * that leaves a target unproducible is ruled out without an LP, and the rest
@@ -986,9 +998,16 @@ async function simplify(
       .map((u) => u.id);
   const slivers = (r: SolveResult) => below(r, p.minBranch * Math.min(1, largest(r))).length;
   /** Re-solves without `ids`; true (and `best` replaced) when it is no worse than `ref` by `cap` and simpler. */
-  const attempt = async (ids: readonly string[], ref: SolveResult, cap: number, open = false) => {
-    if (solves >= MAX_SIMPLIFY_SOLVES || bounds >= MAX_SIMPLIFY_BOUNDS) return false;
-    if (misses >= MAX_SIMPLIFY_MISSES) return false;
+  const attempt = async (
+    ids: readonly string[],
+    ref: SolveResult,
+    cap: number,
+    open = false,
+    farm = false,
+  ) => {
+    // Farm drops have their own limit (MAX_FARM_SOLVES a round).
+    if (!farm && (solves >= MAX_SIMPLIFY_SOLVES || bounds >= MAX_SIMPLIFY_BOUNDS)) return false;
+    if (!farm && misses >= MAX_SIMPLIFY_MISSES) return false;
     // A miner dropped on its own comes back as another miner of the same ore.
     if (open && ids.every((id) => extraction.has(id))) return false;
     const runs = new Set(best.recipes.map((u) => u.id));
@@ -996,7 +1015,10 @@ async function simplify(
     // route to it), which keeps the LPs small.
     const handled = new Set(best.items.map((f) => f.item));
     const near = (r: Recipe) => open && r.outputs.some((f) => handled.has(f.item));
-    const unused = p.recipes.filter((r) => !runs.has(r.id) && !near(r)).map((r) => r.id);
+    // A farm drop re-solves on every recipe: its replacement may start from new ore.
+    const unused = farm
+      ? []
+      : p.recipes.filter((r) => !runs.has(r.id) && !near(r)).map((r) => r.id);
     const drop = ids.flatMap((id) => [recipeVar(id), machinesVar(id)]);
     const vars = new Set([
       ...dropped,
@@ -1008,18 +1030,19 @@ async function simplify(
     // Loops count only when the plan already needed one (A74).
     const have = p.bred.size ? producible(left, sources) : reachableFor(left, sources, []).have;
     if (wanted.some((i) => !have.has(i))) return false;
-    bounds++;
+    if (!farm) bounds++;
     const first = await bound(vars);
     if (first === undefined || (!Number.isNaN(first) && !withinCost(ref, cap, 0, first)))
       return false;
-    solves++;
+    if (!farm) solves++;
     misses++;
     const r = await resolve(vars);
     if (r.status !== 'ok' || r.diagnostics.length > best.diagnostics.length) return false;
     if (!r.stages.every((st, k) => withinCost(ref, cap, k, st.value))) return false;
+    // A farm-free plan is simplified by the steps that follow, so it need not be simpler yet.
     const n = r.recipes.length;
     const was = best.recipes.length;
-    if (n > was || (n === was && slivers(r) >= slivers(best))) return false;
+    if (!farm && (n > was || (n === was && slivers(r) >= slivers(best)))) return false;
     misses = 0;
     dropped = new Set([...dropped, ...drop]);
     best = r;
@@ -1028,45 +1051,130 @@ async function simplify(
 
   const noise = below(best, NOISE * largest(best));
   if (noise.length) await attempt(noise, best, p.tolerance);
-  if (!p.simplicity) return { plan: best, banned: dropped };
 
-  const needed = new Set<string>();
-  let first = true;
-  for (;;) {
-    const small = below(best, p.minBranch * Math.min(1, largest(best))).filter(
-      (id) => !needed.has(id),
-    );
-    if (!small.length || solves >= MAX_SIMPLIFY_SOLVES) break;
-    // All of them together, once: after a failure, smaller sets rarely do better.
-    if (first && (await attempt(small, plan, SIMPLICITY_CAP, true))) continue;
-    first = false;
-    let changed = false;
-    for (const id of small) {
-      // On the plan's own recipes first (a small LP), then on any recipe.
-      if (
-        (await attempt([id], plan, SIMPLICITY_CAP)) ||
-        (await attempt([id], plan, SIMPLICITY_CAP, true))
-      ) {
-        changed = true;
-        break;
-      }
-      needed.add(id);
+  // Steps 2 and 3 hold their cap against `base`: the first solve's plan, or
+  // the farm-free plan once a farm has gone (4).
+  let base = plan;
+  const kept = new Set<string>();
+  /** Drops the plan's byproduct farms it can do without; true when one went. */
+  const dropFarms = async () => {
+    let any = false;
+    for (let tries = 0; tries < MAX_FARM_SOLVES; tries++) {
+      const farm = byproductFarms(best, wanted, extraction, p.conversion).find(
+        (f) => !kept.has(f[0]!),
+      );
+      if (!farm) break;
+      if (await attempt(farm, plan, p.farmCap, true, true)) {
+        base = best;
+        any = true;
+      } else kept.add(farm[0]!);
     }
-    if (!changed) break;
-  }
-  for (;;) {
-    const steps = below(best, Infinity).filter((id) => !needed.has(id));
-    let changed = false;
-    for (const id of steps) {
-      if (await attempt([id], plan, SIMPLICITY_CAP)) {
-        changed = true;
-        break;
+    // Farm misses must not starve the steps.
+    misses = 0;
+    return any;
+  };
+  /** Slivers, then fewest steps (2 and 3). */
+  const steps = async () => {
+    const needed = new Set<string>();
+    let first = true;
+    for (;;) {
+      const small = below(best, p.minBranch * Math.min(1, largest(best))).filter(
+        (id) => !needed.has(id),
+      );
+      if (!small.length || solves >= MAX_SIMPLIFY_SOLVES) break;
+      // All of them together, once: after a failure, smaller sets rarely do better.
+      if (first && (await attempt(small, base, SIMPLICITY_CAP, true))) continue;
+      first = false;
+      let changed = false;
+      for (const id of small) {
+        // On the plan's own recipes first (a small LP), then on any recipe.
+        if (
+          (await attempt([id], base, SIMPLICITY_CAP)) ||
+          (await attempt([id], base, SIMPLICITY_CAP, true))
+        ) {
+          changed = true;
+          break;
+        }
+        needed.add(id);
       }
-      needed.add(id);
+      if (!changed) break;
     }
-    if (!changed) break;
+    for (;;) {
+      const ids = below(best, Infinity).filter((id) => !needed.has(id));
+      let changed = false;
+      for (const id of ids) {
+        if (await attempt([id], base, SIMPLICITY_CAP)) {
+          changed = true;
+          break;
+        }
+        needed.add(id);
+      }
+      if (!changed) break;
+    }
+  };
+
+  if (!p.simplicity) return { plan: best, banned: dropped };
+  await steps();
+  if (p.farmCap > 0) {
+    const before = { best, dropped };
+    if (await dropFarms()) {
+      await steps();
+      // The farm-free plan, simplified again, must be simpler; else the farm stays.
+      if (best.recipes.length >= before.best.recipes.length) ({ best, dropped } = before);
+    }
   }
   return { plan: best, banned: dropped };
+}
+
+/**
+ * Byproduct farms of a plan (A86), by farm recipe id: each is the farm first,
+ * then the recipes that only feed it. A farm is a recipe whose main (first)
+ * output nobody in the plan consumes and nothing wants, so it all goes to
+ * surplus. A feeder makes something only the farm's chain consumes and
+ * nothing wanted. Miners and conversion generators are never part of one.
+ */
+function byproductFarms(
+  plan: SolveResult,
+  wanted: readonly string[],
+  extraction: ReadonlySet<string>,
+  conversion: ReadonlySet<string>,
+): string[][] {
+  const want = new Set(wanted);
+  const flow = new Map(plan.items.map((f) => [f.item, f]));
+  const consumers = new Map<string, Set<string>>();
+  for (const u of plan.recipes)
+    for (const f of u.inputs) {
+      if (!(f.rate > 0)) continue;
+      const c = consumers.get(f.item) ?? new Set<string>();
+      c.add(u.id);
+      consumers.set(f.item, c);
+    }
+  const free = (u: RecipeUsage) => !extraction.has(u.id) && !conversion.has(recipeVar(u.id));
+  const farms: string[][] = [];
+  for (const u of plan.recipes) {
+    const [main, ...rest] = u.outputs.filter((f) => f.item !== MW_ITEM_ID);
+    if (!main || !free(u) || want.has(main.item) || consumers.has(main.item)) continue;
+    // It runs for a byproduct the plan uses; a recipe with nothing else used is disposal.
+    if (!rest.some((f) => consumers.has(f.item) || want.has(f.item))) continue;
+    if (!((flow.get(main.item)?.surplus ?? 0) > 0)) continue;
+    const chain = new Set([u.id]);
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const g of plan.recipes) {
+        if (chain.has(g.id) || !free(g)) continue;
+        const outs = g.outputs.filter((f) => f.item !== MW_ITEM_ID);
+        if (outs.some((f) => want.has(f.item))) continue;
+        const used = outs.filter((f) => consumers.has(f.item));
+        if (!used.length) continue;
+        if (used.every((f) => [...consumers.get(f.item)!].every((c) => chain.has(c)))) {
+          chain.add(g.id);
+          grew = true;
+        }
+      }
+    }
+    farms.push([...chain]);
+  }
+  return farms;
 }
 
 /**
@@ -1638,6 +1746,27 @@ function buildLp(
 const isConversionGenerator = (r: Recipe) =>
   r.kind === 'generator' && r.outputs.some((f) => f.item !== MW_ITEM_ID);
 
+/**
+ * O2 weight overrides from the model's likely-usage factors (A85): usage /
+ * map NNE for each listed resource, the rest left at 1 / map NNE. Undefined
+ * when the model lists none, so the request keeps the plain O2 weights.
+ */
+export function usageWeights(
+  model: Pick<Model, 'nodes' | 'scarcityUsage'>,
+): Record<string, number> | undefined {
+  const usage = Object.entries(model.scarcityUsage ?? {});
+  if (!usage.length) return undefined;
+  const mapTotal = new Map<string, number>();
+  for (const n of model.nodes)
+    mapTotal.set(n.resource, (mapTotal.get(n.resource) ?? 0) + n.count * n.nne);
+  const weights: Record<string, number> = {};
+  for (const [r, u] of usage) {
+    const total = mapTotal.get(r) ?? 0;
+    if (total > 0) weights[r] = u / total;
+  }
+  return weights;
+}
+
 /** Cost per machine of each recipe under one objective (§3.3); recipes without a cost are left out. */
 function objectiveCosts(
   model: Model,
@@ -1887,6 +2016,11 @@ function validate(
     (!Number.isFinite(request.minBranch) || request.minBranch < 0)
   )
     return bad(`Minimum branch must be 0 or more machines (got ${request.minBranch}).`);
+  if (
+    request.farmCap !== undefined &&
+    (!Number.isFinite(request.farmCap) || request.farmCap < 0 || request.farmCap >= 1)
+  )
+    return bad(`Farm cap must be at least 0% and below 100% (got ${request.farmCap}).`);
   if (request.minFlow !== undefined && (!Number.isFinite(request.minFlow) || request.minFlow < 0))
     return bad(`Minimum flow must be 0 or more per minute (got ${request.minFlow}).`);
   if (request.minerFluids !== undefined && !['any', 'water', 'none'].includes(request.minerFluids))

@@ -372,7 +372,11 @@ function Flows(
     <Table
       title={title}
       head={['Item', 'Per min']}
-      rows={rows.map((r) => [r.name, num.exact(r.rate)])}
+      // A phase target's rate is per min of its top part (A84).
+      rows={rows.map((r) => [
+        r.per ? `${r.name} (per min of ${r.per})` : r.name,
+        num.exact(r.rate),
+      ])}
       {...(id ? { keys: rows.map((r) => id(r.item)) } : {})}
       icons={rows.map((r) => itemIcon(r.item))}
       {...(num.precise ? {} : { titles: rows.map((r) => ['', formatExact(r.rate)]) })}

@@ -23,6 +23,7 @@ export {
   clampTolerance,
   DEFAULT_TOLERANCE,
   DUMPABLE_FLUIDS,
+  FARM_CAP,
   LEX_EPSILON,
   MAX_TOLERANCE,
   MILP_TIME_LIMIT_SECONDS,
@@ -32,6 +33,7 @@ export {
   MIN_TOLERANCE,
   objectiveStack,
   solve,
+  usageWeights,
 } from './factory/solve';
 export { OBJECTIVE_IDS } from './factory/types';
 export { filterMinerRoutes, minerFluidOptions, minerSupplyItem } from './factory/minerFluids';

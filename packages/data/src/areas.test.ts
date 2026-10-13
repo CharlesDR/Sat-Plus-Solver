@@ -128,6 +128,7 @@ describe('real dataset (A62)', () => {
       overrides: read('data/overrides.json'),
       areas: read('data/areas.json'),
       alternateUnlocks: read('data/alternate-unlocks.json'),
+      scarcityUsage: read('data/scarcity-usage.json'),
     });
   });
   const area = (id: string) => result.model!.items.find((i) => i.id === id)?.area;
@@ -158,6 +159,7 @@ describe('real dataset (A62)', () => {
         overrides: read('data/overrides.json'),
         areas: read('data/areas.json'),
         alternateUnlocks: read('data/alternate-unlocks.json'),
+        scarcityUsage: read('data/scarcity-usage.json'),
       }).details!.areas,
     );
   });

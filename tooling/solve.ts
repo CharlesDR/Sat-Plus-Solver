@@ -2,7 +2,7 @@
  * `pnpm solve`: solves one factory from the command line and prints the plan.
  *
  *   pnpm solve --target "Iron Plate:60" [--target ...] [--import "Iron Ingot:30"]
- *              [--objective resources,machines,...] [--tolerance 0.01%] [--min-branch 0.01] [--min-flow 0.001] [--whole-machines]
+ *              [--objective resources,machines,...] [--tolerance 0.01%] [--min-branch 0.01] [--min-flow 0.001] [--farm-cap 5%] [--whole-machines]
  *              [--cost-imports] [--avoid-fluid-byproducts] [--simplicity] [--miner-fluids any|water|none] [--miner-fluid-supply local|outside]
  *              [--alternates] [--compare-alternates] [--exclude <recipe-id>] [--enable <recipe-id>] [--max-tier <major-minor>] [--budget "<node-id>=<count>"] [--model <model.json>] [--json]
  *
@@ -17,6 +17,8 @@
  * a dataset tier (tier 0-0 always stays); `--avoid-fluid-byproducts` lets no
  * fluid but Steam, Flue Gas and Energetic Dark Matter be left over (A39, the app's default);
  * `--simplicity` drops slivers and steps that save at most 1% (A73, the app's default);
+ * `--farm-cap` drops byproduct farms that save at most that percentage (A86, off unless given;
+ * the app uses 5% with simplicity);
  * `--miner-fluids` limits Modular Miner fluid modules and `--miner-fluid-supply outside`
  * imports miner fluid at its cost (A69);
  * `--compare-alternates` solves both ways and lists the alternates that help.
@@ -52,7 +54,7 @@ import {
 import { ROOT, runPipeline } from './build-data';
 
 export const USAGE = `Usage: pnpm solve --target "Item:rate" [--target ...] [--import "Item[:cap]"]
-                  [--objective resources,machines,...] [--tolerance <percent>] [--min-branch <machines>] [--min-flow <per-minute>]
+                  [--objective resources,machines,...] [--tolerance <percent>] [--min-branch <machines>] [--min-flow <per-minute>] [--farm-cap <percent>]
                   [--whole-machines] [--cost-imports] [--avoid-fluid-byproducts] [--simplicity] [--miner-fluids any|water|none]
                   [--miner-fluid-supply local|outside] [--alternates] [--compare-alternates] [--exclude <recipe-id>]
                   [--enable <recipe-id>] [--max-tier <major-minor>] [--budget "<node-id>=<count>"] [--model <model.json>] [--json]
@@ -97,6 +99,7 @@ export function parseCli(argv: string[], model: Model): CliArgs {
         tolerance: { type: 'string' },
         'min-branch': { type: 'string' },
         'min-flow': { type: 'string' },
+        'farm-cap': { type: 'string' },
         'whole-machines': { type: 'boolean' },
         'avoid-fluid-byproducts': { type: 'boolean' },
         simplicity: { type: 'boolean' },
@@ -157,6 +160,15 @@ export function parseCli(argv: string[], model: Model): CliArgs {
     parsed['min-branch'] !== undefined ? number(parsed['min-branch'], '--min-branch') : undefined;
   const minFlow =
     parsed['min-flow'] !== undefined ? number(parsed['min-flow'], '--min-flow') : undefined;
+  let farmCap: number | undefined;
+  if (parsed['farm-cap'] !== undefined) {
+    const t = parsed['farm-cap'].trim().replace(/%$/, '');
+    const n = Number(t);
+    if (t === '' || !Number.isFinite(n))
+      throw new CliError(`--farm-cap "${parsed['farm-cap']}" must be a percentage, like 5%.`);
+    // Out-of-range values go to the solver, which rejects them with its own message.
+    farmCap = n / 100;
+  }
   if (parsed.alternates && parsed['no-alternates'])
     throw new CliError('--alternates and --no-alternates contradict each other.');
   const recipeIds = new Set(model.recipes.map((r) => r.id));
@@ -193,6 +205,7 @@ export function parseCli(argv: string[], model: Model): CliArgs {
       ...(tolerance !== undefined ? { tolerance } : {}),
       ...(minBranch !== undefined ? { minBranch } : {}),
       ...(minFlow !== undefined ? { minFlow } : {}),
+      ...(farmCap !== undefined ? { farmCap } : {}),
       ...(parsed['whole-machines'] ? { wholeMachines: true } : {}),
       ...(parsed['avoid-fluid-byproducts'] ? { avoidFluidByproducts: true } : {}),
       ...(parsed.simplicity ? { simplicity: true } : {}),

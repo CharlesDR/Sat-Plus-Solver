@@ -65,8 +65,11 @@ export interface Ctx {
   parts: Map<string, RawGameData['Parts'][number]>;
   machines: Map<string, RawMachine>;
   multi: Map<string, RawMultiMachine>;
-  /** Virtual target items created from sink recipes (name → tier). */
-  virtualItems: Map<string, string>;
+  /**
+   * Virtual target items created from sink recipes: name → tier and the part
+   * whose rate the item's rate equals (A84: the recipe's largest input).
+   */
+  virtualItems: Map<string, { tier: string; per: string }>;
   /** Recipes skipped by overrides, with reasons (for the report). */
   exclusions: { recipe: string; reason: string }[];
 }

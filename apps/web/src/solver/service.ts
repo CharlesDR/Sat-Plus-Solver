@@ -257,9 +257,15 @@ export function targetCatalog(model: Model): CatalogItem[] {
       const t = tier.get(o.item);
       if (t === undefined || compareTiers(r.tier, t) < 0) tier.set(o.item, r.tier);
     }
+  const name = new Map(model.items.map((i) => [i.id, i.name]));
   return model.items
     .filter((i) => tier.has(i.id) && i.id !== MW_ITEM_ID)
-    .map((i) => ({ id: i.id, name: i.name, tier: tier.get(i.id)! }))
+    .map((i) => ({
+      id: i.id,
+      name: i.name,
+      tier: tier.get(i.id)!,
+      ...(i.per ? { per: name.get(i.per) ?? i.per } : {}),
+    }))
     .sort(byName((c) => c.name));
 }
 

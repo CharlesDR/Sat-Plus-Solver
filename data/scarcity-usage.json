@@ -1,0 +1,81 @@
+{
+  "$comment": "Likely-usage factor per node resource for the scarcity objective O2 (A85). O2 weighs a resource usage / map total NNE, so a resource that is rare on the map but little needed costs less than its rarity alone says. A resource not listed has usage 1. Values must be > 0, and each needs a reason. Keys are game_data.json part names that appear in data/nodes.csv. Every value is 1 for now, so plans are unchanged; each reason carries what `pnpm scarcity-sweep` suggested on 2026-10-13 (every part at 1/min under O1, all alternates, map pool: each resource's share of each plan's NNE summed over the 340 parts, divided by the mean, rounded to 0.01, floored at 0.05). Edit a value and say why in its reason.",
+  "usage": {
+    "Algal Mass": {
+      "usage": 1,
+      "reason": "Sweep 2026-10-13 suggests 0.11: 0.57% of the NNE of all 340 part plans (O1, 1/min), used by 2."
+    },
+    "Aurovite Ore": {
+      "usage": 1,
+      "reason": "Sweep 2026-10-13 suggests 0.05: 0.00% of the NNE of all 340 part plans (O1, 1/min), used by 0."
+    },
+    "Callanite Ore": {
+      "usage": 1,
+      "reason": "Sweep 2026-10-13 suggests 0.05: 0.06% of the NNE of all 340 part plans (O1, 1/min), used by 16."
+    },
+    "Chlorine Gas": {
+      "usage": 1,
+      "reason": "Sweep 2026-10-13 suggests 0.05: 0.00% of the NNE of all 340 part plans (O1, 1/min), used by 0."
+    },
+    "Coal": {
+      "usage": 1,
+      "reason": "Sweep 2026-10-13 suggests 0.82: 4.28% of the NNE of all 340 part plans (O1, 1/min), used by 92."
+    },
+    "Crude Oil": {
+      "usage": 1,
+      "reason": "Sweep 2026-10-13 suggests 1.37: 7.10% of the NNE of all 340 part plans (O1, 1/min), used by 51."
+    },
+    "Dirt": {
+      "usage": 1,
+      "reason": "Sweep 2026-10-13 suggests 2.91: 15.13% of the NNE of all 340 part plans (O1, 1/min), used by 67."
+    },
+    "Kerr Crystal": {
+      "usage": 1,
+      "reason": "Sweep 2026-10-13 suggests 0.05: 0.00% of the NNE of all 340 part plans (O1, 1/min), used by 0."
+    },
+    "Kyalite": {
+      "usage": 1,
+      "reason": "Sweep 2026-10-13 suggests 2.68: 13.95% of the NNE of all 340 part plans (O1, 1/min), used by 149."
+    },
+    "Larrussite Ore": {
+      "usage": 1,
+      "reason": "Sweep 2026-10-13 suggests 0.05: 0.11% of the NNE of all 340 part plans (O1, 1/min), used by 8."
+    },
+    "Loam": {
+      "usage": 1,
+      "reason": "Sweep 2026-10-13 suggests 0.65: 3.37% of the NNE of all 340 part plans (O1, 1/min), used by 20."
+    },
+    "Montanion Ore": {
+      "usage": 1,
+      "reason": "Sweep 2026-10-13 suggests 0.67: 3.50% of the NNE of all 340 part plans (O1, 1/min), used by 60."
+    },
+    "Nitrogen Gas": {
+      "usage": 1,
+      "reason": "Sweep 2026-10-13 suggests 0.05: 0.00% of the NNE of all 340 part plans (O1, 1/min), used by 0."
+    },
+    "Peat": {
+      "usage": 1,
+      "reason": "Sweep 2026-10-13 suggests 0.57: 2.97% of the NNE of all 340 part plans (O1, 1/min), used by 13."
+    },
+    "SAM": {
+      "usage": 1,
+      "reason": "Sweep 2026-10-13 suggests 3.39: 17.65% of the NNE of all 340 part plans (O1, 1/min), used by 189."
+    },
+    "Siterite Ore": {
+      "usage": 1,
+      "reason": "Sweep 2026-10-13 suggests 2.98: 15.48% of the NNE of all 340 part plans (O1, 1/min), used by 149."
+    },
+    "Sulfur": {
+      "usage": 1,
+      "reason": "Sweep 2026-10-13 suggests 2.23: 11.59% of the NNE of all 340 part plans (O1, 1/min), used by 147."
+    },
+    "Toxic Air": {
+      "usage": 1,
+      "reason": "Sweep 2026-10-13 suggests 0.11: 0.58% of the NNE of all 340 part plans (O1, 1/min), used by 2."
+    },
+    "Uranium": {
+      "usage": 1,
+      "reason": "Sweep 2026-10-13 suggests 0.47: 2.46% of the NNE of all 340 part plans (O1, 1/min), used by 89."
+    }
+  }
+}
