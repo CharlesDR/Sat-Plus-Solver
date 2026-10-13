@@ -18,6 +18,7 @@
  * `migrateWorld` upgrades older documents.
  */
 import type { Model } from '@sps/data';
+import { FARM_CAP, usageWeights } from '@sps/solver';
 import type {
   ItemRate,
   MinerFluidSupply,
@@ -338,10 +339,11 @@ export function clampTolerance(t: number): number {
  * resolution (`resolveWorld`); here only unassigned imports apply. `model`
  * supplies the map node counts that pool edits apply to. Every factory may
  * use up to the whole node pool; its resource limits come on top (A33).
+ * The model's likely-usage factors become O2 weight overrides (A85).
  */
 export function factorySolveRequest(
   world: World,
-  model: Pick<Model, 'nodes'>,
+  model: Pick<Model, 'nodes' | 'scarcityUsage'>,
   factoryId: string,
 ): SolveRequest {
   const factory = world.factories.find((f) => f.id === factoryId);
@@ -350,6 +352,7 @@ export function factorySolveRequest(
   const r = factory.request;
   const objectives = [...(r.objectives ?? d.objectives)];
   const imports = tweakedImports(factory).map((i) => ({ item: i.item, cap: i.cap ?? Infinity }));
+  const scarcityWeights = usageWeights(model);
   return {
     targets: r.targets.map((t) => ({ ...t })),
     objectives: objectives.length ? objectives : [...defaultWorldDefaults().objectives],
@@ -361,8 +364,10 @@ export function factorySolveRequest(
     ...((r.wholeMachines ?? d.wholeMachines) ? { wholeMachines: true } : {}),
     ...((r.costImports ?? d.costImports) ? { costImports: true } : {}),
     ...((r.avoidFluidByproducts ?? d.avoidFluidByproducts) ? { avoidFluidByproducts: true } : {}),
-    ...((r.simplicity ?? d.simplicity) ? { simplicity: true } : {}),
+    // Byproduct farms (A86) go with simplicity.
+    ...((r.simplicity ?? d.simplicity) ? { simplicity: true, farmCap: FARM_CAP } : {}),
     ...minerFluidSettings(r.minerFluids ?? d.minerFluids, r.minerFluidSupply ?? d.minerFluidSupply),
+    ...(scarcityWeights ? { scarcityWeights } : {}),
   };
 }
 

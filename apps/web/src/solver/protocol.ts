@@ -10,6 +10,8 @@ export interface CatalogItem {
   name: string;
   /** Targets only: the lowest tier of a recipe that makes it (UX-17). */
   tier?: string;
+  /** Targets only, virtual items (A84): the part, by name, whose rate the target's rate is. */
+  per?: string;
 }
 
 /** A recipe the recipe toggles list. */

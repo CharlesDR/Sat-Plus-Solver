@@ -167,6 +167,18 @@ export const AlternateUnlocksConfig = z.object({
 });
 export type AlternateUnlocksConfig = z.infer<typeof AlternateUnlocksConfig>;
 
+/**
+ * data/scarcity-usage.json: a likely-usage factor per node resource for O2
+ * (A85). A resource left out has usage 1. Every value carries its reason.
+ */
+export const ScarcityUsageConfig = z.object({
+  usage: z.record(
+    z.string(),
+    z.object({ usage: z.number().positive().finite(), reason: z.string().min(1) }),
+  ),
+});
+export type ScarcityUsageConfig = z.infer<typeof ScarcityUsageConfig>;
+
 /** Drops `$`-prefixed documentation keys before schema validation. */
 export function stripComments(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stripComments);

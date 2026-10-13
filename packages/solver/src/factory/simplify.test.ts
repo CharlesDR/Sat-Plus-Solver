@@ -1,7 +1,7 @@
 import type { Model, Recipe } from '@sps/data';
 import { describe, expect, test } from 'vitest';
 import { createHighsBackend } from '../lp/highs';
-import { SIMPLICITY_CAP, solve } from './solve';
+import { FARM_CAP, SIMPLICITY_CAP, solve } from './solve';
 import type { SolveRequest, SolveResult } from './types';
 
 /**
@@ -246,5 +246,102 @@ describe('steam into water (C1, A73)', () => {
     expect(r.status).toBe('ok');
     expect(r.recipes.map((x) => x.id)).toEqual(['cast', 'mine-ore', 'sell-ingot']);
     expect(r.surplus).toEqual([{ item: 'steam', rate: 30 }]);
+  });
+});
+
+/**
+ * Byproduct farms (A86): `gizmo` needs sand. Sand comes from rock directly,
+ * or as slag from `make-steel`, whose main output (rod) nobody wants; that
+ * farm route costs 3% less ore.
+ */
+const farmModel: Model = {
+  meta: { schemaVersion: 2, dataHash: 'farms', minerMk: 1 },
+  items: [item('rock'), item('iron'), item('sand'), item('rod'), item('slag'), item('gizmo')],
+  machines: [],
+  recipes: [
+    base('mine-rock', {
+      kind: 'extraction',
+      outputs: [{ item: 'rock', rate: 60 }],
+      node: 'node:rock:normal',
+    }),
+    base('mine-iron', {
+      kind: 'extraction',
+      outputs: [{ item: 'iron', rate: 60 }],
+      node: 'node:iron:normal',
+    }),
+    base('sand-direct', {
+      inputs: [{ item: 'rock', rate: 10 }],
+      outputs: [{ item: 'sand', rate: 10 }],
+    }),
+    base('make-steel', {
+      inputs: [{ item: 'iron', rate: 10 }],
+      outputs: [
+        { item: 'rod', rate: 10 },
+        { item: 'slag', rate: 10 },
+      ],
+    }),
+    base('slag-sand', {
+      inputs: [{ item: 'slag', rate: 10 }],
+      outputs: [{ item: 'sand', rate: 10.3 }],
+    }),
+    base('gizmo', {
+      inputs: [{ item: 'sand', rate: 10 }],
+      outputs: [{ item: 'gizmo', rate: 10 }],
+    }),
+  ],
+  nodes: [
+    { id: 'node:rock:normal', resource: 'rock', purity: 'normal', count: 1000, nne: 1 },
+    { id: 'node:iron:normal', resource: 'iron', purity: 'normal', count: 1000, nne: 1 },
+  ],
+  beltCapacities: [],
+};
+
+describe('byproduct farms (A86)', () => {
+  const gizmo = (extra: Partial<SolveRequest> = {}): SolveRequest => ({
+    targets: [{ item: 'gizmo', rate: 10 }],
+    objectives: ['resources'],
+    simplicity: true,
+    ...extra,
+  });
+
+  test('off by default: simplicity alone keeps the farm, which saves 3%', async () => {
+    const r = await solve(farmModel, gizmo(), backend);
+    expect(r.status).toBe('ok');
+    expect(ids(r)).toContain('make-steel');
+    expect(r.surplus.map((s) => s.item)).toContain('rod');
+  });
+
+  test('a farm goes when that costs at most farmCap', async () => {
+    const without = await solve(farmModel, gizmo(), backend);
+    const r = await solve(farmModel, gizmo({ farmCap: FARM_CAP }), backend);
+    expect(r.status).toBe('ok');
+    expect(ids(r)).toEqual(['gizmo', 'mine-rock', 'sand-direct']);
+    expect(r.surplus).toEqual([]);
+    expect(r.stages[0]!.value).toBeLessThanOrEqual(without.stages[0]!.value * (1 + FARM_CAP));
+  });
+
+  test('a farm that saves more than farmCap stays', async () => {
+    const r = await solve(farmModel, gizmo({ farmCap: 0.02 }), backend);
+    expect(ids(r)).toContain('make-steel');
+  });
+
+  test('a wanted main output is no farm', async () => {
+    const r = await solve(
+      farmModel,
+      gizmo({
+        farmCap: FARM_CAP,
+        targets: [
+          { item: 'gizmo', rate: 10 },
+          { item: 'rod', rate: 1 },
+        ],
+      }),
+      backend,
+    );
+    expect(ids(r)).toContain('make-steel');
+  });
+
+  test('an out-of-range farm cap is rejected', async () => {
+    const r = await solve(farmModel, gizmo({ farmCap: 1 }), backend);
+    expect(r.status).toBe('error');
   });
 });

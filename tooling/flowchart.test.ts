@@ -146,7 +146,9 @@ describe('factory flowchart on the SF+ model', () => {
     ] as const) {
       const world = createWorld();
       world.factories[0]!.request.targets = [{ item, rate }];
-      const flat = await graphOf(factorySolveRequest(world, model, world.factories[0]!.id));
+      // Plain O2 weights: the plans this test was written for (A85 picks other routes).
+      const plain = { ...model, scarcityUsage: {} };
+      const flat = await graphOf(factorySolveRequest(world, plain, world.factories[0]!.id));
       const catalog = areaCatalog(model);
       const areas = groupAreas(flat, catalog).areas ?? [];
       expect(areas.length).toBeGreaterThan(1);

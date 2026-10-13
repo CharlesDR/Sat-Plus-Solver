@@ -28,6 +28,8 @@ export interface SummaryFlow {
   item: string;
   name: string;
   rate: number;
+  /** Targets on a virtual item (A84): the part, by name, whose rate `rate` is. */
+  per?: string;
 }
 
 /** One item's movement in the plan (the Items tab, UX-4). */
@@ -82,6 +84,11 @@ export function summarizePlan(model: Model, result: SolveResult): PlanSummary {
   const node = new Map(model.nodes.map((n) => [n.id, n]));
   const name = (id: string) => item.get(id) ?? id;
   const flow = (id: string, rate: number): SummaryFlow => ({ item: id, name: name(id), rate });
+  const per = new Map(model.items.flatMap((i) => (i.per ? [[i.id, name(i.per)] as const] : [])));
+  const target = (id: string, rate: number): SummaryFlow => {
+    const p = per.get(id);
+    return { ...flow(id, rate), ...(p ? { per: p } : {}) };
+  };
   return {
     status: result.status,
     objective: result.objective,
@@ -99,7 +106,7 @@ export function summarizePlan(model: Model, result: SolveResult): PlanSummary {
       outputs: r.outputs.filter((f) => f.item !== MW).map((f) => flow(f.item, f.rate)),
       ...(r.node !== undefined ? { node: r.node } : {}),
     })),
-    targets: result.items.filter((i) => i.demand > 0).map((i) => flow(i.item, i.demand)),
+    targets: result.items.filter((i) => i.demand > 0).map((i) => target(i.item, i.demand)),
     imports: result.imports.map((r) => flow(r.item, r.rate)),
     byproducts: result.surplus.map((r) => flow(r.item, r.rate)),
     items: result.items

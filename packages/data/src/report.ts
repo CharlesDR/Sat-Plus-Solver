@@ -325,6 +325,24 @@ export function renderReport(result: BuildResult, extra: ReportSection[] = []): 
         `Alternates not listed: ${details.unlocks.unlisted.join(', ') || '_none_'}.`,
       );
     }
+    if (details.scarcityUsage && model) {
+      const name = new Map(model.items.map((i) => [i.id, i.name]));
+      const total = new Map<string, number>();
+      for (const n of model.nodes)
+        total.set(n.resource, (total.get(n.resource) ?? 0) + n.count * n.nne);
+      const rows = Object.entries(model.scarcityUsage ?? {}).map(([id, u]) => [
+        name.get(id) ?? id,
+        String(u),
+        String(total.get(id) ?? 0),
+        details.scarcityUsage!.usage[name.get(id) ?? id]?.reason ?? '',
+      ]);
+      s.push('', `## Scarcity usage (data/scarcity-usage.json, A85)`, '');
+      s.push(
+        'O2 weighs each node resource usage / map NNE. Resources not listed have usage 1.',
+        '',
+        rows.length ? table(['Resource', 'Usage', 'Map NNE', 'Reason'], rows) : '_None listed._',
+      );
+    }
     s.push(
       '',
       `## Unused parts (${details.unusedParts.length})`,

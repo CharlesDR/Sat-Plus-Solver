@@ -91,6 +91,17 @@ export interface SolveRequest {
    */
   simplicity?: boolean;
   /**
+   * Byproduct farms (A86), with `simplicity`: a recipe whose main output goes
+   * wholly to surplus and is not wanted, while another output is used, runs
+   * only for that byproduct. After the slivers and steps, the pass tries
+   * dropping it with the recipes that only feed it, re-solving the whole
+   * stack on every recipe, and keeps the drop when every objective stays
+   * within this fraction of the first solve's plan and the plan, simplified
+   * again, has fewer recipes. 0 turns it off. Default 0 (golden fixtures and
+   * the CLI); the app passes FARM_CAP (5%) with `simplicity`.
+   */
+  farmCap?: number;
+  /**
    * Cost imported inputs (§3.3): each import carries the cost of making 1/min
    * of it in a standalone plan under this stack, from the map pool.
    */

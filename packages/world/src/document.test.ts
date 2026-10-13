@@ -1,3 +1,4 @@
+import { FARM_CAP } from '@sps/solver';
 import { describe, expect, test } from 'vitest';
 import {
   DEFAULT_FACTORY_ID,
@@ -119,8 +120,26 @@ describe('factorySolveRequest', () => {
       nodeBudget: 'pool',
       avoidFluidByproducts: true,
       simplicity: true,
+      farmCap: FARM_CAP,
       minerFluidSupply: 'outside',
     });
+  });
+
+  test("the model's likely usage becomes O2 weights: usage / map NNE (A85)", () => {
+    const usage = { ...model, scarcityUsage: { 'iron-ore': 0.5 } };
+    // Map NNE of iron ore: 4 normal × 1 + 2 pure × 2 = 8.
+    expect(factorySolveRequest(world(), usage, DEFAULT_FACTORY_ID).scarcityWeights).toEqual({
+      'iron-ore': 0.5 / 8,
+    });
+    expect(factorySolveRequest(world(), model, DEFAULT_FACTORY_ID).scarcityWeights).toBeUndefined();
+  });
+
+  test('byproduct farms go with simplicity (A86)', () => {
+    const w = world();
+    w.defaults.simplicity = false;
+    const r = factorySolveRequest(w, model, DEFAULT_FACTORY_ID);
+    expect(r.simplicity).toBeUndefined();
+    expect(r.farmCap).toBeUndefined();
   });
 
   test('factory overrides win; recipe toggles merge over the world, sorted', () => {
@@ -147,6 +166,7 @@ describe('factorySolveRequest', () => {
       ],
       avoidFluidByproducts: true,
       simplicity: true,
+      farmCap: FARM_CAP,
       minerFluids: 'none',
     });
   });

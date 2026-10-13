@@ -38,7 +38,9 @@ const appDefaults = (item: string, rate: number) => (model: Model) => {
   // Simplicity off, as the app planned when the baseline was measured (A73
   // gives plastic a shorter plan, which would be a different drawing).
   world.defaults.simplicity = false;
-  return factorySolveRequest(world, model, world.factories[0]!.id);
+  // Plain O2 weights, as the app planned when the baseline was measured (A85
+  // likely usage picks other routes, which would be a different drawing).
+  return factorySolveRequest(world, { ...model, scarcityUsage: {} }, world.factories[0]!.id);
 };
 const warpDrive = (): SolveRequest => ({
   targets: [{ item: 'ballistic-warp-drive', rate: 1 }],

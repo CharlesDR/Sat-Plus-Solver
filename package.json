@@ -11,6 +11,7 @@
     "format": "prettier --write .",
     "typecheck": "pnpm -r --parallel typecheck && tsc -p tooling/tsconfig.json",
     "test": "vitest run",
+    "test:all-parts": "tsx tooling/all-parts.ts",
     "test:watch": "vitest",
     "build": "pnpm --filter @sps/web build",
     "dev": "pnpm --filter @sps/web dev",
@@ -18,7 +19,8 @@
     "solve": "tsx tooling/solve.ts",
     "e2e": "pnpm --filter @sps/web e2e",
     "world": "tsx tooling/world.ts",
-    "layout-score": "tsx tooling/layout-score.ts"
+    "layout-score": "tsx tooling/layout-score.ts",
+    "scarcity-sweep": "tsx tooling/all-parts.ts --sweep"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

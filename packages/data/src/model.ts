@@ -22,6 +22,11 @@ export interface Item {
    * (A62). Absent in models built before areas.
    */
   area?: string;
+  /**
+   * Virtual items (A84): the part whose rate this item's rate equals, so a
+   * Space Elevator phase at R/min delivers R/min of its most-demanded part.
+   */
+  per?: string;
 }
 
 /** A flowchart area (A62), in production order in `Model.areas`. */
@@ -136,4 +141,9 @@ export interface Model {
   beltCapacities: BeltCapacity[];
   /** Flowchart areas in production order (A62). Absent in models built before areas. */
   areas?: Area[];
+  /**
+   * O2 likely-usage factor per node resource item id (A85), from
+   * data/scarcity-usage.json; a resource left out has usage 1.
+   */
+  scarcityUsage?: Record<string, number>;
 }

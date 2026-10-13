@@ -1,0 +1,22 @@
+name: All parts
+
+# Final validation of a completed build plan: every part solves at 1/min
+# (tooling/all-parts.ts). Run by hand; `pnpm test` checks a sample of 10.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  all-parts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:all-parts

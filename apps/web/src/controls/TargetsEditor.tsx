@@ -99,6 +99,8 @@ export function TargetsEditor({ catalog, targets, maxTier, onChange }: Props) {
       {rows.map((r, k) => {
         const n = k === 0 ? '' : ` ${k + 1}`;
         const unknown = r.itemText.trim() !== '' && !items.find(r.itemText);
+        // A Space Elevator phase is planned in its top part's rate (A84).
+        const per = items.find(r.itemText)?.per;
         return (
           <div className="row" key={r.key}>
             <label>
@@ -149,6 +151,7 @@ export function TargetsEditor({ catalog, targets, maxTier, onChange }: Props) {
               </button>
             )}
             {unknown && <p className="hint">No item named “{r.itemText}”.</p>}
+            {per && <p className="hint">Rate is per min of {per}, the phase’s top part.</p>}
           </div>
         );
       })}

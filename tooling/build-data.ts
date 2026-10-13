@@ -20,6 +20,7 @@ export function readInputs(root = ROOT) {
     overrides: read('data/overrides.json'),
     areas: read('data/areas.json'),
     alternateUnlocks: read('data/alternate-unlocks.json'),
+    scarcityUsage: read('data/scarcity-usage.json'),
   };
 }
 
