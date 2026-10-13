@@ -2313,22 +2313,6 @@ tr.flash td {
 details[open] > :not(summary) {
   animation: pane-in 0.18s ease-out;
 }
-/* Where the browser can animate to height: auto, sections also open and close in height. */
-@supports (interpolate-size: allow-keywords) {
-  details:not(.menu) {
-    interpolate-size: allow-keywords;
-  }
-  details:not(.menu)::details-content {
-    height: 0;
-    overflow: clip;
-    transition:
-      height 0.18s ease-out,
-      content-visibility 0.18s ease-out allow-discrete;
-  }
-  details:not(.menu)[open]::details-content {
-    height: auto;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .pane-in,
   .world > .panel,
@@ -2337,9 +2321,6 @@ details[open] > :not(summary) {
   .menu-panel,
   details[open] > :not(summary) {
     animation: none;
-  }
-  details::details-content {
-    transition: none !important;
   }
 }
 
