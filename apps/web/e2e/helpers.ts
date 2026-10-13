@@ -16,7 +16,9 @@ export const canvasNode = (page: Page, id: string) =>
 
 /** Waits for the world result of the latest edit. */
 export async function worldSettled(page: Page) {
-  await expect(page.locator('.world[aria-busy=false]')).toHaveCount(1);
+  // A whole-world solve (the sample world's four factories) can run past the
+  // default 5 s on a CI runner; this is a wait, not a result tolerance.
+  await expect(page.locator('.world[aria-busy=false]')).toHaveCount(1, { timeout: 20_000 });
 }
 
 /** Adds a factory from the world view and waits for its canvas node. */

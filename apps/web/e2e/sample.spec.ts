@@ -12,9 +12,10 @@ test('the README sample world opens from its link and solves without errors', as
   )?.[1];
   expect(hash).toBeDefined();
   await page.goto(`/${hash}`);
+  // The cards appear once the world has solved.
+  await worldSettled(page);
   for (const name of ['Iron Works', 'Frame Factory', 'Steel Mill', 'Coal Power'])
     await expect(page.getByRole('button', { name: `Open ${name}`, exact: true })).toBeVisible();
-  await worldSettled(page);
   await expect(page.locator('.world [role=status]').first()).toHaveText(/World solved in/);
   await page.getByRole('tab', { name: /^Factories/ }).click();
   const statuses = await page.getByTestId('factory-status').allTextContents();
