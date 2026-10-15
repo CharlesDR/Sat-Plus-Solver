@@ -24,7 +24,10 @@ export interface WorldGraphInput {
     'id' | 'name' | 'groupId' | 'status' | 'ledger' | 'power' | 'nodes' | 'machines' | 'manual'
   > &
     Partial<
-      Pick<FactoryResult, 'build' | 'parentId' | 'subtree' | 'subtreeBuild' | 'extraction'>
+      Pick<
+        FactoryResult,
+        'build' | 'parentId' | 'subtree' | 'subtreeBuild' | 'extraction' | 'targets'
+      >
     >)[];
   groups: readonly Pick<
     GroupResult,
@@ -60,7 +63,7 @@ export interface WorldPort extends CardItem {
   rate: number;
   /** Inputs: what no link or import brings. Drawn red with a dangling stub. */
   unmet?: number;
-  /** Outputs: made beyond what is targeted or shipped. */
+  /** Outputs: made beyond what is targeted or shipped, plus For links left spare (A92). */
   surplus?: number;
   /** A link edge carries it. */
   linked: boolean;
@@ -215,6 +218,18 @@ export function worldGraph(input: WorldGraphInput, options: WorldGraphOptions = 
   const shownAs = new Map<string, string>();
   /** Scope node id → its ledger, for ports. */
   const ledgers = new Map<string, readonly LedgerRow[]>();
+  /**
+   * Per shown node, per item: For links its links leave spare (A92), shown
+   * as spare beside surplus. A manual factory's spare is already its surplus.
+   */
+  const spares = new Map<string, Map<string, number>>();
+  const spareOf = (ids: readonly string[]) => {
+    const m = new Map<string, number>();
+    for (const f of input.factories)
+      if (ids.includes(f.id) && !f.manual)
+        for (const t of f.targets ?? []) m.set(t.item, (m.get(t.item) ?? 0) + t.spare);
+    return m;
+  };
 
   /** Raw resources the factories extract, summed per minute (items and m³ alike). */
   const extracted = (ids: readonly string[]) => {
@@ -267,7 +282,10 @@ export function worldGraph(input: WorldGraphInput, options: WorldGraphOptions = 
       members: members.length,
       traced: isCollapsed && trace !== undefined && touches(totals.ledger, trace),
     });
-    if (isCollapsed) ledgers.set(id, totals.ledger);
+    if (isCollapsed) {
+      ledgers.set(id, totals.ledger);
+      spares.set(id, spareOf(members));
+    }
   }
 
   for (const f of [...input.factories].sort((a, b) => byKey(a.id, b.id))) {
@@ -304,6 +322,7 @@ export function worldGraph(input: WorldGraphInput, options: WorldGraphOptions = 
       traced: trace !== undefined && touches(f.ledger, trace),
     });
     ledgers.set(id, f.ledger);
+    spares.set(id, spareOf([f.id]));
   }
 
   // Link edges, one per pair of shown nodes; a link inside one node is hidden.
@@ -394,7 +413,7 @@ export function worldGraph(input: WorldGraphInput, options: WorldGraphOptions = 
     const outPorts = [...outItems]
       .map((item): WorldPort => {
         const r = rows.get(item);
-        const surplus = r?.surplus ?? 0;
+        const surplus = (r?.surplus ?? 0) + (spares.get(n.id)?.get(item) ?? 0);
         return {
           item,
           name: name(item),

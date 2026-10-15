@@ -83,10 +83,7 @@ export function SummaryTable({
             </>
           )}
         </p>
-        <label
-          className="precise-toggle"
-          title="Show 4 decimals and exact fractions instead of 2 decimals"
-        >
+        <label className="precise-toggle" data-help="exact-numbers">
           <input
             type="checkbox"
             checked={num.precise}
@@ -354,7 +351,7 @@ function Fold(props: {
         setOpen(now);
       }}
     >
-      <summary>
+      <summary data-help={`plan:${section}`}>
         {title} ({count})
       </summary>
       {children}

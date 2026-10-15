@@ -22,6 +22,7 @@ import {
   type LpBackend,
 } from '@sps/solver';
 import {
+  addSite,
   addTweak,
   createSolveCache,
   DEFAULT_PIPE_CAPACITIES,
@@ -31,6 +32,7 @@ import {
   modelerNetwork,
   parseModeler,
   resolveWorld,
+  scaleUp,
   writeModeler,
   sizePowerPlant,
   type FactoryResult,
@@ -50,6 +52,8 @@ import type {
   ModelerImported,
   SolveProgress,
   ImportPreviews,
+  ShortfallOption,
+  ShortfallPreview,
   PlanSize,
   SwapPreview,
   WorldSolved,
@@ -100,7 +104,6 @@ export function createSolverService(
       cache.clear();
       for (const [k, v] of [...saved.solves, ...now]) cache.set(k, v);
       seedCostCache(model, saved.costs);
-      pool?.seed(saved.costs);
     },
     snapshot: () => ({
       dataHash: model.meta.dataHash,
@@ -108,6 +111,8 @@ export function createSolverService(
       costs: costCacheEntries(model),
     }),
     async solve({ world, focus, action }, onProgress) {
+      // The pool starts once a world has factories that can solve side by side.
+      if (world.factories.length > 1) pool?.warm();
       const names = new Map(world.factories.map((f) => [f.id, f.name]));
       const options: ResolveOptions = {
         concurrency,
@@ -119,6 +124,7 @@ export function createSolverService(
       let edited: World | undefined;
       let previews: SwapPreview[] | undefined;
       let importPreviews: ImportPreviews | undefined;
+      let shortfallPreview: ShortfallPreview | undefined;
       let imported: ModelerImported | undefined;
       let sfmd: string | undefined;
       if (action?.kind === 'import-modeler') {
@@ -188,6 +194,28 @@ export function createSolverService(
           importPreviews.after.push({ item, ...planSize(f) });
         }
       }
+      if (action?.kind === 'preview-shortfall') {
+        const short = result.shortfalls.find(
+          (x) => x.factory === action.factoryId && x.item === action.item,
+        );
+        if (!short) throw new Error(`No shortfall of "${action.item}" at "${action.factoryId}".`);
+        const opts = { concurrency };
+        const grown = await resolveWorld(
+          scaleUp(world, [short.factory, ...short.upstream]),
+          model,
+          solveFactory,
+          cache,
+          opts,
+        );
+        const site = addSite(world, short.item, short.consumers, action.site);
+        const sited = await resolveWorld(site.world, model, solveFactory, cache, opts);
+        shortfallPreview = {
+          factory: short.factory,
+          item: short.item,
+          scaleUp: shortfallOption(result, grown, short.item),
+          newSite: shortfallOption(result, sited, short.item),
+        };
+      }
       if (action?.kind === 'export-modeler') {
         if (!layout) throw new Error('Modeler export needs a layout engine.');
         const nested = action.factoryId === undefined;
@@ -219,6 +247,7 @@ export function createSolverService(
         ...(edited ? { edited } : {}),
         ...(previews ? { previews } : {}),
         ...(importPreviews ? { importPreviews } : {}),
+        ...(shortfallPreview ? { shortfallPreview } : {}),
         ...(imported ? { imported } : {}),
         ...(sfmd !== undefined ? { sfmd } : {}),
       };
@@ -249,7 +278,18 @@ export function focusPlan(
     inputs: flows(f.id, id),
     outputs: flows(id, f.id),
   }));
-  const graph = factoryGraph(f.result, labels, f.manual?.missing, children);
+  const made = factoryGraph(f.result, labels, f.manual?.missing, children);
+  // A target node shows For links and Kept when the factory keeps some (A92).
+  const split = new Map((f.targets ?? []).filter((t) => t.kept > 0).map((t) => [t.item, t]));
+  const graph = split.size
+    ? {
+        ...made,
+        nodes: made.nodes.map((n) => {
+          const t = n.kind === 'target' && n.item !== undefined ? split.get(n.item) : undefined;
+          return t ? { ...n, split: { forLinks: t.forLinks, kept: t.kept } } : n;
+        }),
+      }
+    : made;
   if (!f.manual) return { factoryId: f.id, plan, graph };
   const lacking = new Map(f.manual.missing.map((m) => [m.item, m.rate]));
   const name = new Map(plan.imports.map((i) => [i.item, i.name]));
@@ -402,5 +442,28 @@ function planSize(f: FactoryResult): PlanSize {
       .filter((e) => e.rate > 0)
       .map((e) => e.item)
       .sort(),
+  };
+}
+
+/** What a shortfall fix's world adds to the world as it is (A92). */
+function shortfallOption(now: WorldResult, after: WorldResult, item: string): ShortfallOption {
+  const sum = (r: WorldResult, f: (x: FactoryResult) => number) =>
+    r.factories.reduce((t, x) => t + f(x), 0);
+  const nodes = (r: WorldResult) => r.nodePool.reduce((t, n) => t + n.used, 0);
+  const before = new Map(now.factories.map((f) => [f.id, f.machines]));
+  return {
+    machines: sum(after, (f) => f.machines) - sum(now, (f) => f.machines),
+    consumptionMW:
+      sum(after, (f) => f.power.consumptionMW) - sum(now, (f) => f.power.consumptionMW),
+    nodes: nodes(after) - nodes(now),
+    grows: after.factories
+      .filter((f) => f.machines > (before.get(f.id) ?? 0) + 1e-9)
+      .map((f) => f.id)
+      .sort(),
+    overPool: after.nodePool
+      .filter((n) => n.overAllocated)
+      .map((n) => n.node)
+      .sort(),
+    stillShort: after.shortfalls.filter((s) => s.item === item).reduce((t, s) => t + s.missing, 0),
   };
 }

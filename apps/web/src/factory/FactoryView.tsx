@@ -158,21 +158,24 @@ export function FactoryView(props: {
       },
     [mine],
   );
-  // Ctrl+Z (Cmd+Z) undoes the last manual edit, or plan tweak, except while typing in a field.
+  // Ctrl+Z (Cmd+Z) undoes the last manual edit, or plan tweak, except while
+  // typing in a field (M12, M13). With none to undo it falls through to the
+  // app's undo (U1); the capture phase runs it first.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() !== 'z' || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey)
         return;
       const el = e.target as HTMLElement | null;
       if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
-      e.preventDefault();
       const s = store.getState();
       const f = s.world.factories.find((x) => x.id === factoryId);
-      if (f?.manual?.enabled) s.undoManual(factoryId);
+      if (!f || (f.manual?.enabled ? !f.manual.edits.length : !f.tweaks.length)) return;
+      e.preventDefault();
+      if (f.manual?.enabled) s.undoManual(factoryId);
       else s.undoTweak(factoryId);
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [store, factoryId]);
   // One-key shortcuts (UX-13): M switches Solver/Manual, / filters the recipes.
   const switchMode = useRef<() => void>(() => {});

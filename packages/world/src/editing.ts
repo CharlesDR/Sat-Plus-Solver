@@ -390,3 +390,49 @@ export function revertTweaks(world: World, factoryId: string): World {
   if (!f.tweaks.length) return world;
   return editFactory(world, factoryId, { ...f, tweaks: [] });
 }
+
+// Late-game demand on built factories (A92).
+
+/** "Built factories: Hold / Grow" (A92); Hold is the default and is left out. */
+export function setBuiltFactories(world: World, mode: 'hold' | 'grow'): World {
+  const defaults = { ...world.defaults };
+  if (mode === 'hold') delete defaults.builtFactories;
+  else defaults.builtFactories = mode;
+  return { ...world, defaults };
+}
+
+/**
+ * "Scale up" (A92): lifts the Hold cap on these built factories (a
+ * shortfall's factory and the held factories upstream of it), so their plans
+ * grow; marking one as built again holds it at the new size.
+ */
+export function scaleUp(world: World, ids: readonly string[]): World {
+  const set = new Set(ids);
+  for (const id of set) need(world.factories, id, 'factory');
+  return {
+    ...world,
+    factories: world.factories.map((f) =>
+      set.has(f.id) && f.built && !f.built.grow ? { ...f, built: { ...f.built, grow: true } } : f,
+    ),
+  };
+}
+
+/**
+ * "Add site" (A92): a new factory, beside the first consumer, with a pull
+ * link of `item` to each consumer. Each consumer takes the held factory's
+ * capped link first and the new site covers the rest (the remainder rule).
+ */
+export function addSite(
+  world: World,
+  item: string,
+  consumers: readonly string[],
+  name: string,
+): { world: World; id: string } {
+  if (!consumers.length) throw new WorldEditError('A new site needs a factory to supply.');
+  const first = need(world.factories, consumers[0]!, 'factory');
+  const { id, world: start } = addFactory(world, name, first.parentId ? undefined : first.groupId);
+  let out = start;
+  for (const to of consumers)
+    out = addLink(out, { from: id, to, item, mode: { kind: 'pull' } }).world;
+  return { world: out, id };
+}

@@ -175,7 +175,7 @@ function AppFrame(props: {
               <LogoMark />
               <h1>Sat-Plus-Solver</h1>
               {world.meta.name && (
-                <span className="world-name" title="World name">
+                <span className="world-name" data-help="world-name">
                   {world.meta.name}
                 </span>
               )}
@@ -193,7 +193,7 @@ function AppFrame(props: {
                 className="search-button"
                 onClick={() => setPalette(true)}
                 disabled={!catalog}
-                title="Quick search (Ctrl+K)"
+                data-help="quick-search"
               >
                 <SearchIcon />
                 <span>Search</span>
@@ -272,7 +272,7 @@ function UndoRedo({ store }: { store: WorldStore }) {
         type="button"
         className="icon-button"
         aria-label="Undo"
-        title="Undo (Ctrl+Z)"
+        data-help="undo"
         disabled={!canUndo}
         onClick={() => store.getState().undo()}
       >
@@ -282,7 +282,7 @@ function UndoRedo({ store }: { store: WorldStore }) {
         type="button"
         className="icon-button"
         aria-label="Redo"
-        title="Redo (Ctrl+Y)"
+        data-help="redo"
         disabled={!canRedo}
         onClick={() => store.getState().redo()}
       >
@@ -418,6 +418,7 @@ function Shell(props: {
             plan={state}
             onOpen={openFactory}
             onSizePower={sizePower}
+            run={run}
             start={start}
           />
         )}

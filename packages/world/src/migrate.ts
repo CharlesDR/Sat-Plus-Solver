@@ -150,6 +150,16 @@ function v14ToV15(doc: Doc): Doc {
   return { ...doc, meta: { ...(doc.meta as Doc), v: 15 } };
 }
 
+/**
+ * v15 → v16 (A92): targets gain Kept and the world "Built factories: Hold /
+ * Grow"; both are left out (Kept 0, Hold), so every existing target becomes
+ * For links. A target now draws its links from its own rate (the larger of
+ * the two, not their sum), so saved plans with links may shrink.
+ */
+function v15ToV16(doc: Doc): Doc {
+  return { ...doc, meta: { ...(doc.meta as Doc), v: 16 } };
+}
+
 const MIGRATIONS: Record<number, (doc: Doc) => Doc> = {
   1: v1ToV2,
   2: v2ToV3,
@@ -165,6 +175,7 @@ const MIGRATIONS: Record<number, (doc: Doc) => Doc> = {
   12: v12ToV13,
   13: v13ToV14,
   14: v14ToV15,
+  15: v15ToV16,
 };
 
 /** Returns `doc` upgraded to the current version; throws on a newer or malformed document. */

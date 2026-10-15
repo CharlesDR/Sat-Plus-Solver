@@ -188,3 +188,20 @@ test('Esc leaves a field, then clears the selection, then backs out to the world
   await page.keyboard.press('Escape');
   await expect(factory).toHaveCount(0);
 });
+
+test('hover help fades in after a pause, also on focus, and leaves with the pointer', async ({
+  page,
+}) => {
+  await openFactory(page);
+  const tip = page.getByRole('tooltip');
+  const kept = page.locator('[data-help="target-kept"]').first();
+  await kept.hover();
+  await expect(tip).toHaveText(/kept here, for storage/i);
+  await expect(tip).toHaveClass(/shown/);
+  await page.mouse.move(0, 0);
+  await expect(tip).not.toHaveClass(/shown/);
+  // Keyboard focus shows it too.
+  await page.locator('.search-button').focus();
+  await expect(tip).toHaveText(/Search parts, factories and actions/);
+  await expect(tip).toHaveClass(/shown/);
+});

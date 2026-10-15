@@ -3,7 +3,7 @@
  * world solve requests one at a time (CLAUDE.md: the main thread never runs the LP).
  */
 import type { Model } from '@sps/data';
-import { createHighsBackend, seedCostCache } from '@sps/solver';
+import { costCacheEntries, createHighsBackend, seedCostCache, solve } from '@sps/solver';
 import ELK from 'elkjs/lib/elk-api.js';
 import modelUrl from '../../../../data/generated/model.json?url';
 import { loadCaches, saveCaches } from './cacheStore';
@@ -25,17 +25,22 @@ async function init(): Promise<SolverService> {
   });
   // S2: factory solves run on a pool of workers when the device has the cores.
   const size = poolSize(globalThis.navigator?.hardwareConcurrency);
+  const backend = createHighsBackend();
   const pool =
     size > 1
-      ? createFactoryPool(
-          Array.from(
-            { length: size },
-            () => new Worker(new URL('./factory.worker.ts', import.meta.url), { type: 'module' }),
-          ),
-          (costs) => seedCostCache(model, costs),
-        )
+      ? createFactoryPool({
+          size,
+          spawn: () =>
+            Array.from(
+              { length: size },
+              () => new Worker(new URL('./factory.worker.ts', import.meta.url), { type: 'module' }),
+            ),
+          onCosts: (costs) => seedCostCache(model, costs),
+          costs: () => costCacheEntries(model),
+          local: (request) => solve(model, request, backend),
+        })
       : undefined;
-  const service = createSolverService(model, createHighsBackend(), layout, pool);
+  const service = createSolverService(model, backend, layout, pool);
   // Solves and import costs from the last visit with this data (A90).
   const saved = await loadCaches(service.dataHash);
   if (saved) service.seed(saved);

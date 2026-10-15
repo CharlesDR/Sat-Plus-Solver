@@ -86,7 +86,7 @@ export function TweakPanel(props: {
           type="button"
           onClick={props.onUndo}
           disabled={!tweaks.length}
-          title="Undo the last tweak (Ctrl+Z)"
+          data-help="undo-tweak"
         >
           Undo
         </button>

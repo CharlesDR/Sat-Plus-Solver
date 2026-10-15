@@ -98,7 +98,8 @@ describe('scenarios (§9 world scenarios)', () => {
   test('a non-convergent pull cycle is reported after the iteration limit', async () => {
     // Each side imports everything from the other: the pull rates grow every sweep.
     const world = buildWorld(
-      [{ id: 'a', targets: [{ item: 'iron-plate', rate: 10 }] }, { id: 'b' }],
+      // Kept (A92): made on top of what the links take.
+      [{ id: 'a', targets: [{ item: 'iron-plate', rate: 0, kept: 10 }] }, { id: 'b' }],
       [pull('ba', 'b', 'a', 'iron-plate'), pull('ab', 'a', 'b', 'iron-plate')],
     );
     const r = await resolveWorld(world, model, solveFactory);
@@ -245,7 +246,12 @@ describe('groups (§4.5)', () => {
     const world = buildWorld(
       [
         { id: 'a', group: 'inner' },
-        { id: 'b', group: 'outer', targets: [{ item: 'reinforced-iron-plate', rate: 5 }] },
+        // Kept (A92): B's own 5 RIP come on top of what C pulls.
+        {
+          id: 'b',
+          group: 'outer',
+          targets: [{ item: 'reinforced-iron-plate', rate: 0, kept: 5 }],
+        },
         { id: 'c', targets: [{ item: 'modular-frame', rate: 2 }] },
       ],
       [pull('ab', 'a', 'b', 'iron-plate'), pull('bc', 'b', 'c', 'reinforced-iron-plate')],
@@ -319,7 +325,8 @@ describe('links', () => {
   test('a fixed link raises the producer’s demand and caps the consumer’s import', async () => {
     const world = buildWorld(
       [
-        { id: 'a', targets: [{ item: 'iron-plate', rate: 15 }] },
+        // Kept (A92): A's 15 plates come on top of the link's 50.
+        { id: 'a', targets: [{ item: 'iron-plate', rate: 0, kept: 15 }] },
         { id: 'b', targets: [{ item: 'reinforced-iron-plate', rate: 5 }] },
       ],
       [{ ...fixed('ab', 'a', 'b', 'iron-plate', 50), transport: { kind: 'belt', tier: 1 } }],

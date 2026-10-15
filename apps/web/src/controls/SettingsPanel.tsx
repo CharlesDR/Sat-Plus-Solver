@@ -143,11 +143,7 @@ export function SettingsPanel({ store, scope, catalog, simple = false }: Props) 
         <summary>
           Advanced
           {changed && (
-            <span
-              className="changed-dot"
-              title="A setting in here is changed"
-              aria-label="changed"
-            />
+            <span className="changed-dot" data-help="settings-changed" aria-label="changed" />
           )}
         </summary>
         <SettingField {...meta('tolerance')}>
@@ -249,20 +245,20 @@ function SettingField(props: {
 }) {
   const { k, overridden, onReset, children } = props;
   return (
-    <div className="setting" data-setting={k}>
+    <div className="setting" data-setting={k} data-help={`setting:${k}`}>
       {overridden === true && (
         <button
           type="button"
           className="setting-reset"
           onClick={onReset}
           aria-label={`Use the world default for ${k}`}
-          title="Overridden here. Reset to the world default."
+          data-help="setting-reset"
         >
           ↺
         </button>
       )}
       {overridden === false && (
-        <span className="badge setting-badge" title="Inherited from the world defaults">
+        <span className="badge setting-badge" data-help="setting-inherited">
           world default
         </span>
       )}

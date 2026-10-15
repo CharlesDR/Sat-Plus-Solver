@@ -6,6 +6,7 @@ import { browserStorage, createSaves } from './persistence/saves';
 import { bootWorld, startAutosave } from './persistence/session';
 import { startSolverWorker } from './solver/client';
 import { createWorldStore } from './store';
+import { HelpTip } from './ui/HelpTip';
 import { applyTheme, readTheme } from './ui/prefs';
 import './styles.css';
 
@@ -26,5 +27,6 @@ const layout = startLayoutWorker();
 createRoot(root).render(
   <StrictMode>
     <App client={client} store={store} layout={layout} saves={saves} boot={boot} />
+    <HelpTip />
   </StrictMode>,
 );

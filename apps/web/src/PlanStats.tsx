@@ -13,7 +13,7 @@ import { useNumbers } from './ui/numbers';
 function Stat(props: { label: string; children: ReactNode; detail?: ReactNode; title?: string }) {
   return (
     <div className="stat" title={props.title}>
-      <dt>{props.label}</dt>
+      <dt data-help={`stat:${props.label}`}>{props.label}</dt>
       <dd>
         <span className="stat-value">{props.children}</span>
         {props.detail !== undefined && <span className="stat-detail">{props.detail}</span>}

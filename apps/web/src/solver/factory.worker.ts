@@ -23,7 +23,9 @@ const ready = (async () => {
   if (!res.ok) throw new Error(`Could not load the model (${res.status}).`);
   return { model: (await res.json()) as Model, backend: createHighsBackend() };
 })();
-let known = 0;
+/** Cost keys the solver worker already has: seeded, or sent back with a solve. */
+const known = new Set<string>();
+void ready.then(() => post({ type: 'ready' }));
 
 globalThis.addEventListener('message', (e: MessageEvent<ToFactoryWorker>) => {
   const msg = e.data;
@@ -32,13 +34,12 @@ globalThis.addEventListener('message', (e: MessageEvent<ToFactoryWorker>) => {
       const { model, backend } = await ready;
       if (msg.type === 'seed') {
         seedCostCache(model, msg.costs);
-        known = costCacheEntries(model).length;
+        for (const [key] of msg.costs) known.add(key);
         return;
       }
       const result = await solve(model, msg.request, backend);
-      const all = costCacheEntries(model);
-      const costs: CostCacheEntry[] = all.slice(known);
-      known = all.length;
+      const costs: CostCacheEntry[] = costCacheEntries(model).filter(([key]) => !known.has(key));
+      for (const [key] of costs) known.add(key);
       post({ type: 'solved', id: msg.id, result, costs });
     } catch (err) {
       if (msg.type === 'solve')

@@ -5,7 +5,7 @@ import { describe, expect, test } from 'vitest';
 import vanillaMini from '../../../fixtures/vanilla-mini/model.json';
 import mini from '../../../fixtures/worlds/mini-world.json';
 import v1 from '../../../fixtures/worlds/v1-world.json';
-import v15 from '../../../fixtures/worlds/v15-world.json';
+import v16 from '../../../fixtures/worlds/v16-world.json';
 import { WORLD_VERSION, createWorld, type World } from './document';
 import { migrateWorld } from './migrate';
 import { WorldLoadError, extractFactory, loadWorld, parseWorld, serializeWorld } from './persist';
@@ -175,9 +175,9 @@ describe('World → JSON → World', () => {
   });
 
   test('is deep-equal for the current-version fixture, and the fixture is current', () => {
-    expect(v15.meta.v).toBe(WORLD_VERSION);
-    const w = parseWorld(JSON.stringify(v15));
-    expect(w).toStrictEqual(v15);
+    expect(v16.meta.v).toBe(WORLD_VERSION);
+    const w = parseWorld(JSON.stringify(v16));
+    expect(w).toStrictEqual(v16);
     expect(parseWorld(serializeWorld(w, true))).toStrictEqual(w);
   });
 

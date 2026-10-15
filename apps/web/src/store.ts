@@ -3,7 +3,7 @@
  * save/share format (CLAUDE.md). Every edit replaces the parts it touches and
  * shares the rest, so unchanged factories keep their identity.
  */
-import type { ItemRate, MinerFluidSupply, MinerFluids, ObjectiveId } from '@sps/solver';
+import type { MinerFluidSupply, MinerFluids, ObjectiveId } from '@sps/solver';
 import * as edit from '@sps/world';
 import {
   type BuildSource,
@@ -13,6 +13,7 @@ import {
   type FactoryRequest,
   type LinkSpec,
   type ManualEntry,
+  type Target,
   type Tweak,
   type UnassignedImport,
   type World,
@@ -48,7 +49,7 @@ export interface WorldState {
   /** The loaded model's data hash, once the solver is ready. */
   modelHash?: string;
   /** Replaces the factory's targets. */
-  setTargets(factoryId: string, targets: ItemRate[]): void;
+  setTargets(factoryId: string, targets: Target[]): void;
   /** Sets a setting in a scope; `undefined` on a factory removes its override (inherit). */
   setSetting<K extends SettingKey>(scope: Scope, key: K, value: Settings[K] | undefined): void;
   /** Turns recipes on or off in a scope; `undefined` removes the scope's toggle. */
@@ -124,6 +125,13 @@ export interface WorldState {
   clearBuilt(factoryId: string): void;
   /** Manual mode with the built plan. */
   restoreBuild(factoryId: string): void;
+  // Late-game demand (A92).
+  /** "Built factories: Hold / Grow". */
+  setBuiltFactories(mode: 'hold' | 'grow'): void;
+  /** Lifts the Hold cap on these built factories. */
+  scaleUp(ids: readonly string[]): void;
+  /** A new factory linked to `consumers` for `item`; returns its id. */
+  addSite(item: string, consumers: readonly string[], name: string): string;
 
   // Undo/redo (U1): world documents before and after the current one, newest last
   // in `past` and first in `future`. Not persisted across reloads.
@@ -177,6 +185,20 @@ export function createWorldStore(initial: World = createWorld(), options: StoreO
   /** Set while an edit must not become an undo step: data-hash bookkeeping, undo and redo themselves. */
   let quiet = false;
   let last = -Infinity;
+  /** The action making the current change, and the one that made the last undo step. */
+  let kind = '';
+  let lastKind = '';
+  /** Records which action runs, so only repeats of one action coalesce. */
+  const named = (state: WorldState): WorldState => {
+    const out: Record<string, unknown> = { ...state };
+    for (const [k, v] of Object.entries(state))
+      if (typeof v === 'function')
+        out[k] = (...args: unknown[]) => {
+          kind = k;
+          return (v as (...a: unknown[]) => unknown)(...args);
+        };
+    return out as unknown as WorldState;
+  };
   const store = createStore<WorldState>()((set) => {
     const silently = (f: () => void) => {
       quiet = true;
@@ -216,7 +238,7 @@ export function createWorldStore(initial: World = createWorld(), options: StoreO
       return id;
     };
 
-    return {
+    return named({
       world: initial,
       setTargets: (factoryId, targets) =>
         set(({ world }) => {
@@ -335,6 +357,9 @@ export function createWorldStore(initial: World = createWorld(), options: StoreO
       },
       clearBuilt: (factoryId) => apply((w) => edit.clearBuilt(w, factoryId)),
       restoreBuild: (factoryId) => apply((w) => edit.restoreBuild(w, factoryId)),
+      setBuiltFactories: (mode) => apply((w) => edit.setBuiltFactories(w, mode)),
+      scaleUp: (ids) => apply((w) => edit.scaleUp(w, ids)),
+      addSite: (item, consumers, name) => create((w) => edit.addSite(w, item, consumers, name)),
       past: [],
       future: [],
       undo: () =>
@@ -353,15 +378,16 @@ export function createWorldStore(initial: World = createWorld(), options: StoreO
             return next ? { world: next, past: [...past, world], future: future.slice(1) } : {};
           }),
         ),
-    };
+    });
   });
-  // Every other change of the document is an undo step (U1); edits in quick
-  // succession (a drag, typing) coalesce into the first one's step.
+  // Every other change of the document is an undo step (U1); repeats of one
+  // edit in quick succession (a drag, typing) coalesce into the first one's step.
   store.subscribe((state, prev) => {
     if (quiet || state.world === prev.world) return;
     const t = now();
-    const coalesce = t - last < COALESCE_MS && state.past.length > 0;
+    const coalesce = t - last < COALESCE_MS && kind === lastKind && state.past.length > 0;
     last = t;
+    lastKind = kind;
     quiet = true;
     try {
       store.setState({

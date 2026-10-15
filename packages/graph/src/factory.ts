@@ -35,6 +35,8 @@ export interface FlowNode {
   recipe?: string;
   /** Machine display name (recipe and resource nodes). */
   machine?: string;
+  /** Target nodes of a factory that keeps some (A92): its For links and Kept rates. */
+  split?: { forLinks: number; kept: number };
   /** Fractional machine count; whole heaters for heaters (A17); a collapsed area's total. */
   machines?: number;
   machinesCeil?: number;

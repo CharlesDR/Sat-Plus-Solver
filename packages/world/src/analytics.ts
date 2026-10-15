@@ -4,11 +4,13 @@
  * a resolution pass leaves. Pure.
  */
 import type { Model } from '@sps/data';
-import type { PowerSummary } from '@sps/solver';
+import type { ItemRate, PowerSummary, SolveRequest } from '@sps/solver';
 import { BUILD_FLAG_LABELS, checkBuild, planEntries } from './built';
-import { tweakedImports, type Link, type World } from './document';
+import { tweakedImports, type Factory, type Link, type World } from './document';
 import type { Pass } from './resolve';
 import type {
+  Shortfall,
+  TargetSplit,
   BuildCheck,
   FactoryResult,
   FactoryStatus,
@@ -102,7 +104,9 @@ export function analyze(
         deficit: l.short,
         message: pass.solved.get(l.from)?.manual
           ? `Link ${l.id} (${name(l.item)}, ${l.from} → ${l.to}) is short by ${round(l.short)}/min: ${l.from} is in manual mode and makes too little.`
-          : `Link ${l.id} (${name(l.item)}, ${l.from} → ${l.to}) is short by ${round(l.short)}/min: ${l.from} is ${status}.`,
+          : pass.held.has(l.from) && status === 'ok'
+            ? `Link ${l.id} (${name(l.item)}, ${l.from} → ${l.to}) is short by ${round(l.short)}/min: ${l.from} is built and held at its build.`
+            : `Link ${l.id} (${name(l.item)}, ${l.from} → ${l.to}) is short by ${round(l.short)}/min: ${l.from} is ${status}.`,
       });
     }
 
@@ -167,8 +171,14 @@ export function analyze(
           message: `${f.name} (${f.id}) is ${result.status}: ${result.diagnostics.map((d) => d.message).join(' ') || 'no plan.'}`,
         });
       if (manual) {
-        const want = new Map(request.targets.map((t) => [t.item, 0]));
-        for (const t of request.targets) want.set(t.item, want.get(t.item)! + t.rate);
+        // What its targets want (A92): Kept plus the For links rate its links leave.
+        const want = new Map<string, number>();
+        const sent = new Map((request.demand ?? []).map((d) => [d.item, d.rate]));
+        for (const t of f.request.targets) {
+          const take = Math.min(t.rate, sent.get(t.item) ?? 0);
+          sent.set(t.item, (sent.get(t.item) ?? 0) - take);
+          want.set(t.item, (want.get(t.item) ?? 0) + (t.kept ?? 0) + t.rate - take);
+        }
         const short = [...want]
           .map(([item, rate]) => ({ item, rate: rate - (manualTarget.get(item) ?? 0) }))
           .filter((t) => t.rate > FLOW_TOL)
@@ -199,12 +209,16 @@ export function analyze(
         for (const l of incoming)
           cap(
             l.item,
-            l.mode === 'pull' && ok(l.from) && !pass.solved.get(l.from)?.manual
+            l.mode === 'pull' &&
+              ok(l.from) &&
+              !pass.solved.get(l.from)?.manual &&
+              !pass.held.has(l.from)
               ? Infinity
               : l.delivered,
           );
+        // A manual plan's request holds only Kept (A92); its build must also cover For links.
         build = checkBuild(model, world, f, f.built, {
-          request,
+          request: manual ? { ...request, targets: manualWants(f, request) } : request,
           plan,
           planned: result.status === 'ok',
           imports: [...caps].sort(([a], [b]) => byKey(a, b)).map(([item, c]) => ({ item, cap: c })),
@@ -224,9 +238,31 @@ export function analyze(
               '.',
           });
       }
+      // Targets split (A92): what links take of For links, and what they leave spare.
+      const targets: TargetSplit[] = [];
+      const want = new Map<string, { forLinks: number; kept: number }>();
+      for (const t of f.request.targets) {
+        const w = want.get(t.item) ?? { forLinks: 0, kept: 0 };
+        want.set(t.item, { forLinks: w.forLinks + t.rate, kept: w.kept + (t.kept ?? 0) });
+      }
+      for (const [item, w] of [...want].sort(([a], [b]) => byKey(a, b))) {
+        const taken = outgoing
+          .filter((l) => l.item === item && l.mode !== 'surplus')
+          .reduce((s, l) => s + l.delivered, 0);
+        // Manual mode serves Kept, then links; what is left is spare (and surplus).
+        const spare =
+          result.status !== 'ok'
+            ? 0
+            : manual
+              ? (result.items.find((i) => i.item === item)?.surplus ?? 0)
+              : Math.max(0, w.forLinks - taken);
+        targets.push({ item, ...w, taken, spare });
+      }
       return {
         id: f.id,
         name: f.name,
+        ...(targets.length ? { targets } : {}),
+        ...(pass.held.has(f.id) ? { held: true as const } : {}),
         ...(f.groupId !== undefined ? { groupId: f.groupId } : {}),
         ...(f.parentId !== undefined && world.factories.some((p) => p.id === f.parentId)
           ? { parentId: f.parentId }
@@ -356,6 +392,7 @@ export function analyze(
 
   const all = scope(new Set(factories.map((f) => f.id)));
   return {
+    shortfalls: shortfalls(linkResults, pass),
     factories,
     links: linkResults.map((l) => linkById.get(l.id)!),
     groups,
@@ -367,6 +404,54 @@ export function analyze(
     diagnostics: sortDiagnostics(diagnostics),
     stats,
   };
+}
+
+/**
+ * Held built factories that can't keep up (A92): per factory and item, its
+ * short pull links, the factories they feed and those further downstream on
+ * pull links, and the held factories upstream that scaling it up may drag along.
+ */
+function shortfalls(links: readonly LinkResult[], pass: Pass): Shortfall[] {
+  const pulls = links.filter((l) => l.mode === 'pull');
+  const reach = (start: string[], step: (id: string) => string[]): string[] => {
+    const seen = new Set<string>(start);
+    const queue = [...start];
+    while (queue.length)
+      for (const n of step(queue.shift()!))
+        if (!seen.has(n)) {
+          seen.add(n);
+          queue.push(n);
+        }
+    for (const s of start) seen.delete(s);
+    return [...seen].sort();
+  };
+  const groups = new Map<string, LinkResult[]>();
+  for (const l of pulls)
+    if (pass.held.has(l.from) && l.short > FLOW_TOL * Math.max(1, l.requested)) {
+      const k = `${l.from}\n${l.item}`;
+      groups.set(k, [...(groups.get(k) ?? []), l]);
+    }
+  return [...groups]
+    .sort(([a], [b]) => byKey(a, b))
+    .map(([, short]) => {
+      const { from: factory, item } = short[0]!;
+      const consumers = [...new Set(short.map((l) => l.to))].sort();
+      const fed = pulls.filter((l) => l.from === factory && l.item === item);
+      return {
+        factory,
+        item,
+        missing: short.reduce((s, l) => s + l.short, 0),
+        holds: fed.reduce((s, l) => s + l.delivered, 0),
+        links: short.map((l) => l.id).sort(),
+        consumers,
+        downstream: reach(consumers, (id) =>
+          pulls.filter((l) => l.from === id).map((l) => l.to),
+        ).filter((id) => id !== factory && !consumers.includes(id)),
+        upstream: reach([factory], (id) =>
+          pulls.filter((l) => l.to === id).map((l) => l.from),
+        ).filter((id) => pass.held.has(id)),
+      };
+    });
 }
 
 /** What `scopeStats` reads: a world result's factories and links, without the solve results. */
@@ -571,3 +656,16 @@ function sortDiagnostics(ds: WorldDiagnostic[]): WorldDiagnostic[] {
 }
 
 const round = (n: number) => String(Math.round(n * 1000) / 1000);
+
+/**
+ * What a manual factory's targets ask of its build (A92): Kept, plus the
+ * For links its links leave untaken, as a solved factory's request has it.
+ */
+function manualWants(f: Factory, request: SolveRequest): ItemRate[] {
+  const left = new Map((request.demand ?? []).map((d) => [d.item, d.rate]));
+  return f.request.targets.map((t) => {
+    const take = Math.min(t.rate, left.get(t.item) ?? 0);
+    left.set(t.item, (left.get(t.item) ?? 0) - take);
+    return { item: t.item, rate: (t.kept ?? 0) + t.rate - take };
+  });
+}

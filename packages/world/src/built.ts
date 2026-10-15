@@ -70,7 +70,11 @@ export function buildFingerprint(
       tweaks: factory.tweaks,
       manual: factory.manual,
     }),
-    world: hash({ defaults: world.defaults, nodePool: world.nodePool }),
+    // "Built factories: Hold / Grow" (A92) decides what a mark caps, not what the build is.
+    world: hash({
+      defaults: (({ builtFactories: _, ...d }) => d)(world.defaults),
+      nodePool: world.nodePool,
+    }),
     links: hash({ demand: request.demand ?? [], imports: request.imports ?? [] }),
   };
 }
@@ -113,7 +117,16 @@ export function markBuilt(
     dataHash,
     markedAt,
     fingerprint: buildFingerprint(world, f, source.request),
+    ...keptOf(f),
   });
+}
+
+/** A factory's Kept rates per item (A92), for its build mark; nothing when it keeps none. */
+function keptOf(f: Factory): Pick<BuiltSnapshot, 'kept'> {
+  const kept = new Map<string, number>();
+  for (const t of f.request.targets)
+    if ((t.kept ?? 0) > EPS) kept.set(t.item, (kept.get(t.item) ?? 0) + t.kept!);
+  return kept.size ? { kept: [...kept].map(([item, rate]) => ({ item, rate })).sort(byItem) } : {};
 }
 
 /**

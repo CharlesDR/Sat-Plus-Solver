@@ -83,8 +83,10 @@ describe('reading a Modeler save (A56, A57)', () => {
     ]);
     const main = w.factories[0]!;
     expect(main.manual?.enabled).toBe(true);
+    // A92: what links take is For links (the rods), the leftover net output is Kept.
     expect(main.request.targets).toEqual([
-      { item: 'reinforced-iron-plate', rate: expect.closeTo(5, 6) as number },
+      { item: 'iron-rod', rate: expect.closeTo(15, 6) as number },
+      { item: 'reinforced-iron-plate', rate: 0, kept: expect.closeTo(5, 6) as number },
     ]);
     expect(main.unassignedImports).toEqual([{ item: 'iron-ore' }]);
     expect(r.report.map((l) => [l.factory ?? '', l.node ?? '', l.message])).toEqual([

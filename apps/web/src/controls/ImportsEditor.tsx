@@ -86,7 +86,7 @@ export function ImportsEditor({ catalog, imports, onChange }: Props) {
               type="button"
               className="icon-button"
               aria-label={`Remove import ${k + 1}`}
-              title="Remove this import"
+              data-help="import-remove"
               onClick={() => update(rows.filter((x) => x.key !== r.key))}
             >
               <CloseIcon />

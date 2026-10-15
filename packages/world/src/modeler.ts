@@ -14,7 +14,14 @@
  */
 import { MW_ITEM_ID, type Model, type Recipe } from '@sps/data';
 import type { Network, NetworkEdge, NetworkNode, NetworkSizing } from '@sps/solver';
-import { createFactory, type Factory, type Link, type ManualEntry, type World } from './document';
+import {
+  createFactory,
+  type Factory,
+  type Link,
+  type ManualEntry,
+  type Target,
+  type World,
+} from './document';
 import { nextId } from './editing';
 
 // ---------------------------------------------------------------- format
@@ -713,14 +720,20 @@ export function importModeler(
       for (const x of r.outputs) net.set(x.item, (net.get(x.item) ?? 0) + x.rate * e.machines);
       for (const x of r.inputs) net.set(x.item, (net.get(x.item) ?? 0) - x.rate * e.machines);
     }
-    // Net outputs, less what links carry away: manual plans serve targets before links (A36).
-    const targets = [...net]
+    // Net outputs (A92): what links carry away is For links, the rest is Kept,
+    // which a manual plan serves before its links (A36).
+    const targets: Target[] = [...net]
+      .filter(([item, rate]) => rate > 1e-6 && item !== MW_ITEM_ID)
       .map(([item, rate]) => {
         const key = `${o.id}\u0000${item}`;
-        const sent = options.sizing ? (exported.get(key) ?? 0) : linkedOut.has(key) ? rate : 0;
-        return { item, rate: rate - sent };
+        const sent = Math.min(
+          rate,
+          options.sizing ? (exported.get(key) ?? 0) : linkedOut.has(key) ? rate : 0,
+        );
+        const kept = rate - sent;
+        return { item, rate: sent > 1e-6 ? sent : 0, ...(kept > 1e-6 ? { kept } : {}) };
       })
-      .filter((t) => t.rate > 1e-6 && t.item !== MW_ITEM_ID)
+      .filter((t) => t.rate > 0 || t.kept !== undefined)
       .sort((a, b) => (a.item < b.item ? -1 : 1));
     // What it takes that no link brings (resource nodes, rows left out, open inputs): imported freely.
     const linkedIn = new Set(links.filter((l) => l.to === o.id).map((l) => l.item));

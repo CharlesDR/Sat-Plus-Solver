@@ -40,6 +40,48 @@ export function ledgerFor(summary: WorldSummary, scope: LedgerScope): LedgerRow[
   return xs.find((x) => x.id === scope.id)?.ledger ?? [];
 }
 
+/**
+ * Spare and Stored per item in a ledger scope (A92): For links that links
+ * leave untaken (which links or new consumers can use), and Kept, summed
+ * over the scope's factories.
+ */
+export function splitFor(
+  summary: WorldSummary,
+  scope: LedgerScope,
+): Map<string, { spare: number; stored: number }> {
+  const ids =
+    scope.kind === 'world'
+      ? summary.factories.map((f) => f.id)
+      : scope.kind === 'group'
+        ? (summary.groups.find((g) => g.id === scope.id)?.factories ?? [])
+        : [scope.id];
+  const set = new Set(ids);
+  const out = new Map<string, { spare: number; stored: number }>();
+  for (const f of summary.factories)
+    if (set.has(f.id))
+      for (const t of f.targets ?? []) {
+        const r = out.get(t.item) ?? { spare: 0, stored: 0 };
+        out.set(t.item, { spare: r.spare + t.spare, stored: r.stored + t.kept });
+      }
+  return out;
+}
+
+/**
+ * What a producer offers a new link of `item` (A92): its spare For links
+ * rate of that item, out of its For links rate; undefined when it has no
+ * such target.
+ */
+export function availableFrom(
+  summary: WorldSummary | undefined,
+  factoryId: string,
+  item: string,
+): { spare: number; forLinks: number } | undefined {
+  const t = summary?.factories
+    .find((f) => f.id === factoryId)
+    ?.targets?.find((x) => x.item === item);
+  return t ? { spare: t.spare, forLinks: t.forLinks } : undefined;
+}
+
 export interface PowerRow {
   /** `factory:<id>`, `group:<id>` or `total`. */
   key: string;
