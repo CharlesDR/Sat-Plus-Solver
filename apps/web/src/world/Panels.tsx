@@ -16,10 +16,10 @@ import {
   ledgerScopes,
   powerRows,
   scopeKey,
-  SHOW_TRANSPORT,
   type LedgerScope,
   type PowerRow,
 } from './viewModel';
+import { SHOW_TRANSPORT } from '../flags';
 
 type Name = (id: string) => string;
 

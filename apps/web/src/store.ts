@@ -124,6 +124,25 @@ export interface WorldState {
   clearBuilt(factoryId: string): void;
   /** Manual mode with the built plan. */
   restoreBuild(factoryId: string): void;
+
+  // Undo/redo (U1): world documents before and after the current one, newest last
+  // in `past` and first in `future`. Not persisted across reloads.
+  past: World[];
+  future: World[];
+  /** Steps back one edit; a no-op with nothing to undo. */
+  undo(): void;
+  /** Steps forward one undone edit. */
+  redo(): void;
+}
+
+/** Most world documents kept for undo (U1). */
+export const HISTORY_LIMIT = 100;
+/** Edits closer together than this (ms) are one undo step: a drag, typing (U1). */
+export const COALESCE_MS = 600;
+
+export interface StoreOptions {
+  /** Clock for coalescing undo steps, injected so tests are deterministic. */
+  now?: () => number;
 }
 
 export type WorldStore = ReturnType<typeof createWorldStore>;
@@ -153,8 +172,20 @@ function toggled(
   return out;
 }
 
-export function createWorldStore(initial: World = createWorld()) {
-  return createStore<WorldState>()((set) => {
+export function createWorldStore(initial: World = createWorld(), options: StoreOptions = {}) {
+  const now = options.now ?? (() => Date.now());
+  /** Set while an edit must not become an undo step: data-hash bookkeeping, undo and redo themselves. */
+  let quiet = false;
+  let last = -Infinity;
+  const store = createStore<WorldState>()((set) => {
+    const silently = (f: () => void) => {
+      quiet = true;
+      try {
+        f();
+      } finally {
+        quiet = false;
+      }
+    };
     /** Replaces one factory, throwing on an unknown id. */
     const editFactory = (factoryId: string, edit: (f: Factory) => Factory) =>
       set(({ world }) => {
@@ -239,7 +270,9 @@ export function createWorldStore(initial: World = createWorld()) {
           ),
         })),
       attachData: (dataHash) =>
-        set(({ world }) => ({ modelHash: dataHash, ...checkData(world, dataHash) })),
+        silently(() =>
+          set(({ world }) => ({ modelHash: dataHash, ...checkData(world, dataHash) })),
+        ),
       loadWorld: (world) =>
         set(({ modelHash }) =>
           modelHash === undefined
@@ -247,13 +280,15 @@ export function createWorldStore(initial: World = createWorld()) {
             : checkData(world, modelHash),
         ),
       useCurrentData: () =>
-        set(({ world, modelHash }) =>
-          modelHash === undefined
-            ? {}
-            : {
-                world: { ...world, meta: { ...world.meta, dataHash: modelHash } },
-                dataHashMismatch: undefined,
-              },
+        silently(() =>
+          set(({ world, modelHash }) =>
+            modelHash === undefined
+              ? {}
+              : {
+                  world: { ...world, meta: { ...world.meta, dataHash: modelHash } },
+                  dataHashMismatch: undefined,
+                },
+          ),
         ),
       renameWorld: (name) => apply((w) => edit.renameWorld(w, name)),
       addFactory: (name, groupId, parentId) =>
@@ -300,8 +335,44 @@ export function createWorldStore(initial: World = createWorld()) {
       },
       clearBuilt: (factoryId) => apply((w) => edit.clearBuilt(w, factoryId)),
       restoreBuild: (factoryId) => apply((w) => edit.restoreBuild(w, factoryId)),
+      past: [],
+      future: [],
+      undo: () =>
+        silently(() =>
+          set(({ world, past, future }) => {
+            const prev = past.at(-1);
+            last = -Infinity;
+            return prev ? { world: prev, past: past.slice(0, -1), future: [world, ...future] } : {};
+          }),
+        ),
+      redo: () =>
+        silently(() =>
+          set(({ world, past, future }) => {
+            const next = future[0];
+            last = -Infinity;
+            return next ? { world: next, past: [...past, world], future: future.slice(1) } : {};
+          }),
+        ),
     };
   });
+  // Every other change of the document is an undo step (U1); edits in quick
+  // succession (a drag, typing) coalesce into the first one's step.
+  store.subscribe((state, prev) => {
+    if (quiet || state.world === prev.world) return;
+    const t = now();
+    const coalesce = t - last < COALESCE_MS && state.past.length > 0;
+    last = t;
+    quiet = true;
+    try {
+      store.setState({
+        past: coalesce ? state.past : [...state.past, prev.world].slice(-HISTORY_LIMIT),
+        future: [],
+      });
+    } finally {
+      quiet = false;
+    }
+  });
+  return store;
 }
 
 /**

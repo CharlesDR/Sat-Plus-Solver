@@ -13,7 +13,7 @@ import {
   type LinkSpec,
   type World,
 } from '@sps/world';
-import { useCallback, useId, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useId, useMemo, useState } from 'react';
 import { useItemLookup } from '../controls/itemRows';
 import { DiagnosticsList, useNames } from '../Diagnostics';
 import { worldDiagnostics, type Fix } from '../diagnostics';
@@ -31,19 +31,17 @@ import {
   NodesPanel,
   PowerPanel,
 } from './Panels';
-import {
-  productsOf,
-  SHOW_TRANSPORT,
-  traceableItems,
-  transportTiers,
-  worldStatus,
-} from './viewModel';
+import { productsOf, traceableItems, transportTiers, worldStatus } from './viewModel';
+import { SHOW_TRANSPORT } from '../flags';
 import { StatusChip } from '../ui/StatusChip';
-import { WorldCanvas, type CanvasActions } from './WorldCanvas';
+import type { CanvasActions } from './WorldCanvas';
 import { PlusIcon } from '../ui/icons';
 import { MoreMenu } from '../ui/Menu';
 import { useToast } from '../ui/toasts';
 import { offBuildText } from '../build/build';
+
+// U3: the canvas (React Flow) loads once there is a world to draw.
+const WorldCanvas = lazy(() => import('./WorldCanvas').then((m) => ({ default: m.WorldCanvas })));
 
 const TABS = ['Ledger', 'Factories', 'Links', 'Power', 'Nodes', 'Groups'] as const;
 type Tab = (typeof TABS)[number];
@@ -382,7 +380,9 @@ export function WorldView(props: {
       <div className="canvas-wrap">
         {structure && traced && (
           <ErrorBoundary what="the world canvas" resetKey={structure}>
-            <WorldCanvas engine={layout} graph={structure} traced={traced} actions={actions} />
+            <Suspense fallback={null}>
+              <WorldCanvas engine={layout} graph={structure} traced={traced} actions={actions} />
+            </Suspense>
           </ErrorBoundary>
         )}
         {drop && (

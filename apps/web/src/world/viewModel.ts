@@ -92,12 +92,6 @@ export function breadcrumb(
   return { groups: chain.map((g) => known.get(g)!), parents, factory: f.name };
 }
 
-/**
- * Link transport (kind, tier, belt or pipe count) is a Phase 2 feature: the
- * editor and the Links table hide it, and new links don't write it. Saved
- * values are kept. Phase 2 turns this back on.
- */
-export const SHOW_TRANSPORT = false;
 
 /** The transport tiers a link can pick for a kind, with their capacities. */
 export function transportTiers(

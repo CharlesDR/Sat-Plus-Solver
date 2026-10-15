@@ -10,7 +10,8 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { Field } from '../controls/Field';
 import { useItemLookup } from '../controls/itemRows';
 import type { Catalog, WorldSummary } from '../solver/protocol';
-import { carriersFor, productsOf, SHOW_TRANSPORT, transportTiers } from './viewModel';
+import { SHOW_TRANSPORT } from '../flags';
+import { carriersFor, productsOf, transportTiers } from './viewModel';
 
 const TRANSPORTS: { kind: Transport; label: string }[] = [
   { kind: 'unspecified', label: 'Unspecified' },
