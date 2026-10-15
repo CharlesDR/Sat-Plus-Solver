@@ -4,7 +4,7 @@
  *   pnpm solve --target "Iron Plate:60" [--target ...] [--import "Iron Ingot:30"]
  *              [--objective resources,machines,...] [--tolerance 0.01%] [--min-branch 0.01] [--min-flow 0.001] [--farm-cap 5%] [--whole-machines]
  *              [--cost-imports] [--avoid-fluid-byproducts] [--simplicity] [--miner-fluids any|water|none] [--miner-fluid-supply local|outside]
- *              [--alternates] [--compare-alternates] [--exclude <recipe-id>] [--enable <recipe-id>] [--max-tier <major-minor>] [--budget "<node-id>=<count>"] [--model <model.json>] [--json]
+ *              [--alternates] [--compare-alternates] [--exclude <recipe-id>] [--enable <recipe-id>] [--max-tier <major-minor>] [--budget "<node-id>=<count>"] [--model <model.json>] [--json | --summary]
  *
  * Items are matched by id or by name (case-insensitive). An import without a
  * rate is unlimited. `--budget` overrides the map pool for one node class.
@@ -18,17 +18,18 @@
  * fluid but Steam, Flue Gas and Energetic Dark Matter be left over (A39, the app's default);
  * `--simplicity` drops slivers and steps that save at most 1% (A73, the app's default);
  * `--farm-cap` drops byproduct farms that save at most that percentage (A86, off unless given;
- * the app uses 5% with simplicity);
+ * the app uses 10% with simplicity);
  * `--miner-fluids` limits Modular Miner fluid modules and `--miner-fluid-supply outside`
  * imports miner fluid at its cost (A69);
- * `--compare-alternates` solves both ways and lists the alternates that help.
+ * `--compare-alternates` solves both ways and lists the alternates that help;
+ * `--summary` prints only targets, byproducts, raw inputs and power.
  * The model is data/generated/model.json, built in memory when it is missing.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import type { Model } from '@sps/data';
+import { MW_ITEM_ID, type Model } from '@sps/data';
 import { productionOrder } from '@sps/graph';
 import {
   compareAlternates,
@@ -57,7 +58,7 @@ export const USAGE = `Usage: pnpm solve --target "Item:rate" [--target ...] [--i
                   [--objective resources,machines,...] [--tolerance <percent>] [--min-branch <machines>] [--min-flow <per-minute>] [--farm-cap <percent>]
                   [--whole-machines] [--cost-imports] [--avoid-fluid-byproducts] [--simplicity] [--miner-fluids any|water|none]
                   [--miner-fluid-supply local|outside] [--alternates] [--compare-alternates] [--exclude <recipe-id>]
-                  [--enable <recipe-id>] [--max-tier <major-minor>] [--budget "<node-id>=<count>"] [--model <model.json>] [--json]
+                  [--enable <recipe-id>] [--max-tier <major-minor>] [--budget "<node-id>=<count>"] [--model <model.json>] [--json | --summary]
 Objectives: resources (o1), scarcity (o2), machines (o3), power (o4), output (o5), types (o6).`;
 
 export class CliError extends Error {}
@@ -81,6 +82,7 @@ const OBJECTIVES: Record<string, ObjectiveId> = {
 export interface CliArgs {
   request: SolveRequest;
   json: boolean;
+  summary: boolean;
   /** Solve with alternates off and on and report which help. */
   compareAlternates: boolean;
   modelPath?: string;
@@ -115,6 +117,7 @@ export function parseCli(argv: string[], model: Model): CliArgs {
         budget: { type: 'string', multiple: true },
         model: { type: 'string' },
         json: { type: 'boolean' },
+        summary: { type: 'boolean' },
       },
       allowPositionals: false,
     }).values;
@@ -224,6 +227,7 @@ export function parseCli(argv: string[], model: Model): CliArgs {
       },
     },
     json: parsed.json ?? false,
+    summary: parsed.summary ?? false,
     compareAlternates: parsed['compare-alternates'] ?? false,
     ...(parsed.model !== undefined ? { modelPath: parsed.model } : {}),
   };
@@ -357,6 +361,23 @@ export function renderPlan(model: Model, result: SolveResult): string {
   return out.join('\n') + '\n';
 }
 
+/** The compact summary (scenario tooling): targets, byproducts, raw inputs and power, one line each. */
+export function renderPlanSummary(model: Model, result: SolveResult): string {
+  const plan = summarizePlan(model, result);
+  const line = (rows: SummaryFlow[]) =>
+    rows.length ? rows.map((r) => `${r.name} ${fmt(r.rate)}`).join(', ') : '-';
+  const out = [`Status: ${plan.status}`];
+  for (const d of plan.diagnostics) if (d.severity === 'error') out.push(`error: ${d.message}`);
+  if (plan.status !== 'ok') return out.join('\n') + '\n';
+  const byproducts = plan.byproducts.filter((r) => r.item !== MW_ITEM_ID);
+  out.push(`Targets: ${line(plan.targets)}`, `Byproducts: ${line(byproducts)}`);
+  out.push(`Raw: ${line(plan.extraction)}`);
+  if (plan.imports.length) out.push(`Imports: ${line(plan.imports)}`);
+  const p = plan.power;
+  out.push(`Power: ${fmt(p.consumptionMW)} MW draw, ${fmt(p.generationMW)} MW generated`);
+  return out.join('\n') + '\n';
+}
+
 /** Renders the alternates report: the alternates that help, then the plan that uses them. */
 export function renderAlternates(model: Model, report: AlternatesReport): string {
   const recipe = new Map(model.recipes.map((r) => [r.id, r.name]));
@@ -381,7 +402,12 @@ export function renderAlternates(model: Model, report: AlternatesReport): string
 }
 
 export function loadModel(path?: string): Promise<Model> | Model {
-  const file = path ?? join(ROOT, 'data', 'generated', 'model.json');
+  // The prebuilt CLI bundle (tooling/cli.ts) ships the model beside itself.
+  const file =
+    path ??
+    (process.env.SPS_CLI_BUNDLE
+      ? fileURLToPath(new URL('./model.json', import.meta.url))
+      : join(ROOT, 'data', 'generated', 'model.json'));
   if (existsSync(file)) return JSON.parse(readFileSync(file, 'utf8')) as Model;
   if (path) throw new CliError(`Model file not found: ${path}`);
   process.stderr.write('data/generated/model.json is missing; building the model in memory…\n');
@@ -409,7 +435,11 @@ export async function runCli(
       return { code: report.with.status === 'ok' ? 0 : 1, stdout, stderr: '' };
     }
     const result = await solve(model, args.request, backend);
-    const stdout = args.json ? JSON.stringify(result, null, 2) + '\n' : renderPlan(model, result);
+    const stdout = args.json
+      ? JSON.stringify(result, null, 2) + '\n'
+      : args.summary
+        ? renderPlanSummary(model, result)
+        : renderPlan(model, result);
     return { code: result.status === 'ok' ? 0 : 1, stdout, stderr: '' };
   } catch (e) {
     if (e instanceof CliError) return { code: 2, stdout: '', stderr: `${e.message}\n\n${USAGE}\n` };
@@ -417,7 +447,12 @@ export async function runCli(
   }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+// Not inside the CLI bundle, where every module shares the bundle's URL.
+if (
+  !process.env.SPS_CLI_BUNDLE &&
+  process.argv[1] &&
+  fileURLToPath(import.meta.url) === process.argv[1]
+) {
   const argv = process.argv.slice(2).filter((a, k) => !(k === 0 && a === '--'));
   const { code, stdout, stderr } = await runCli(argv);
   process.stdout.write(stdout);

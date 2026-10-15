@@ -7,3 +7,4 @@ coverage/
 data/generated/
 apps/web/test-results/
 apps/web/playwright-report/
+dist-cli/

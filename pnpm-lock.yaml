@@ -29,6 +29,9 @@ importers:
       elkjs:
         specifier: ^0.12.0
         version: 0.12.0
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
       eslint:
         specifier: ^10.11.0
         version: 10.11.0
@@ -41,6 +44,9 @@ importers:
       globals:
         specifier: ^17.13.0
         version: 17.13.0
+      lz-string:
+        specifier: ^1.5.0
+        version: 1.5.0
       prettier:
         specifier: ^3.9.9
         version: 3.9.9
