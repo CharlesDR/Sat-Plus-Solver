@@ -270,3 +270,53 @@ describe('world editing (M8)', () => {
     expect(s().world.factories[1]!.manual).toBeUndefined();
   });
 });
+
+describe('undo and redo (U1)', () => {
+  /** A store with a hand-driven clock. */
+  function clocked() {
+    let t = 0;
+    const store = createWorldStore(createWorld(), { now: () => t });
+    return { store, s: () => store.getState(), tick: (ms: number) => (t += ms) };
+  }
+
+  test('undo steps back one edit and redo forward; a new edit clears redo', () => {
+    const { s, tick } = clocked();
+    const start = s().world;
+    s().renameFactory(F, 'A');
+    tick(1000);
+    s().renameFactory(F, 'B');
+    tick(1000);
+    expect(s().past).toHaveLength(2);
+    s().undo();
+    expect(s().world.factories[0]!.name).toBe('A');
+    s().undo();
+    expect(s().world).toBe(start);
+    s().undo();
+    expect(s().world).toBe(start);
+    s().redo();
+    expect(s().world.factories[0]!.name).toBe('A');
+    s().renameFactory(F, 'C');
+    expect(s().future).toEqual([]);
+    s().redo();
+    expect(s().world.factories[0]!.name).toBe('C');
+  });
+
+  test('edits in quick succession are one step', () => {
+    const { s, tick } = clocked();
+    const start = s().world;
+    for (const name of ['F', 'Fa', 'Fac']) {
+      s().renameFactory(F, name);
+      tick(100);
+    }
+    expect(s().past).toHaveLength(1);
+    s().undo();
+    expect(s().world).toBe(start);
+  });
+
+  test('adopting the data hash is not an undo step', () => {
+    const { s } = clocked();
+    s().attachData('abc');
+    expect(s().world.meta.dataHash).toBe('abc');
+    expect(s().past).toEqual([]);
+  });
+});

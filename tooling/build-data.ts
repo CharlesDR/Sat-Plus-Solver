@@ -80,6 +80,11 @@ async function main() {
   );
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+// Not inside the CLI bundle, where every module shares the bundle's URL.
+if (
+  !process.env.SPS_CLI_BUNDLE &&
+  process.argv[1] &&
+  fileURLToPath(import.meta.url) === process.argv[1]
+) {
   await main();
 }

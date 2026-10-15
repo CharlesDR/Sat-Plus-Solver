@@ -113,6 +113,8 @@ export type WorldAction =
   | { kind: 'preview-swaps'; factoryId: string; from: string; candidates: string[] }
   /** Suggested imports (A91): the factory as it would solve importing each item. */
   | { kind: 'preview-imports'; factoryId: string; items: string[] }
+  /** A shortfall's two fixes (A92): scale the held factory up, or a new site named `site`. */
+  | { kind: 'preview-shortfall'; factoryId: string; item: string; site: string }
   /** Modeler import (M14, A57): `text` is the `.sfmd` file; `at` the ISO time of the build marks. */
   | { kind: 'import-modeler'; text: string; at: string }
   /** Modeler export (M14, A58): one factory, or the whole world when `factoryId` is missing. */
@@ -155,6 +157,30 @@ export interface ImportPreviews {
   after: (PlanSize & { item: string })[];
 }
 
+/** What one shortfall fix adds to the world (A92), against the world as it is. */
+export interface ShortfallOption {
+  /** Extra machines, world-wide. */
+  machines: number;
+  /** Extra machine draw, MW. */
+  consumptionMW: number;
+  /** Extra resource nodes in use. */
+  nodes: number;
+  /** Factories whose plans grow, sorted by id (the new site included). */
+  grows: string[];
+  /** Node classes used beyond their pool afterwards, sorted. */
+  overPool: string[];
+  /** Per minute of the item still short afterwards. */
+  stillShort: number;
+}
+
+/** "Scale up" and "New site" for one shortfall (A92). */
+export interface ShortfallPreview {
+  factory: string;
+  item: string;
+  scaleUp: ShortfallOption;
+  newSite: ShortfallOption;
+}
+
 /** What one world solve asks for. */
 export interface WorldSolveRequest {
   world: World;
@@ -173,6 +199,8 @@ export interface WorldSolved {
   previews?: SwapPreview[];
   /** `preview-imports`: the factory now, and with each item imported, in its order. */
   importPreviews?: ImportPreviews;
+  /** `preview-shortfall`: both fixes. */
+  shortfallPreview?: ShortfallPreview;
   /** `import-modeler`: what it made (the world is in `edited`). */
   imported?: ModelerImported;
   /** `export-modeler`: the `.sfmd` file's text. */
@@ -188,6 +216,10 @@ export interface SolveProgress {
   step: number;
   factories: number;
   pass: number;
+  /** Factories solving at once (S2). */
+  solving?: number;
+  /** Factories finished in this pass (S2). */
+  done?: number;
 }
 
 export type FromWorker =

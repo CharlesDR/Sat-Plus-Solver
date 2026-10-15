@@ -37,6 +37,13 @@ export interface ResolveOptions {
   pipeCapacities?: Readonly<Record<number, number>>;
   /** Called as each factory starts solving (memoized ones too), for a progress display. */
   onProgress?: (progress: ResolveProgress) => void;
+  /**
+   * Most factory solves in flight at once (S2), default 1. Independent
+   * factories then solve side by side through `solveFactory`; a factory
+   * starts once everything it depends on in the pass has finished. Results
+   * are identical for any value.
+   */
+  concurrency?: number;
 }
 
 /** Where a world solve is: the factory starting now, and how far the pass has got. */
@@ -48,6 +55,10 @@ export interface ResolveProgress {
   factories: number;
   /** Resolution pass, from 1 (more while linked import costs settle). */
   pass: number;
+  /** Factories solving right now, this one included (S2). */
+  solving: number;
+  /** Factories finished in this pass (a pull cycle's members when the cycle settles). */
+  done: number;
 }
 
 const byId = <T extends { id: string }>(a: T, b: T) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
@@ -77,6 +88,8 @@ export interface Pass {
    * took from the sub-factory's surplus on the parent's last solve.
    */
   drawn: Map<string, Map<string, number>>;
+  /** Built factories held at their build (A92). */
+  held: Set<string>;
   diagnostics: WorldDiagnostic[];
 }
 
@@ -93,11 +106,24 @@ interface Context {
   parent: Map<string, string>;
   /** Parent → its sub-factories, sorted. */
   children: Map<string, string[]>;
+  /** Per factory, per item: its targets' For links and Kept rates (A92). */
+  split: Map<string, Map<string, { forLinks: number; kept: number }>>;
+  /**
+   * Held built factories (A92): per item, what their pull links may take
+   * together, the built For links rate less their fixed links.
+   */
+  held: Map<string, Map<string, number>>;
+  /** Pull links out of a held factory: each one's share of that cap, for the remainder rule. */
+  heldShare: Map<string, number>;
   /** Producer → items and objectives its linked consumers are costed under. */
   needs: Map<string, { items: Set<string>; objectives: Set<ObjectiveId> }>;
   run: (request: SolveRequest) => Promise<{ key: string; result: Solved['result'] }>;
   /** Reports a factory starting to solve (`ResolveOptions.onProgress`). */
   started: (factory: string) => void;
+  /** Factories in flight and finished in the current pass, for progress (S2). */
+  load: { solving: number; done: number };
+  /** Most solves in flight (S2). */
+  concurrency: number;
 }
 
 /**
@@ -152,6 +178,8 @@ export async function resolveWorld(
   const stats = { solves: 0, cacheHits: 0, passes: 0 };
   let step = 0;
   let stepPass = 0;
+  /** Solves in flight by key (S2): an identical request waits for it and counts as a cache hit. */
+  const inflight = new Map<string, Promise<SolveResult>>();
   const ctx: Context = {
     world,
     model,
@@ -163,6 +191,7 @@ export async function resolveWorld(
       factories.flatMap((f) => (f.manual?.enabled ? [[f.id, manualEntries(f.manual)]] : [])),
     ),
     ...nesting(world, diagnostics),
+    ...holds(world, links),
     needs: new Map(),
     async run(request) {
       const { key, canonical } = solveKey(model.meta.dataHash, request);
@@ -171,17 +200,37 @@ export async function resolveWorld(
         stats.cacheHits++;
         return { key, result: hit.result };
       }
+      const pending = inflight.get(`${key}\n${canonical}`);
+      if (pending) {
+        stats.cacheHits++;
+        return { key, result: await pending };
+      }
       stats.solves++;
-      const result = await solveFactory(request);
-      cache.set(key, { canonical, result });
-      return { key, result };
+      const solving = solveFactory(request);
+      inflight.set(`${key}\n${canonical}`, solving);
+      try {
+        const result = await solving;
+        cache.set(key, { canonical, result });
+        return { key, result };
+      } finally {
+        inflight.delete(`${key}\n${canonical}`);
+      }
     },
     started(factory) {
       if (!options.onProgress) return;
       if (stepPass !== stats.passes) [step, stepPass] = [0, stats.passes];
       step++;
-      options.onProgress({ factory, step, factories: factories.length, pass: stats.passes });
+      options.onProgress({
+        factory,
+        step,
+        factories: factories.length,
+        pass: stats.passes,
+        solving: this.load.solving,
+        done: this.load.done,
+      });
     },
+    load: { solving: 0, done: 0 },
+    concurrency: Math.max(1, Math.floor(options.concurrency ?? 1)),
   };
   for (const l of links) {
     const consumer = ctx.base.get(l.to)!;
@@ -222,6 +271,70 @@ function group<T>(xs: readonly T[], key: (x: T) => string): Map<string, T[]> {
   const m = new Map<string, T[]>();
   for (const x of xs) m.set(key(x), [...(m.get(key(x)) ?? []), x]);
   return m;
+}
+
+/**
+ * Targets split into For links and Kept, and the held built factories'
+ * caps (A92): under "Built factories: Hold", a factory marked as built (and
+ * not scaled up, nor in manual mode) lets its pull links take at most its
+ * built For links rate (`outputs − kept` of the build mark) less what its
+ * fixed links take, per item.
+ */
+function holds(
+  world: World,
+  links: readonly Link[],
+): Pick<Context, 'split' | 'held' | 'heldShare'> {
+  const split = new Map<string, Map<string, { forLinks: number; kept: number }>>();
+  const held = new Map<string, Map<string, number>>();
+  const heldShare = new Map<string, number>();
+  const hold = (world.defaults.builtFactories ?? 'hold') === 'hold';
+  for (const f of world.factories) {
+    const m = new Map<string, { forLinks: number; kept: number }>();
+    for (const t of f.request.targets) {
+      const s = m.get(t.item) ?? { forLinks: 0, kept: 0 };
+      m.set(t.item, { forLinks: s.forLinks + t.rate, kept: s.kept + (t.kept ?? 0) });
+    }
+    split.set(f.id, m);
+    if (!hold || !f.built || f.built.grow || f.manual?.enabled) continue;
+    const caps = new Map<string, number>();
+    for (const o of f.built.outputs) caps.set(o.item, o.rate);
+    for (const k of f.built.kept ?? []) caps.set(k.item, (caps.get(k.item) ?? 0) - k.rate);
+    const out = links.filter((l) => l.from === f.id);
+    for (const l of out)
+      if (l.mode.kind === 'fixed') caps.set(l.item, (caps.get(l.item) ?? 0) - l.mode.rate);
+    const pulls = out.filter((l) => l.mode.kind === 'pull');
+    const cap = new Map<string, number>();
+    for (const l of pulls) cap.set(l.item, Math.max(0, caps.get(l.item) ?? 0));
+    held.set(f.id, cap);
+    for (const l of pulls)
+      heldShare.set(l.id, cap.get(l.item)! / pulls.filter((p) => p.item === l.item).length);
+  }
+  return { split, held, heldShare };
+}
+
+/**
+ * What each outgoing link asks of `id` in its request: fixed links their
+ * rate, pull links their resolved rate; a held factory's pull links of an
+ * item share its cap in proportion when they ask for more (A92).
+ */
+function outRates(
+  ctx: Context,
+  id: string,
+  pull: ReadonlyMap<string, number>,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  const links = ctx.out.get(id) ?? [];
+  for (const l of links)
+    out.set(l.id, l.mode.kind === 'fixed' ? l.mode.rate : (pull.get(l.id) ?? 0));
+  const cap = ctx.held.get(id);
+  if (cap)
+    for (const [item, c] of cap) {
+      const pulls = links.filter((l) => l.mode.kind === 'pull' && l.item === item);
+      const total = pulls.reduce((s, l) => s + out.get(l.id)!, 0);
+      if (total > c * (1 + 1e-9) + MIN_RATE)
+        for (const l of pulls) out.set(l.id, total > 0 ? (out.get(l.id)! * c) / total : 0);
+    }
+  return out;
 }
 
 /**
@@ -283,6 +396,7 @@ async function resolvePass(
     used: new Map(),
     delivered: new Map(),
     drawn: new Map(),
+    held: new Set(ctx.held.keys()),
     diagnostics: [],
   };
   const pull = new Map<string, number>();
@@ -295,6 +409,7 @@ async function resolvePass(
     offered.set(id, offers);
     for (const child of ctx.children.get(id) ?? []) pass.drawn.delete(child);
     const request = effectiveRequest(ctx, id, pull, linked.get(id), offers);
+    const rates = outRates(ctx, id, pull);
     for (const l of ctx.out.get(id) ?? []) {
       const r = l.mode.kind === 'fixed' ? l.mode.rate : (pull.get(l.id) ?? 0);
       pass.asked.set(l.id, r >= MIN_RATE ? r : 0);
@@ -302,7 +417,8 @@ async function resolvePass(
     const entries = ctx.manual.get(id);
     if (entries) {
       // Manual mode (A36): arithmetic on the frozen counts; links get what is left after targets.
-      const manual = manualOutcome(ctx.model, entries, request);
+      // Kept first, then links, then the For links rate they leave (A92).
+      const manual = manualOutcome(ctx.model, entries, request, spareWants(ctx.world, id, request));
       pass.solved.set(id, { request, key: 'manual', result: manual.result, manual });
       const left = new Map(manual.forLinks);
       for (const l of ctx.out.get(id) ?? []) {
@@ -310,18 +426,29 @@ async function resolvePass(
         pass.delivered.set(l.id, give);
         left.set(l.item, (left.get(l.item) ?? 0) - give);
       }
-      attribute(ctx.in.get(id) ?? [], offers, manual.result, pass, pull);
+      attribute(ctx, ctx.in.get(id) ?? [], offers, manual.result, pass, pull);
       return;
     }
     const { key, result } = await ctx.run(request);
     pass.solved.set(id, { request, key, result });
-    attribute(ctx.in.get(id) ?? [], offers, result, pass, pull);
+    // A held factory ships at most its cap; the rest of a pull is short (A92).
+    if (ctx.held.has(id))
+      for (const l of ctx.out.get(id) ?? [])
+        if (l.mode.kind === 'pull') {
+          const give = rates.get(l.id)!;
+          pass.delivered.set(l.id, result.status === 'ok' ? (give >= MIN_RATE ? give : 0) : 0);
+        }
+    attribute(ctx, ctx.in.get(id) ?? [], offers, result, pass, pull);
   };
 
-  for (const scc of solveOrder(ctx)) {
+  const { order, waitsFor } = solveOrder(ctx);
+  /** Per SCC, its cycle diagnostic, added in solve order so any concurrency gives the same list. */
+  const cycleDiagnostics: (WorldDiagnostic | undefined)[] = order.map(() => undefined);
+  const solveScc = async (k: number) => {
+    const scc = order[k]!;
     if (scc.length === 1) {
       await solveOne(scc[0]!);
-      continue;
+      return;
     }
     // A cycle (§4.3 step 3): pull links, or a parent drawing on its
     // sub-factories' surplus (A51). Sweep its members until the rates settle.
@@ -352,7 +479,7 @@ async function resolvePass(
       });
     }
     if (!converged)
-      pass.diagnostics.push({
+      cycleDiagnostics[k] = {
         code: 'cycle-not-converged',
         severity: 'error',
         factories: [...scc],
@@ -362,9 +489,61 @@ async function resolvePass(
           ? `The pull links between ${scc.join(', ')} did not settle after ${iterations} iterations. ` +
             `Make one of them fixed (${internal.map((l) => l.id).join(', ')}).`
           : `The surplus drawn between ${scc.join(', ')} did not settle after ${iterations} iterations.`,
-      });
-  }
+      };
+  };
+  await schedule(
+    order.map((scc) => scc.length),
+    waitsFor,
+    ctx,
+    solveScc,
+  );
+  for (const d of cycleDiagnostics) if (d) pass.diagnostics.push(d);
   return pass;
+}
+
+/**
+ * Runs `task` for every SCC (S2): up to `ctx.concurrency` at once, each once
+ * every SCC it waits for has finished. With concurrency 1 this is the serial
+ * solve order. Rejects on the first failure.
+ */
+function schedule(
+  sizes: readonly number[],
+  waitsFor: readonly (readonly number[])[],
+  ctx: Context,
+  task: (k: number) => Promise<void>,
+): Promise<void> {
+  const n = sizes.length;
+  const started = new Array<boolean>(n).fill(false);
+  const finished = new Array<boolean>(n).fill(false);
+  let left = n;
+  ctx.load.solving = 0;
+  ctx.load.done = 0;
+  return new Promise<void>((resolve, reject) => {
+    let failed = false;
+    const pump = () => {
+      if (failed) return;
+      if (left === 0) return resolve();
+      for (let k = 0; k < n && ctx.load.solving < ctx.concurrency; k++) {
+        if (started[k] || !waitsFor[k]!.every((d) => finished[d])) continue;
+        started[k] = true;
+        ctx.load.solving++;
+        task(k).then(
+          () => {
+            finished[k] = true;
+            left--;
+            ctx.load.solving--;
+            ctx.load.done += sizes[k]!;
+            pump();
+          },
+          (e: unknown) => {
+            failed = true;
+            reject(e);
+          },
+        );
+      }
+    };
+    pump();
+  });
 }
 
 /** What one sub-factory's surplus offers its parent (A51). */
@@ -396,8 +575,8 @@ function surplusOffers(ctx: Context, pass: Pass, id: string): Offer[] {
  * A factory's request in the world: its own request, plus outgoing link
  * rates as demand and incoming links and sub-factory surplus (A51) as import
  * caps (§4.2), plus linked import costs and the marginal costs its linked
- * consumers need. What a sub-factory sends its parent counts toward its own
- * target of that item (A50).
+ * consumers need. What its links take counts toward its targets' For links
+ * rate (A92, which generalizes A50's rule for sub-factories).
  */
 function effectiveRequest(
   ctx: Context,
@@ -407,15 +586,13 @@ function effectiveRequest(
   offers: readonly Offer[] = [],
 ): SolveRequest {
   const base = ctx.base.get(id)!;
-  const parent = ctx.parent.get(id);
   const demand = new Map<string, number>();
-  const toParent = new Map<string, number>();
+  const rates = outRates(ctx, id, pull);
   for (const l of ctx.out.get(id) ?? []) {
-    const r = l.mode.kind === 'fixed' ? l.mode.rate : (pull.get(l.id) ?? 0);
+    const r = rates.get(l.id)!;
     // Below MIN_RATE is solver noise, and the solver rejects it as a demand.
     if (r < MIN_RATE) continue;
     demand.set(l.item, (demand.get(l.item) ?? 0) + r);
-    if (l.to === parent) toParent.set(l.item, (toParent.get(l.item) ?? 0) + r);
   }
   const caps = new Map<string, number>();
   for (const i of base.imports ?? []) caps.set(i.item, (caps.get(i.item) ?? 0) + i.cap);
@@ -426,7 +603,12 @@ function effectiveRequest(
   for (const o of offers) caps.set(o.item, (caps.get(o.item) ?? 0) + o.cap);
   const rest: SolveRequest = { ...base };
   delete (rest as { imports?: unknown }).imports;
-  if (toParent.size) rest.targets = countSent(base.targets, toParent);
+  // Links draw on For links; Kept comes on top (A92). Manual mode serves Kept first, then links.
+  rest.targets = ctx.manual.has(id)
+    ? keptOnly(ctx.world, id)
+    : demand.size
+      ? countSent(ctx.world, id, demand)
+      : base.targets;
   const need = ctx.needs.get(id);
   const given = base.costImports && costs ? [...costs.values()].sort(byItem) : [];
   return {
@@ -450,19 +632,40 @@ function effectiveRequest(
 }
 
 /**
- * A sub-factory's targets less what it already sends its parent (A50): it
- * makes the larger of the two, not their sum. A target used up is dropped.
+ * A factory's targets less what its links take (A92, generalizing A50): each
+ * target's For links rate covers its links first, so the factory makes
+ * `max(For links, links) + Kept`, not their sum. A target used up is dropped.
  */
-function countSent(targets: readonly ItemRate[], sent: ReadonlyMap<string, number>): ItemRate[] {
+function countSent(world: World, id: string, sent: ReadonlyMap<string, number>): ItemRate[] {
   const left = new Map(sent);
   const out: ItemRate[] = [];
-  for (const t of targets) {
+  for (const t of world.factories.find((f) => f.id === id)!.request.targets) {
     const take = Math.min(t.rate, left.get(t.item) ?? 0);
     left.set(t.item, (left.get(t.item) ?? 0) - take);
-    const rate = t.rate - take;
+    const rate = t.rate - take + (t.kept ?? 0);
     if (rate >= MIN_RATE) out.push({ item: t.item, rate });
   }
   return out;
+}
+
+/** A manual factory's For links rate its links leave, per item (A92): served after the links. */
+function spareWants(world: World, id: string, request: SolveRequest): ItemRate[] {
+  const left = new Map((request.demand ?? []).map((d) => [d.item, d.rate]));
+  const out: ItemRate[] = [];
+  for (const t of world.factories.find((f) => f.id === id)!.request.targets) {
+    const take = Math.min(t.rate, left.get(t.item) ?? 0);
+    left.set(t.item, (left.get(t.item) ?? 0) - take);
+    if (t.rate - take >= MIN_RATE) out.push({ item: t.item, rate: t.rate - take });
+  }
+  return out;
+}
+
+/** A manual factory's targets (A92): only Kept is a target; links take from what is left. */
+function keptOnly(world: World, id: string): ItemRate[] {
+  return world.factories
+    .find((f) => f.id === id)!
+    .request.targets.filter((t) => (t.kept ?? 0) >= MIN_RATE)
+    .map((t) => ({ item: t.item, rate: t.kept! }));
 }
 
 const toRates = (m: ReadonlyMap<string, number>): ItemRate[] =>
@@ -476,6 +679,7 @@ const toRates = (m: ReadonlyMap<string, number>): ItemRate[] =>
  * `used`, each pull link's resolved rate and each surplus draw.
  */
 function attribute(
+  ctx: Context,
   incoming: readonly Link[],
   offers: readonly Offer[],
   result: Solved['result'],
@@ -505,7 +709,19 @@ function attribute(
       m.set(item, u);
       pass.drawn.set(o.child, m);
     }
-    const pulls = links.filter((l) => l.mode.kind === 'pull');
+    let pulls = links.filter((l) => l.mode.kind === 'pull');
+    // Remainder rule (A92): beside other pull links, a held built factory's
+    // link is drawn on first, up to its cap; the others share the rest.
+    const capped = pulls.filter((l) => ctx.heldShare.has(l.id));
+    if (capped.length && capped.length < pulls.length) {
+      for (const l of capped) {
+        const u = Math.min(ctx.heldShare.get(l.id)!, left);
+        pass.used.set(l.id, u);
+        pull.set(l.id, u);
+        left -= u;
+      }
+      pulls = pulls.filter((l) => !ctx.heldShare.has(l.id));
+    }
     for (const l of pulls) {
       const share = left / pulls.length;
       pass.used.set(l.id, share);
@@ -520,7 +736,7 @@ function attribute(
  * consumers go first, and a parent after its sub-factories (A51).
  * Ties go to the smallest factory id; members are sorted. Deterministic.
  */
-function solveOrder(ctx: Context): string[][] {
+function solveOrder(ctx: Context): { order: string[][]; waitsFor: number[][] } {
   const ids = [...ctx.base.keys()].sort();
   const next = new Map<string, string[]>(ids.map((id) => [id, []]));
   for (const l of ctx.links) if (l.mode.kind === 'pull') next.get(l.from)!.push(l.to);
@@ -574,13 +790,19 @@ function solveOrder(ctx: Context): string[][] {
   const left = succ.map((s) => s.size);
   const ready = sccs.map((_, k) => k).filter((k) => left[k] === 0);
   const order: string[][] = [];
+  const position = new Map<number, number>();
   while (ready.length) {
     ready.sort((a, b) => (sccs[a]![0]! < sccs[b]![0]! ? -1 : 1));
     const k = ready.shift()!;
+    position.set(k, order.length);
     order.push(sccs[k]!);
     for (const p of pred[k]!) if (--left[p]! === 0) ready.push(p);
   }
-  return order;
+  // S2: an SCC waits for the SCCs it draws on (its pull consumers, its sub-factories).
+  const waitsFor: number[][] = order.map(() => []);
+  for (const [k, at] of position)
+    waitsFor[at] = [...succ[k]!].map((b) => position.get(b)!).sort((a, b) => a - b);
+  return { order, waitsFor };
 }
 
 /**

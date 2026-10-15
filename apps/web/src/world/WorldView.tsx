@@ -13,13 +13,14 @@ import {
   type LinkSpec,
   type World,
 } from '@sps/world';
-import { useCallback, useId, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useId, useMemo, useState } from 'react';
 import { useItemLookup } from '../controls/itemRows';
 import { DiagnosticsList, useNames } from '../Diagnostics';
 import { worldDiagnostics, type Fix } from '../diagnostics';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { SolvingNote } from '../SolvingNote';
-import type { Catalog, WorldSummary } from '../solver/protocol';
+import type { Catalog, WorldAction, WorldSummary } from '../solver/protocol';
+import type { SolveOutcome } from '../solver/client';
 import type { WorldStore } from '../store';
 import type { WorldPlanState } from '../useWorldPlan';
 import { LinkEditor, type LinkDraft } from './LinkEditor';
@@ -31,21 +32,20 @@ import {
   NodesPanel,
   PowerPanel,
 } from './Panels';
-import {
-  productsOf,
-  SHOW_TRANSPORT,
-  traceableItems,
-  transportTiers,
-  worldStatus,
-} from './viewModel';
+import { ShortfallPanel } from './ShortfallPanel';
+import { productsOf, traceableItems, transportTiers, worldStatus } from './viewModel';
+import { SHOW_TRANSPORT } from '../flags';
 import { StatusChip } from '../ui/StatusChip';
-import { WorldCanvas, type CanvasActions } from './WorldCanvas';
+import type { CanvasActions } from './WorldCanvas';
 import { PlusIcon } from '../ui/icons';
 import { MoreMenu } from '../ui/Menu';
 import { useToast } from '../ui/toasts';
 import { offBuildText } from '../build/build';
 
-const TABS = ['Ledger', 'Factories', 'Links', 'Power', 'Nodes', 'Groups'] as const;
+// U3: the canvas (React Flow) loads once there is a world to draw.
+const WorldCanvas = lazy(() => import('./WorldCanvas').then((m) => ({ default: m.WorldCanvas })));
+
+const TABS = ['Ledger', 'Factories', 'Links', 'Shortfalls', 'Power', 'Nodes', 'Groups'] as const;
 type Tab = (typeof TABS)[number];
 
 /** What the empty-world start screen offers besides opening a factory (N7). */
@@ -68,6 +68,7 @@ export function WorldView(props: {
   plan: WorldPlanState;
   onOpen(factoryId: string): void;
   onSizePower(factoryId: string): void;
+  run(action: WorldAction): Promise<SolveOutcome | null>;
   start: StartActions;
 }) {
   const { world, store, catalog, layout, plan, onOpen, onSizePower, start } = props;
@@ -166,7 +167,9 @@ export function WorldView(props: {
         ? world.links.length
         : t === 'Groups'
           ? world.groups.length
-          : undefined;
+          : t === 'Shortfalls' && summary?.shortfalls.length
+            ? summary.shortfalls.length
+            : undefined;
   const fix = (f: Fix) => {
     if (f.kind === 'open-factory') onOpen(f.factory);
     else if (f.kind === 'remove-link') store.getState().removeLink(f.link);
@@ -291,7 +294,7 @@ export function WorldView(props: {
         {unwired > 0 && summary && (
           <button
             type="button"
-            title="Make the miner fluid that factories get supplied from outside, in one factory linked to each"
+            data-help="fix-miner-fluids"
             onClick={() => {
               const out = wireMinerSupport(world, summary);
               store.getState().replaceWorld(out.world);
@@ -328,7 +331,7 @@ export function WorldView(props: {
             <button
               type="button"
               disabled={plan.kind !== 'done' || !summary?.factories.length}
-              title="Save every factory's current plan as the one built in your game"
+              data-help="mark-all-built"
               onClick={() => {
                 if (!summary) return;
                 const skipped = store
@@ -382,7 +385,9 @@ export function WorldView(props: {
       <div className="canvas-wrap">
         {structure && traced && (
           <ErrorBoundary what="the world canvas" resetKey={structure}>
-            <WorldCanvas engine={layout} graph={structure} traced={traced} actions={actions} />
+            <Suspense fallback={null}>
+              <WorldCanvas engine={layout} graph={structure} traced={traced} actions={actions} />
+            </Suspense>
           </ErrorBoundary>
         )}
         {drop && (
@@ -511,7 +516,7 @@ export function WorldView(props: {
               tabIndex={tab === t ? 0 : -1}
               onClick={() => setTab(t)}
             >
-              {t}
+              <span data-help={`tab:${t}`}>{t}</span>
               {count(t) !== undefined && (
                 <>
                   {' '}
@@ -572,6 +577,16 @@ export function WorldView(props: {
                 const link = world.links.find((l) => l.id === id);
                 if (link) setDraft({ from: link.from, to: link.to, link });
               }}
+            />
+          )}
+          {tab === 'Shortfalls' && (
+            <ShortfallPanel
+              world={world}
+              summary={summary}
+              store={store}
+              catalog={catalog}
+              itemName={itemName}
+              run={props.run}
             />
           )}
           {tab === 'Power' && (

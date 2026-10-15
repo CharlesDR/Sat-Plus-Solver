@@ -1,10 +1,15 @@
 name: CI
 
+# Pull requests run every check. A merge to main only builds and deploys Pages:
+# the PR already passed on an up-to-date base, and re-running flaky timing and
+# e2e checks on main only held up deploys (todo 2026-10-15). Merge one PR at a
+# time onto an up-to-date main.
 on:
   push:
     branches: [main]
   pull_request:
 
+# A new push to a branch cancels its stale run.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -13,14 +18,38 @@ permissions:
   contents: read
 
 jobs:
+  # Reads the Playwright version from the lockfile so the container image below
+  # always matches it: a dependency bump updates both (M2).
+  versions:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      playwright: ${{ steps.pw.outputs.version }}
+      code: ${{ steps.paths.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: pw
+        run: |
+          v=$(grep -A2 "^      '@playwright/test':" pnpm-lock.yaml | sed -n 's/^ *version: \([0-9.]*\).*/\1/p' | head -1)
+          test -n "$v"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      # C1: a PR that only touches docs or Markdown skips the build and e2e.
+      - id: paths
+        run: |
+          changed=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
+          if echo "$changed" | grep -qvE '^docs/|\.md$'; then code=true; else code=false; fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
   check:
+    if: github.event_name == 'pull_request'
+    needs: versions
     runs-on: ubuntu-latest
     # Playwright's image ships Chromium and its system libraries, so e2e needs no
-    # per-run `playwright install --with-deps`. Keep the tag equal to the
-    # @playwright/test version in pnpm-lock.yaml; a mismatch fails e2e with
-    # "Executable doesn't exist".
+    # per-run `playwright install --with-deps`. The tag follows pnpm-lock.yaml.
     container:
-      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      image: mcr.microsoft.com/playwright:v${{ needs.versions.outputs.playwright }}-noble
       options: --ipc=host
     steps:
       - uses: actions/checkout@v4
@@ -32,19 +61,46 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
-      - run: pnpm build:data
+      # C1: the normalized model only changes with its inputs.
+      - id: data-cache
+        uses: actions/cache@v4
+        with:
+          path: data/generated
+          key: build-data-${{ hashFiles('game_data.json', 'data.schema.json', 'data/**', '!data/generated/**', 'packages/data/**', 'tooling/build-data.ts') }}
+      - if: steps.data-cache.outputs.cache-hit != 'true'
+        run: pnpm build:data
       - run: pnpm test
+      - if: needs.versions.outputs.code == 'true'
+        run: pnpm build
+      - if: needs.versions.outputs.code == 'true'
+        run: pnpm e2e
+
+  build:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:data
       - run: pnpm build
-      - run: pnpm e2e
-      # The build that just passed every check is what Pages serves (M10).
-      - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/upload-pages-artifact@v3
+      # The prebuilt solver CLI (scenario tooling) ships as a build artifact.
+      - run: pnpm cli:bundle
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sps-cli
+          path: dist-cli/sps.mjs
+      - uses: actions/upload-pages-artifact@v3
         with:
           path: apps/web/dist
 
   deploy:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: check
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       pages: write

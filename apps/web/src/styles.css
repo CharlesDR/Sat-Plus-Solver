@@ -2735,3 +2735,56 @@ details.more-menu > summary {
   padding: 4px 0;
   border-top: 1px solid var(--line);
 }
+
+/* Shortfall panel (A92). */
+.shortfall-list {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.shortfall-list li {
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+.shortfall-list p {
+  margin: 0 0 4px;
+}
+.shortfall-compare {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 10px;
+  margin: 4px 0 0;
+}
+.shortfall-compare dt {
+  font-weight: 600;
+}
+.shortfall-compare dd {
+  margin: 0;
+}
+
+/* Hover help: one tip for the page, fading in after a short delay. */
+.help-tip {
+  position: fixed;
+  z-index: 1000;
+  max-width: 280px;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--fg);
+  border-color: var(--line-strong);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.18);
+  font-size: 12px;
+  line-height: 1.4;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.help-tip.shown {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .help-tip {
+    transition: none;
+  }
+}

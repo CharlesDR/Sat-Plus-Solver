@@ -298,7 +298,11 @@ export function nodeLines(n: FlowNode, rate: (n: number) => string = rateText): 
     case 'missing':
       return [`Missing: ${n.label}`, `${rate(n.rate ?? 0)}/min`];
     case 'target':
-      return [`Target: ${n.label}`, `${rate(n.rate ?? 0)}/min`];
+      return [
+        `Target: ${n.label}`,
+        `${rate(n.rate ?? 0)}/min`,
+        ...(n.split ? [`For links ${rate(n.split.forLinks)} · Kept ${rate(n.split.kept)}`] : []),
+      ];
     case 'byproduct':
       return [`Byproduct: ${n.label}`, `${rate(n.rate ?? 0)}/min`];
     case 'sub-factory':

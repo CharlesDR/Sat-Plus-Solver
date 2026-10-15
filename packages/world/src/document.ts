@@ -16,7 +16,9 @@
  * older world leaves out (fluid modules modelled, fluid made here); v13 added
  * the world name (N8), which an older world has none of; v14 added
  * "Simplicity" (A73); v15 added the area grouping choice (A87), which an
- * older world leaves out (pinch points, the new default).
+ * older world leaves out (pinch points, the new default); v16 split each
+ * target into For links and Kept and added "Built factories: Hold / Grow"
+ * (A92), which an older world leaves out (Kept 0, Hold).
  * `migrateWorld` upgrades older documents.
  */
 import type { Model } from '@sps/data';
@@ -30,7 +32,7 @@ import type {
   SolveRequest,
 } from '@sps/solver';
 
-export const WORLD_VERSION = 15;
+export const WORLD_VERSION = 16;
 
 /** Lexicographic tolerance bounds (CLAUDE.md): 0.01%–90%, default 0.01%. */
 export const TOLERANCE_MIN = 0.0001;
@@ -79,11 +81,29 @@ export interface WorldDefaults {
   recipes: Record<string, boolean>;
   /** Leave out recipes above this dataset tier (`"<major>-<minor>"`); `null` = no limit. */
   maxTier: string | null;
+  /**
+   * "Built factories" (A92): `hold` caps a built factory's pull links at what
+   * its build makes for links, so new demand shows as a shortfall; `grow`
+   * lets it grow as before. Missing = `hold`.
+   */
+  builtFactories?: 'hold' | 'grow';
+}
+
+/**
+ * A factory target (A92): `rate` is **For links**, what the factory makes
+ * for its links to take; `kept` (missing = 0) is made on top and never
+ * exported (storage, the depot). The factory makes
+ * `max(rate, what its links take) + kept`; what links leave of `rate` is spare.
+ */
+export interface Target {
+  item: string;
+  rate: number;
+  kept?: number;
 }
 
 /** Per-factory overrides of `WorldDefaults`; a missing field inherits. */
 export interface FactoryRequest {
-  targets: ItemRate[];
+  targets: Target[];
   objectives?: ObjectiveId[];
   tolerance?: number;
   alternates?: boolean;
@@ -192,6 +212,13 @@ export interface BuiltSnapshot {
   markedAt: string;
   /** Hashes of the factory's own settings, the world defaults and its link boundary at marking. */
   fingerprint: { factory: string; world: string; links: string };
+  /**
+   * Of `outputs`, what was Kept (A92), per item, sorted; missing = none. The
+   * rest of `outputs` is the built For links rate that Hold caps links at.
+   */
+  kept?: ItemRate[];
+  /** "Scale up" (A92): the cap is lifted until the factory is marked again. */
+  grow?: true;
 }
 
 /** One recipe group of a manual plan: fractional machines at the recipe's clock. */
@@ -358,7 +385,8 @@ export function factorySolveRequest(
   const imports = tweakedImports(factory).map((i) => ({ item: i.item, cap: i.cap ?? Infinity }));
   const scarcityWeights = usageWeights(model);
   return {
-    targets: r.targets.map((t) => ({ ...t })),
+    // On its own the factory makes For links plus Kept (A92).
+    targets: r.targets.map((t) => ({ item: t.item, rate: t.rate + (t.kept ?? 0) })),
     objectives: objectives.length ? objectives : [...defaultWorldDefaults().objectives],
     tolerance: r.tolerance ?? d.tolerance,
     recipes: recipeFilter(world, factory),

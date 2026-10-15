@@ -98,7 +98,8 @@ describe('scenarios (§9 world scenarios)', () => {
   test('a non-convergent pull cycle is reported after the iteration limit', async () => {
     // Each side imports everything from the other: the pull rates grow every sweep.
     const world = buildWorld(
-      [{ id: 'a', targets: [{ item: 'iron-plate', rate: 10 }] }, { id: 'b' }],
+      // Kept (A92): made on top of what the links take.
+      [{ id: 'a', targets: [{ item: 'iron-plate', rate: 0, kept: 10 }] }, { id: 'b' }],
       [pull('ba', 'b', 'a', 'iron-plate'), pull('ab', 'a', 'b', 'iron-plate')],
     );
     const r = await resolveWorld(world, model, solveFactory);
@@ -245,7 +246,12 @@ describe('groups (§4.5)', () => {
     const world = buildWorld(
       [
         { id: 'a', group: 'inner' },
-        { id: 'b', group: 'outer', targets: [{ item: 'reinforced-iron-plate', rate: 5 }] },
+        // Kept (A92): B's own 5 RIP come on top of what C pulls.
+        {
+          id: 'b',
+          group: 'outer',
+          targets: [{ item: 'reinforced-iron-plate', rate: 0, kept: 5 }],
+        },
         { id: 'c', targets: [{ item: 'modular-frame', rate: 2 }] },
       ],
       [pull('ab', 'a', 'b', 'iron-plate'), pull('bc', 'b', 'c', 'reinforced-iron-plate')],
@@ -319,7 +325,8 @@ describe('links', () => {
   test('a fixed link raises the producer’s demand and caps the consumer’s import', async () => {
     const world = buildWorld(
       [
-        { id: 'a', targets: [{ item: 'iron-plate', rate: 15 }] },
+        // Kept (A92): A's 15 plates come on top of the link's 50.
+        { id: 'a', targets: [{ item: 'iron-plate', rate: 0, kept: 15 }] },
         { id: 'b', targets: [{ item: 'reinforced-iron-plate', rate: 5 }] },
       ],
       [{ ...fixed('ab', 'a', 'b', 'iron-plate', 50), transport: { kind: 'belt', tier: 1 } }],
@@ -489,14 +496,78 @@ describe('progress (M10)', () => {
       onProgress: (p) => seen.push(p),
     });
     expect(seen).toEqual([
-      { factory: 'c', step: 1, factories: 3, pass: 1 },
-      { factory: 'b', step: 2, factories: 3, pass: 1 },
-      { factory: 'a', step: 3, factories: 3, pass: 1 },
+      { factory: 'c', step: 1, factories: 3, pass: 1, solving: 1, done: 0 },
+      { factory: 'b', step: 2, factories: 3, pass: 1, solving: 1, done: 1 },
+      { factory: 'a', step: 3, factories: 3, pass: 1, solving: 1, done: 2 },
     ]);
     expect(r).toEqual(await resolveWorld(world, model, solveFactory, createSolveCache()));
     // Memoized solves are reported too.
     seen.length = 0;
     await resolveWorld(world, model, solveFactory, cache, { onProgress: (p) => seen.push(p) });
     expect(seen).toHaveLength(3);
+  });
+});
+
+describe('parallel factory solves (S2)', () => {
+  /** Solves with seeded, varied delays, so concurrent solves finish out of order. */
+  function delayed(seed: number): SolveFactory & { peak: number } {
+    let s = seed;
+    let inFlight = 0;
+    const f = (async (request: SolveRequest) => {
+      inFlight++;
+      f.peak = Math.max(f.peak, inFlight);
+      s = (s * 1103515245 + 12345) % 2 ** 31;
+      for (let k = s % 7; k > 0; k--) await Promise.resolve();
+      const result = await solve(model, request, backend);
+      inFlight--;
+      return result;
+    }) as SolveFactory & { peak: number };
+    f.peak = 0;
+    return f;
+  }
+
+  test('results are identical with 1 and 4 solves in flight', async () => {
+    const world = buildWorld(
+      [
+        { id: 'a' },
+        { id: 'b' },
+        { id: 'c', targets: [{ item: 'modular-frame', rate: 2 }] },
+        { id: 'd', targets: [{ item: 'iron-plate', rate: 30 }] },
+        { id: 'e', targets: [{ item: 'iron-rod', rate: 15 }] },
+        { id: 'f', targets: [{ item: 'screw', rate: 40 }] },
+        { id: 'p' },
+        { id: 'q', targets: [{ item: 'iron-plate', rate: 5 }] },
+      ],
+      [
+        pull('ab', 'a', 'b', 'iron-plate'),
+        pull('bc', 'b', 'c', 'reinforced-iron-plate'),
+        pull('pq', 'p', 'q', 'iron-ingot'),
+        pull('qp', 'q', 'p', 'iron-plate'),
+      ],
+    );
+    const one = await resolveWorld(world, model, delayed(1), createSolveCache(), {
+      concurrency: 1,
+    });
+    const pool = delayed(7);
+    const four = await resolveWorld(world, model, pool, createSolveCache(), { concurrency: 4 });
+    expect(pool.peak).toBeGreaterThan(1);
+    expect(pool.peak).toBeLessThanOrEqual(4);
+    expect(four).toEqual(one);
+  });
+
+  test('progress counts factories in flight and done', async () => {
+    const world = buildWorld([
+      { id: 'a', targets: [{ item: 'iron-plate', rate: 1 }] },
+      { id: 'b', targets: [{ item: 'iron-rod', rate: 1 }] },
+    ]);
+    const seen: { solving: number; done: number }[] = [];
+    await resolveWorld(world, model, delayed(3), createSolveCache(), {
+      concurrency: 2,
+      onProgress: (p) => seen.push({ solving: p.solving, done: p.done }),
+    });
+    expect(seen).toEqual([
+      { solving: 1, done: 0 },
+      { solving: 2, done: 0 },
+    ]);
   });
 });

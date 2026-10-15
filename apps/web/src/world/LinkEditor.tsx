@@ -5,12 +5,14 @@
  * link table. The part is picked from the source's products, or any part
  * under "Other…" (UX-18); a drag from a part's port pre-fills it (A80).
  */
+import { formatRate as fmt } from '@sps/solver';
 import type { Link, LinkSpec, Transport, World } from '@sps/world';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Field } from '../controls/Field';
 import { useItemLookup } from '../controls/itemRows';
 import type { Catalog, WorldSummary } from '../solver/protocol';
-import { carriersFor, productsOf, SHOW_TRANSPORT, transportTiers } from './viewModel';
+import { SHOW_TRANSPORT } from '../flags';
+import { availableFrom, carriersFor, productsOf, transportTiers } from './viewModel';
 
 const TRANSPORTS: { kind: Transport; label: string }[] = [
   { kind: 'unspecified', label: 'Unspecified' },
@@ -172,11 +174,16 @@ export function LinkEditor(props: {
             {(id) => (
               <select id={id} data-part value={choice} onChange={(e) => pick(e.target.value)}>
                 <option value="">Pick a part…</option>
-                {products.map((p) => (
-                  <option key={p} value={p}>
-                    {items.name(p)}
-                  </option>
-                ))}
+                {products.map((p) => {
+                  // What its targets leave for links (A92): "x of y available".
+                  const a = availableFrom(summary, from, p);
+                  return (
+                    <option key={p} value={p}>
+                      {items.name(p)}
+                      {a ? ` (${fmt(a.spare)} of ${fmt(a.forLinks)} available)` : ''}
+                    </option>
+                  );
+                })}
                 <option value={OTHER}>Other…</option>
               </select>
             )}

@@ -195,6 +195,9 @@ export function countLabel(views: readonly DiagnosticView[]): string {
 /** The world-solve progress line: "Solving Smelter (2 of 5)…". */
 export function progressLabel(p: SolveProgress | undefined, what: string): string {
   if (!p) return `Solving ${what}…`;
+  // S2: factories solving side by side.
+  if ((p.solving ?? 1) > 1)
+    return `Solving: ${p.solving} solving, ${Math.min(p.done ?? 0, p.factories)} of ${p.factories} done${p.pass > 1 ? `, pass ${p.pass}` : ''}…`;
   const step = Math.min(p.step, p.factories);
   return `Solving ${p.factory} (${step} of ${p.factories}${p.pass > 1 ? `, pass ${p.pass}` : ''})…`;
 }

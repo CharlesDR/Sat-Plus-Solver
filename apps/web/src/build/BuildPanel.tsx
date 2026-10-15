@@ -44,16 +44,13 @@ export function BuildPanel(props: {
           <button
             type="button"
             disabled={!!blocked}
-            title={blocked ?? 'Save the current plan as the build'}
+            title={blocked}
+            data-help={blocked ? undefined : 'mark-built'}
             onClick={props.onMark}
           >
             Re-mark as built
           </button>
-          <button
-            type="button"
-            title="Switch to manual mode with the plan as built"
-            onClick={props.onRestore}
-          >
+          <button type="button" data-help="manual-from-build" onClick={props.onRestore}>
             Restore build
           </button>
           <button type="button" className="link-button" onClick={props.onClear}>

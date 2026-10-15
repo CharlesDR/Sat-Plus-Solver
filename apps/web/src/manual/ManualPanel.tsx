@@ -88,12 +88,7 @@ export function ManualPanel(props: {
     <section className="manual-panel" aria-label="Manual plan">
       <div className="tweak-bar">
         <strong>Manual edits ({edits})</strong>
-        <button
-          type="button"
-          onClick={props.onUndo}
-          disabled={!edits}
-          title="Undo the last edit (Ctrl+Z)"
-        >
+        <button type="button" onClick={props.onUndo} disabled={!edits} data-help="undo-manual">
           Undo
         </button>
         <button type="button" onClick={props.onRevert} disabled={!edits}>

@@ -154,6 +154,10 @@ describe('diagnostics view (M10)', () => {
     expect(progressLabel({ factory: 'A', step: 9, factories: 2, pass: 2 }, 'x')).toBe(
       'Solving A (2 of 2, pass 2)…',
     );
+    // S2: factories solving side by side.
+    expect(
+      progressLabel({ factory: 'A', step: 4, factories: 9, pass: 1, solving: 3, done: 2 }, 'x'),
+    ).toBe('Solving: 3 solving, 2 of 9 done…');
   });
 
   test('fixes edit imports and node caps without touching other entries', () => {

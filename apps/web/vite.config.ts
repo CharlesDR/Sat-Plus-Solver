@@ -1,5 +1,6 @@
-import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { createHash } from 'node:crypto';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
@@ -17,7 +18,19 @@ function requireModel(): Plugin {
   };
 }
 
+/** Hash of the layout code (packages/graph), so the layout cache (S3) starts fresh when it changes. */
+function layoutCodeHash(): string {
+  const dir = fileURLToPath(new URL('../../packages/graph/src', import.meta.url));
+  const h = createHash('sha256');
+  for (const f of readdirSync(dir)
+    .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
+    .sort())
+    h.update(f).update(readFileSync(join(dir, f)));
+  return h.digest('hex').slice(0, 12);
+}
+
 export default defineConfig({
+  define: { __LAYOUT_CODE__: JSON.stringify(layoutCodeHash()) },
   // Relative base so the build works under a GitHub Pages project path.
   base: './',
   plugins: [react(), requireModel()],

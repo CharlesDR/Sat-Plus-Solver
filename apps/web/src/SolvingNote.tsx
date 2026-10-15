@@ -16,7 +16,10 @@ export function SolvingNote({
         <progress
           aria-label="Solve progress"
           max={progress.factories}
-          value={Math.min(progress.step, progress.factories)}
+          value={Math.min(
+            (progress.solving ?? 1) > 1 ? (progress.done ?? 0) : progress.step,
+            progress.factories,
+          )}
         />
       )}
     </p>

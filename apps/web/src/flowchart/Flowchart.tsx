@@ -172,6 +172,11 @@ function NodeTip({
         <div className="num">Boiler load {formatExact(node.boilerLoad * 100)}%</div>
       )}
       {node.rate !== undefined && <div className="num">{formatExact(node.rate)}/min</div>}
+      {node.split && (
+        <div className="num">
+          For links {formatExact(node.split.forLinks)} · Kept {formatExact(node.split.kept)}
+        </div>
+      )}
       {node.stages !== undefined && (
         <div className="flow-tip-stages">Used at {node.stages} stages of the plan</div>
       )}
@@ -264,17 +269,14 @@ const AreaFrame = memo(function AreaFrame({ data }: NodeProps<FrameNode>) {
         ) : (
           <span
             className="flow-area-name"
-            title="Double-click to rename"
+            data-help="rename-area"
             onDoubleClick={() => setEditing(true)}
           >
             {area.name}
           </span>
         )}
         <span className="flow-area-stats num">{areaStats(area.machines, area.power)}</span>
-        <span
-          className="flow-area-stats flow-area-flows num"
-          title="Distinct parts coming into this area (imports too) and going out of it"
-        >
+        <span className="flow-area-stats flow-area-flows num" data-help="area-ports">
           {area.ins} in · {area.outs} out
         </span>
         <button

@@ -13,6 +13,7 @@ import v12 from '../../../fixtures/worlds/v12-world.json';
 import v13 from '../../../fixtures/worlds/v13-world.json';
 import v14 from '../../../fixtures/worlds/v14-world.json';
 import v15 from '../../../fixtures/worlds/v15-world.json';
+import v16 from '../../../fixtures/worlds/v16-world.json';
 import v9 from '../../../fixtures/worlds/v9-world.json';
 import { WORLD_VERSION, createWorld, factorySolveRequest } from './document';
 import { WorldMigrationError, migrateWorld } from './migrate';
@@ -350,11 +351,40 @@ describe('migrateWorld', () => {
     // The v15 fixture is the migrated v14 one with part type picked in one factory.
     expect({
       ...v15,
+      meta: { ...v15.meta, v: WORLD_VERSION },
       factories: v15.factories.map((f) =>
         f.id === 'factory-3' ? (({ areas: _, ...r }) => r)(f) : f,
       ),
     }).toEqual(w);
     expect(migrateWorld(v15).factories[2]!.areas).toEqual({ by: 'parts' });
+  });
+
+  test('a v15 save keeps its targets as For links, Hold by default (A92)', () => {
+    const before = JSON.stringify(v15);
+    const w = migrateWorld(v15);
+    expect(w).toEqual({ ...v15, meta: { ...v15.meta, v: WORLD_VERSION } });
+    expect(JSON.stringify(v15)).toBe(before);
+    expect(w.defaults.builtFactories).toBeUndefined();
+    expect(w.factories.flatMap((f) => f.request.targets).every((t) => t.kept === undefined)).toBe(
+      true,
+    );
+    // On its own a factory still makes its target.
+    expect(factorySolveRequest(w, { nodes: [] }, 'factory-4').targets).toEqual([
+      { item: 'iron-plate', rate: 10 },
+    ]);
+    // The v16 fixture is the migrated v15 one with Grow picked and a Kept rate.
+    expect({
+      ...v16,
+      defaults: (({ builtFactories: _, ...d }) => d)(v16.defaults),
+      factories: v16.factories.map((f) =>
+        f.id === 'factory-4'
+          ? { ...f, request: { ...f.request, targets: [{ item: 'iron-plate', rate: 10 }] } }
+          : f,
+      ),
+    }).toEqual(w);
+    expect(factorySolveRequest(migrateWorld(v16), { nodes: [] }, 'factory-4').targets).toEqual([
+      { item: 'iron-plate', rate: 15 },
+    ]);
   });
 
   test('a current world passes through unchanged', () => {

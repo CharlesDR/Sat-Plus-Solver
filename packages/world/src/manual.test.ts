@@ -147,12 +147,12 @@ describe('manual plans (A36)', () => {
     });
   });
 
-  test('a manual producer ships what is left after its targets; its links run short', async () => {
-    // A makes 60 plates (3 constructors), keeps 30 for its target, and owes B 40;
+  test('a manual producer ships what is left after its Kept targets; its links run short', async () => {
+    // A makes 60 plates (3 constructors), keeps 30 for its target (Kept, A92), and owes B 40;
     // B's 7 reinforced plates/min draw all 40 (free imports), so B comes up short.
     let w = buildWorld(
       [
-        { id: 'a', targets: [{ item: 'iron-plate', rate: 30 }] },
+        { id: 'a', targets: [{ item: 'iron-plate', rate: 0, kept: 30 }] },
         { id: 'b', targets: [{ item: 'reinforced-iron-plate', rate: 7 }] },
       ],
       [fixed('l1', 'a', 'b', 'iron-plate', 40)],

@@ -1,10 +1,26 @@
 import type { Model } from '@sps/data';
 import { factoryGraph } from '@sps/graph';
-import { compareTiers, createHighsBackend, solve, summarizePlan } from '@sps/solver';
-import { DEFAULT_FACTORY_ID, addFactory, addLink, createWorld, type World } from '@sps/world';
+import {
+  compareTiers,
+  createHighsBackend,
+  seedCostCache,
+  solve,
+  summarizePlan,
+  type CostCacheEntry,
+  type SolveRequest,
+} from '@sps/solver';
+import {
+  DEFAULT_FACTORY_ID,
+  addFactory,
+  addLink,
+  createWorld,
+  markBuilt,
+  type World,
+} from '@sps/world';
 import { describe, expect, test } from 'vitest';
 import miniJson from '../../../../fixtures/vanilla-mini/model.json';
 import { createSolverService, modelCatalog, modelLabels, targetCatalog } from './service';
+import { createFactoryPool, poolSize, type FromFactoryWorker, type ToFactoryWorker } from './pool';
 
 const mini = miniJson as unknown as Model;
 const backend = createHighsBackend();
@@ -210,12 +226,99 @@ describe('world solves', () => {
     expect(p!.extraction.map((e) => e.item)).toEqual(['iron-ore']);
   });
 
+  test('a shortfall previews scaling up and a new site (A92)', async () => {
+    const service = createSolverService(mini, backend);
+    const { world, a, b } = linked();
+    const solved = await service.solve({ world });
+    const built = solved.world.factories.find((f) => f.id === a)!;
+    const marked = markBuilt(world, built, 'vanilla-mini', '2026-10-15T00:00:00Z');
+    const raised: World = {
+      ...marked,
+      factories: marked.factories.map((f) =>
+        f.id === b
+          ? { ...f, request: { targets: [{ item: 'reinforced-iron-plate', rate: 5 }] } }
+          : f,
+      ),
+    };
+    const out = await service.solve({
+      world: raised,
+      action: { kind: 'preview-shortfall', factoryId: a, item: 'iron-plate', site: 'New' },
+    });
+    expect(out.world.shortfalls).toMatchObject([{ factory: a, item: 'iron-plate', missing: 12 }]);
+    const p = out.shortfallPreview!;
+    expect(p).toMatchObject({ factory: a, item: 'iron-plate' });
+    expect(p.scaleUp).toMatchObject({ grows: [a], stillShort: 0 });
+    expect(p.scaleUp.machines).toBeGreaterThan(0);
+    expect(p.newSite.stillShort).toBe(0);
+    expect(p.newSite.grows).toHaveLength(1);
+    expect(p.newSite.grows).not.toContain(a);
+    expect(p.newSite.machines).toBeGreaterThan(0);
+    expect(structuredClone(out)).toEqual(out);
+  });
+
   test('progress names each factory as it starts (M10)', async () => {
     const service = createSolverService(mini, backend);
     const world = createWorld('vanilla-mini');
     world.factories[0]!.request.targets.push({ item: 'iron-plate', rate: 60 });
     const heard: unknown[] = [];
     await service.solve({ world }, (p) => heard.push(p));
-    expect(heard).toEqual([{ factory: 'Factory', step: 1, factories: 1, pass: 1 }]);
+    expect(heard).toEqual([
+      { factory: 'Factory', step: 1, factories: 1, pass: 1, solving: 1, done: 0 },
+    ]);
+  });
+});
+
+describe('factory solve pool (S2)', () => {
+  test('a pool gives the same world result and keeps the costs it learns', async () => {
+    expect([poolSize(1), poolSize(2), poolSize(4), poolSize(16), poolSize(undefined)]).toEqual([
+      1, 1, 3, 4, 1,
+    ]);
+    // Stand-in workers that solve in this thread.
+    let sent = 0;
+    const workers = [0, 1, 2].map(() => {
+      let listener: ((e: { data: FromFactoryWorker }) => void) | undefined;
+      return {
+        addEventListener: (_: 'message', l: typeof listener) => {
+          listener = l;
+          // Ready once the pool listens, as a worker is once its model loads.
+          queueMicrotask(() => l!({ data: { type: 'ready' } }));
+        },
+        postMessage: (msg: ToFactoryWorker) => {
+          if (msg.type !== 'solve') return;
+          sent++;
+          void solve(mini, msg.request, backend).then((result) =>
+            listener!({ data: { type: 'solved', id: msg.id, result, costs: [] } }),
+          );
+        },
+      };
+    });
+    let local = 0;
+    const options = {
+      size: 3,
+      spawn: () => workers,
+      onCosts: (costs: CostCacheEntry[]) => seedCostCache(mini, costs),
+      costs: () => [],
+      local: (request: SolveRequest) => {
+        local++;
+        return solve(mini, request, backend);
+      },
+    };
+    const pool = createFactoryPool(options);
+    const world = createWorld('vanilla-mini');
+    world.factories[0]!.request.targets.push({ item: 'iron-plate', rate: 60 });
+    // Before the pool warms up (a one-factory world), solves run locally.
+    const one = await createSolverService(mini, backend, undefined, pool).solve({ world });
+    expect(local).toBe(1);
+    expect(sent).toBe(0);
+    // A world of two factories starts it; ready workers take the solves.
+    pool.warm();
+    await Promise.resolve();
+    const two = linked().world;
+    const pooled = await createSolverService(mini, backend, undefined, pool).solve({ world: two });
+    const alone = await createSolverService(mini, backend).solve({ world: two });
+    expect(pooled.world).toEqual(alone.world);
+    expect(one.world).toEqual((await createSolverService(mini, backend).solve({ world })).world);
+    expect(sent).toBeGreaterThan(0);
+    expect(local).toBe(1);
   });
 });

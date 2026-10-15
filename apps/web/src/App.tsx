@@ -1,9 +1,9 @@
 import type { LayoutEngine } from '@sps/graph';
 import type { World } from '@sps/world';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useStore } from 'zustand';
 import { ErrorBoundary } from './ErrorBoundary';
-import { ExportWorld, FactoryView } from './factory/FactoryView';
+import { ExportWorld } from './persistence/ExportWorld';
 import type { Saves } from './persistence/saves';
 import { SavePanel, type ModelerFiles } from './persistence/SavePanel';
 import { announceNewWorld, NewWorldDialog } from './persistence/NewWorldDialog';
@@ -14,7 +14,7 @@ import type { Catalog } from './solver/protocol';
 import type { WorldStore } from './store';
 import { useWorldPlan } from './useWorldPlan';
 import { breadcrumb } from './world/viewModel';
-import { CommandPalette, type Command } from './CommandPalette';
+import type { Command } from './CommandPalette';
 import { LogoMark, SearchIcon } from './ui/icons';
 import { ThemeSwitch } from './ui/ThemeSwitch';
 import { ToastProvider, useToast } from './ui/toasts';
@@ -22,6 +22,14 @@ import { WorldView, type StartActions } from './world/WorldView';
 import { EscapeContext, escapeStack, isTextField } from './escape';
 import { NumbersProvider } from './ui/numbers';
 import { backOut, factoryView, focusOf, parentLookup, WORLD_VIEW, type View } from './viewPath';
+
+// U3: views the first screen doesn't need load on first use.
+const FactoryView = lazy(() =>
+  import('./factory/FactoryView').then((m) => ({ default: m.FactoryView })),
+);
+const CommandPalette = lazy(() =>
+  import('./CommandPalette').then((m) => ({ default: m.CommandPalette })),
+);
 
 /** Where the user is: the world canvas (home), or one factory drilled into. */
 export type { View } from './viewPath';
@@ -126,6 +134,23 @@ function AppFrame(props: {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // Ctrl+Z undoes a world edit; Ctrl+Y and Ctrl+Shift+Z redo (Cmd on macOS)
+  // (U1). In a text field the field's own undo wins.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.defaultPrevented) return;
+      const key = e.key.toLowerCase();
+      const redo = key === 'y' || (key === 'z' && e.shiftKey);
+      if (key !== 'z' && !redo) return;
+      if (isTextField(document.activeElement)) return;
+      e.preventDefault();
+      if (redo) store.getState().redo();
+      else store.getState().undo();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [store]);
+
   // Esc steps back one thing at a time (A42): out of a text field, then the
   // latest open layer, then one level up the view path. Menus and dialogs that
   // handle Esc themselves mark the event handled.
@@ -150,7 +175,7 @@ function AppFrame(props: {
               <LogoMark />
               <h1>Sat-Plus-Solver</h1>
               {world.meta.name && (
-                <span className="world-name" title="World name">
+                <span className="world-name" data-help="world-name">
                   {world.meta.name}
                 </span>
               )}
@@ -162,12 +187,13 @@ function AppFrame(props: {
               onFactory={(id) => setView(factoryView(id, parentLookup(world)))}
             />
             <div className="topbar-actions">
+              <UndoRedo store={store} />
               <button
                 type="button"
                 className="search-button"
                 onClick={() => setPalette(true)}
                 disabled={!catalog}
-                title="Quick search (Ctrl+K)"
+                data-help="quick-search"
               >
                 <SearchIcon />
                 <span>Search</span>
@@ -213,14 +239,16 @@ function AppFrame(props: {
                   start={start}
                 />
                 {palette && (
-                  <CommandPalette
-                    store={store}
-                    catalog={catalog}
-                    focus={focus}
-                    onView={setView}
-                    onClose={() => setPalette(false)}
-                    actions={actions}
-                  />
+                  <Suspense fallback={null}>
+                    <CommandPalette
+                      store={store}
+                      catalog={catalog}
+                      focus={focus}
+                      onView={setView}
+                      onClose={() => setPalette(false)}
+                      actions={actions}
+                    />
+                  </Suspense>
                 )}
                 {newWorld && (
                   <NewWorldDialog store={store} saves={saves} onClose={() => setNewWorld(false)} />
@@ -231,6 +259,36 @@ function AppFrame(props: {
         </div>
       </NumbersProvider>
     </EscapeContext.Provider>
+  );
+}
+
+/** Toolbar undo and redo of world edits (U1). */
+function UndoRedo({ store }: { store: WorldStore }) {
+  const canUndo = useStore(store, (s) => s.past.length > 0);
+  const canRedo = useStore(store, (s) => s.future.length > 0);
+  return (
+    <span className="undo-redo">
+      <button
+        type="button"
+        className="icon-button"
+        aria-label="Undo"
+        data-help="undo"
+        disabled={!canUndo}
+        onClick={() => store.getState().undo()}
+      >
+        ↶
+      </button>
+      <button
+        type="button"
+        className="icon-button"
+        aria-label="Redo"
+        data-help="redo"
+        disabled={!canRedo}
+        onClick={() => store.getState().redo()}
+      >
+        ↷
+      </button>
+    </span>
   );
 }
 
@@ -339,16 +397,18 @@ function Shell(props: {
         recovery={<ExportWorld store={store} />}
       >
         {focus !== undefined ? (
-          <FactoryView
-            key={focus}
-            store={store}
-            layout={layout}
-            catalog={catalog}
-            factoryId={focus}
-            plan={state}
-            run={run}
-            onOpen={openFactory}
-          />
+          <Suspense fallback={<Loading />}>
+            <FactoryView
+              key={focus}
+              store={store}
+              layout={layout}
+              catalog={catalog}
+              factoryId={focus}
+              plan={state}
+              run={run}
+              onOpen={openFactory}
+            />
+          </Suspense>
         ) : (
           <WorldView
             world={world}
@@ -358,10 +418,20 @@ function Shell(props: {
             plan={state}
             onOpen={openFactory}
             onSizePower={sizePower}
+            run={run}
             start={start}
           />
         )}
       </ErrorBoundary>
     </>
+  );
+}
+
+/** What shows while a lazily loaded view downloads (U3). */
+export function Loading() {
+  return (
+    <p aria-busy="true" role="status" className="loading">
+      Loading…
+    </p>
   );
 }

@@ -10,6 +10,8 @@ import {
 } from '@sps/world';
 import { beforeAll, describe, expect, test } from 'vitest';
 import { runPipeline } from './build-data';
+import { readFileSync } from 'node:fs';
+import { compressToEncodedURIComponent } from 'lz-string';
 import { runWorldCli } from './world';
 
 const MINI = 'fixtures/vanilla-mini/model.json';
@@ -47,6 +49,19 @@ describe('pnpm world solve', () => {
     ]);
     expect(code).toBe(0);
     expect(stdout).toMatch(/Factory\s+ok\s+Iron Plate 60/);
+  });
+
+  test('reads a live-site share link and prints the compact summary', async () => {
+    const payload = compressToEncodedURIComponent(readFileSync(MINI_WORLD, 'utf8'));
+    const link = `https://charlesdr.github.io/Sat-Plus-Solver/#w=${payload}`;
+    const { code, stdout } = await runWorldCli(['solve', link, '--model', MINI, '--summary']);
+    expect(code).toBe(0);
+    expect(stdout).toMatch(/^Targets: .*Reinforced Iron Plate 5\.0/m);
+    expect(stdout).toMatch(/^Raw: .*Iron Ore/m);
+    expect(stdout).toMatch(/^Power: 52\.75 MW draw, 75\.0 MW generated$/m);
+    expect(stdout).not.toMatch(/^Links/m);
+    const damaged = await runWorldCli(['solve', 'https://x/#w=%%%', '--model', MINI]);
+    expect(damaged.code).toBe(2);
   });
 
   test('usage errors exit 2', async () => {

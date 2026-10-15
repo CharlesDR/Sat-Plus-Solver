@@ -108,6 +108,46 @@ export interface FactoryResult extends ScopeTotals {
   plan: ManualEntry[];
   /** Build mark check (A44, §4.8), when the factory is marked as built. */
   build?: BuildCheck;
+  /** Its targets split (A92), by item, sorted; missing when it has none. */
+  targets?: TargetSplit[];
+  /** Built and held at its build (A92): pull links take at most the built For links rate. */
+  held?: true;
+}
+
+/**
+ * One target item of a factory (A92): its For links and Kept rates, what
+ * its links take, and the For links rate they leave spare.
+ */
+export interface TargetSplit {
+  item: string;
+  forLinks: number;
+  kept: number;
+  /** What its links ship of the item. */
+  taken: number;
+  /** `For links − taken`, at least 0: real surplus that links or new consumers can use. */
+  spare: number;
+}
+
+/**
+ * A shortfall (A92): a held built factory that can't keep up with what its
+ * pull links ask for. Grouped by root cause: under Hold the extra demand
+ * stops at the first held factory, so this is the deepest one that falls short.
+ */
+export interface Shortfall {
+  factory: string;
+  item: string;
+  /** Per minute asked beyond what it ships. */
+  missing: number;
+  /** What its pull links may take of the item: its built For links rate less its fixed links. */
+  holds: number;
+  /** Its short links, sorted. */
+  links: string[];
+  /** Factories its short links feed, sorted. */
+  consumers: string[];
+  /** Factories further downstream on pull links that feel it, sorted. */
+  downstream: string[];
+  /** Held built factories upstream (pull links) that scaling it up may drag along, sorted. */
+  upstream: string[];
 }
 
 /** Recipe group counts, built and now: machines, or whole buildings with whole machines on (A44). */
@@ -257,4 +297,6 @@ export interface WorldResult extends Omit<ScopeTotals, 'power'> {
   nodePool: NodePoolRow[];
   diagnostics: WorldDiagnostic[];
   stats: WorldStats;
+  /** Held built factories that can't keep up (A92), sorted by factory, then item. */
+  shortfalls: Shortfall[];
 }

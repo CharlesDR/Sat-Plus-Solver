@@ -215,7 +215,7 @@ export function SavePanel(props: {
         if (menu.current?.open) setSlots(saves.list());
       }}
     >
-      <summary title="Save, load, export and share">
+      <summary data-help="save-menu">
         <FileIcon />
         <span>File</span>
         <ChevronDownIcon />

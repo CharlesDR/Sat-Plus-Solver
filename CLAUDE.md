@@ -2,11 +2,11 @@
 
 A client-side, two-layer production planner for the Satisfactory Plus (SF+) mod. The outer layer is a world of factories joined by links; inside each factory is an LP/MILP solver with satisfactory-tools parity.
 
-**Read first:** `docs/ARCHITECTURE.md` (design) and `docs/PLAN.md` (milestones M0–M11). They are the source of truth. If code and docs disagree, stop and ask; don't silently pick one.
+**Read first:** `docs/ARCHITECTURE.md` (design) and `docs/PLAN.md` (status and open backlog). Finished milestones and resolved assumptions are in `docs/archive/`; read them only when a task needs the history. They are the source of truth. If code and docs disagree, stop and ask; don't silently pick one.
 
 ## Working rules
 
-- **One milestone at a time, in PLAN order.** A milestone is done only when every acceptance criterion in `docs/PLAN.md` passes. Don't start the next one before then.
+- **One milestone at a time, in PLAN order.** A milestone is done only when every acceptance criterion in its plan (`docs/PLAN.md`, `docs/archive/PLAN.md`, or the batch's build plan) passes. Don't start the next one before then.
 - **Stop at the review checkpoints** (after M1, M3, M5) and wait for the user.
 - **Change the design in the docs first.** If implementation shows the design is wrong, propose the change to `ARCHITECTURE.md`/`PLAN.md` and get approval before diverging. Record new assumptions in ARCHITECTURE §10 with the next `A#`/`R#` id.
 - **Never weaken a test to make it pass.** That means no loosening tolerances, deleting cases, skipping or `.only`-ing tests, or editing golden fixtures to match new output. A golden fixture changes only with the user's explicit approval, and the commit must say why.

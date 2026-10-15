@@ -16,10 +16,11 @@ import {
   ledgerScopes,
   powerRows,
   scopeKey,
-  SHOW_TRANSPORT,
+  splitFor,
   type LedgerScope,
   type PowerRow,
 } from './viewModel';
+import { SHOW_TRANSPORT } from '../flags';
 
 type Name = (id: string) => string;
 
@@ -36,7 +37,12 @@ function Table(props: {
       <thead>
         <tr>
           {head.map((h, c) => (
-            <th key={h || c} scope="col" className={c < textColumns ? 'text' : 'num'}>
+            <th
+              key={h || c}
+              scope="col"
+              className={c < textColumns ? 'text' : 'num'}
+              data-help={h ? `col:${h}` : undefined}
+            >
               {h}
             </th>
           ))}
@@ -60,6 +66,7 @@ export function LedgerPanel(props: {
   const scopes = ledgerScopes(summary);
   const key = scopeKey(scope);
   const rows = ledgerFor(summary, scope);
+  const split = splitFor(summary, scope);
   return (
     <div>
       <label className="inline">
@@ -87,6 +94,8 @@ export function LedgerPanel(props: {
           'Imported',
           'Exported',
           'Surplus',
+          'Spare',
+          'Stored',
           'Unmet',
           '',
         ]}
@@ -100,6 +109,8 @@ export function LedgerPanel(props: {
             {num(r.imported)}
             {num(r.exported)}
             {num(r.surplus)}
+            {num(split.get(r.item)?.spare ?? 0)}
+            {num(split.get(r.item)?.stored ?? 0)}
             <td className={r.unmet > 1e-6 ? 'num warning' : 'num'}>{fmt(r.unmet)}</td>
             <td className="num">
               <button
@@ -225,7 +236,7 @@ function FactoryEditor(props: { world: World; store: WorldStore; id: string }) {
           aria-label={`Group of ${f.name}`}
           value={f.groupId ?? ''}
           disabled={f.parentId !== undefined}
-          title={f.parentId !== undefined ? 'A sub-factory shows inside its parent.' : undefined}
+          data-help={f.parentId !== undefined ? 'sub-factory' : undefined}
           onChange={(e) => actions.setFactoryGroup(f.id, e.target.value || undefined)}
         >
           <option value="">(none)</option>

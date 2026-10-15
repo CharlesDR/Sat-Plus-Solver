@@ -2,19 +2,19 @@
  * Test helpers: compact world construction. Not exported from the package
  * entry; tests import it directly.
  */
-import type { ItemRate } from '@sps/solver';
 import {
   createFactory,
   createWorld,
   type Factory,
   type Group,
   type Link,
+  type Target,
   type World,
 } from './document';
 
 export interface FactorySpec {
   id: string;
-  targets?: ItemRate[];
+  targets?: Target[];
   group?: string;
   resources?: Factory['resources'];
   request?: Partial<Factory['request']>;

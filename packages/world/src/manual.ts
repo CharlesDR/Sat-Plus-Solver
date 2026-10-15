@@ -139,14 +139,16 @@ export interface ManualOutcome {
 
 /**
  * The arithmetic of a manual plan under a world request: `request.targets`
- * are served first, then `request.demand` (outgoing links); `request.imports`
- * caps what may come in, and the rest of a shortfall is missing. Unknown
- * recipes are skipped.
+ * are served first, then `request.demand` (outgoing links), then `later`
+ * (in the world, the For links rate links leave spare, A92), which counts
+ * toward the targets; `request.imports` caps what may come in, and the rest
+ * of a shortfall is missing. Unknown recipes are skipped.
  */
 export function manualOutcome(
   model: Pick<Model, 'recipes' | 'nodes'>,
   entries: readonly ManualEntry[],
   request: SolveRequest,
+  later: readonly ItemRate[] = [],
 ): ManualOutcome {
   const recipes = new Map<string, Recipe>(model.recipes.map((r) => [r.id, r]));
   const nne = new Map(model.nodes.map((n) => [n.id, n.nne]));
@@ -197,11 +199,19 @@ export function manualOutcome(
   for (const t of request.targets) add(target, t.item, t.rate);
   const linkDemand = new Map<string, number>();
   for (const d of request.demand ?? []) add(linkDemand, d.item, d.rate);
+  const after = new Map<string, number>();
+  for (const t of later) add(after, t.item, t.rate);
   const caps = new Map<string, number>();
   for (const i of request.imports ?? []) add(caps, i.item, i.cap);
 
   const all = [
-    ...new Set([...produced.keys(), ...consumed.keys(), ...target.keys(), ...linkDemand.keys()]),
+    ...new Set([
+      ...produced.keys(),
+      ...consumed.keys(),
+      ...target.keys(),
+      ...linkDemand.keys(),
+      ...after.keys(),
+    ]),
   ].sort();
   const items: ItemFlow[] = [];
   const imports: ItemRate[] = [];
@@ -220,6 +230,8 @@ export function manualOutcome(
     left -= t;
     const l = Math.min(left, linkDemand.get(item) ?? 0);
     left -= l;
+    const a = Math.min(left, after.get(item) ?? 0);
+    left -= a;
     if (imported > 0) {
       imports.push({ item, rate: imported });
       const supplied = Math.min(imported, minerDraw.get(item) ?? 0);
@@ -228,7 +240,7 @@ export function manualOutcome(
       if (short > EPS) missing.push({ item, rate: short });
     }
     if (left > EPS) surplus.push({ item, rate: left });
-    if (target.has(item)) targets.push({ item, rate: t });
+    if (target.has(item) || after.has(item)) targets.push({ item, rate: t + a });
     if (linkDemand.has(item)) forLinks.set(item, l);
     items.push({
       item,
@@ -236,7 +248,7 @@ export function manualOutcome(
       consumed: c,
       imported,
       surplus: left > EPS ? left : 0,
-      demand: t + l,
+      demand: t + l + a,
     });
   }
 
