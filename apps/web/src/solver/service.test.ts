@@ -1,10 +1,11 @@
 import type { Model } from '@sps/data';
 import { factoryGraph } from '@sps/graph';
-import { compareTiers, createHighsBackend, solve, summarizePlan } from '@sps/solver';
+import { compareTiers, createHighsBackend, seedCostCache, solve, summarizePlan } from '@sps/solver';
 import { DEFAULT_FACTORY_ID, addFactory, addLink, createWorld, type World } from '@sps/world';
 import { describe, expect, test } from 'vitest';
 import miniJson from '../../../../fixtures/vanilla-mini/model.json';
 import { createSolverService, modelCatalog, modelLabels, targetCatalog } from './service';
+import { createFactoryPool, poolSize, type FromFactoryWorker, type ToFactoryWorker } from './pool';
 
 const mini = miniJson as unknown as Model;
 const backend = createHighsBackend();
@@ -216,6 +217,35 @@ describe('world solves', () => {
     world.factories[0]!.request.targets.push({ item: 'iron-plate', rate: 60 });
     const heard: unknown[] = [];
     await service.solve({ world }, (p) => heard.push(p));
-    expect(heard).toEqual([{ factory: 'Factory', step: 1, factories: 1, pass: 1 }]);
+    expect(heard).toEqual([
+      { factory: 'Factory', step: 1, factories: 1, pass: 1, solving: 1, done: 0 },
+    ]);
+  });
+});
+
+describe('factory solve pool (S2)', () => {
+  test('a pool gives the same world result and keeps the costs it learns', async () => {
+    expect([poolSize(1), poolSize(2), poolSize(4), poolSize(16), poolSize(undefined)]).toEqual([
+      1, 1, 3, 4, 1,
+    ]);
+    // Stand-in workers that solve in this thread.
+    const workers = [0, 1, 2].map(() => {
+      let listener: ((e: { data: FromFactoryWorker }) => void) | undefined;
+      return {
+        addEventListener: (_: 'message', l: typeof listener) => void (listener = l),
+        postMessage: (msg: ToFactoryWorker) => {
+          if (msg.type !== 'solve') return;
+          void solve(mini, msg.request, backend).then((result) =>
+            listener!({ data: { type: 'solved', id: msg.id, result, costs: [] } }),
+          );
+        },
+      };
+    });
+    const pool = createFactoryPool(workers, (costs) => seedCostCache(mini, costs));
+    const world = createWorld('vanilla-mini');
+    world.factories[0]!.request.targets.push({ item: 'iron-plate', rate: 60 });
+    const pooled = await createSolverService(mini, backend, undefined, pool).solve({ world });
+    const alone = await createSolverService(mini, backend).solve({ world });
+    expect(pooled.world).toEqual(alone.world);
   });
 });

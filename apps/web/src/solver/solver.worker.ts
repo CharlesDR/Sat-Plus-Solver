@@ -3,10 +3,11 @@
  * world solve requests one at a time (CLAUDE.md: the main thread never runs the LP).
  */
 import type { Model } from '@sps/data';
-import { createHighsBackend } from '@sps/solver';
+import { createHighsBackend, seedCostCache } from '@sps/solver';
 import ELK from 'elkjs/lib/elk-api.js';
 import modelUrl from '../../../../data/generated/model.json?url';
 import { loadCaches, saveCaches } from './cacheStore';
+import { createFactoryPool, poolSize } from './pool';
 import type { FromWorker, ToWorker } from './protocol';
 import { createSolverService, type SolverService } from './service';
 
@@ -22,7 +23,19 @@ async function init(): Promise<SolverService> {
     workerFactory: () =>
       new Worker(new URL('../flowchart/layout.worker.ts', import.meta.url), { type: 'module' }),
   });
-  const service = createSolverService(model, createHighsBackend(), layout);
+  // S2: factory solves run on a pool of workers when the device has the cores.
+  const size = poolSize(globalThis.navigator?.hardwareConcurrency);
+  const pool =
+    size > 1
+      ? createFactoryPool(
+          Array.from(
+            { length: size },
+            () => new Worker(new URL('./factory.worker.ts', import.meta.url), { type: 'module' }),
+          ),
+          (costs) => seedCostCache(model, costs),
+        )
+      : undefined;
+  const service = createSolverService(model, createHighsBackend(), layout, pool);
   // Solves and import costs from the last visit with this data (A90).
   const saved = await loadCaches(service.dataHash);
   if (saved) service.seed(saved);

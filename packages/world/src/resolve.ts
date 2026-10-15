@@ -37,6 +37,13 @@ export interface ResolveOptions {
   pipeCapacities?: Readonly<Record<number, number>>;
   /** Called as each factory starts solving (memoized ones too), for a progress display. */
   onProgress?: (progress: ResolveProgress) => void;
+  /**
+   * Most factory solves in flight at once (S2), default 1. Independent
+   * factories then solve side by side through `solveFactory`; a factory
+   * starts once everything it depends on in the pass has finished. Results
+   * are identical for any value.
+   */
+  concurrency?: number;
 }
 
 /** Where a world solve is: the factory starting now, and how far the pass has got. */
@@ -48,6 +55,10 @@ export interface ResolveProgress {
   factories: number;
   /** Resolution pass, from 1 (more while linked import costs settle). */
   pass: number;
+  /** Factories solving right now, this one included (S2). */
+  solving: number;
+  /** Factories finished in this pass (a pull cycle's members when the cycle settles). */
+  done: number;
 }
 
 const byId = <T extends { id: string }>(a: T, b: T) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
@@ -98,6 +109,10 @@ interface Context {
   run: (request: SolveRequest) => Promise<{ key: string; result: Solved['result'] }>;
   /** Reports a factory starting to solve (`ResolveOptions.onProgress`). */
   started: (factory: string) => void;
+  /** Factories in flight and finished in the current pass, for progress (S2). */
+  load: { solving: number; done: number };
+  /** Most solves in flight (S2). */
+  concurrency: number;
 }
 
 /**
@@ -152,6 +167,8 @@ export async function resolveWorld(
   const stats = { solves: 0, cacheHits: 0, passes: 0 };
   let step = 0;
   let stepPass = 0;
+  /** Solves in flight by key (S2): an identical request waits for it and counts as a cache hit. */
+  const inflight = new Map<string, Promise<SolveResult>>();
   const ctx: Context = {
     world,
     model,
@@ -171,17 +188,37 @@ export async function resolveWorld(
         stats.cacheHits++;
         return { key, result: hit.result };
       }
+      const pending = inflight.get(`${key}\n${canonical}`);
+      if (pending) {
+        stats.cacheHits++;
+        return { key, result: await pending };
+      }
       stats.solves++;
-      const result = await solveFactory(request);
-      cache.set(key, { canonical, result });
-      return { key, result };
+      const solving = solveFactory(request);
+      inflight.set(`${key}\n${canonical}`, solving);
+      try {
+        const result = await solving;
+        cache.set(key, { canonical, result });
+        return { key, result };
+      } finally {
+        inflight.delete(`${key}\n${canonical}`);
+      }
     },
     started(factory) {
       if (!options.onProgress) return;
       if (stepPass !== stats.passes) [step, stepPass] = [0, stats.passes];
       step++;
-      options.onProgress({ factory, step, factories: factories.length, pass: stats.passes });
+      options.onProgress({
+        factory,
+        step,
+        factories: factories.length,
+        pass: stats.passes,
+        solving: this.load.solving,
+        done: this.load.done,
+      });
     },
+    load: { solving: 0, done: 0 },
+    concurrency: Math.max(1, Math.floor(options.concurrency ?? 1)),
   };
   for (const l of links) {
     const consumer = ctx.base.get(l.to)!;
@@ -318,10 +355,14 @@ async function resolvePass(
     attribute(ctx.in.get(id) ?? [], offers, result, pass, pull);
   };
 
-  for (const scc of solveOrder(ctx)) {
+  const { order, waitsFor } = solveOrder(ctx);
+  /** Per SCC, its cycle diagnostic, added in solve order so any concurrency gives the same list. */
+  const cycleDiagnostics: (WorldDiagnostic | undefined)[] = order.map(() => undefined);
+  const solveScc = async (k: number) => {
+    const scc = order[k]!;
     if (scc.length === 1) {
       await solveOne(scc[0]!);
-      continue;
+      return;
     }
     // A cycle (§4.3 step 3): pull links, or a parent drawing on its
     // sub-factories' surplus (A51). Sweep its members until the rates settle.
@@ -352,7 +393,7 @@ async function resolvePass(
       });
     }
     if (!converged)
-      pass.diagnostics.push({
+      cycleDiagnostics[k] = {
         code: 'cycle-not-converged',
         severity: 'error',
         factories: [...scc],
@@ -362,9 +403,61 @@ async function resolvePass(
           ? `The pull links between ${scc.join(', ')} did not settle after ${iterations} iterations. ` +
             `Make one of them fixed (${internal.map((l) => l.id).join(', ')}).`
           : `The surplus drawn between ${scc.join(', ')} did not settle after ${iterations} iterations.`,
-      });
-  }
+      };
+  };
+  await schedule(
+    order.map((scc) => scc.length),
+    waitsFor,
+    ctx,
+    solveScc,
+  );
+  for (const d of cycleDiagnostics) if (d) pass.diagnostics.push(d);
   return pass;
+}
+
+/**
+ * Runs `task` for every SCC (S2): up to `ctx.concurrency` at once, each once
+ * every SCC it waits for has finished. With concurrency 1 this is the serial
+ * solve order. Rejects on the first failure.
+ */
+function schedule(
+  sizes: readonly number[],
+  waitsFor: readonly (readonly number[])[],
+  ctx: Context,
+  task: (k: number) => Promise<void>,
+): Promise<void> {
+  const n = sizes.length;
+  const started = new Array<boolean>(n).fill(false);
+  const finished = new Array<boolean>(n).fill(false);
+  let left = n;
+  ctx.load.solving = 0;
+  ctx.load.done = 0;
+  return new Promise<void>((resolve, reject) => {
+    let failed = false;
+    const pump = () => {
+      if (failed) return;
+      if (left === 0) return resolve();
+      for (let k = 0; k < n && ctx.load.solving < ctx.concurrency; k++) {
+        if (started[k] || !waitsFor[k]!.every((d) => finished[d])) continue;
+        started[k] = true;
+        ctx.load.solving++;
+        task(k).then(
+          () => {
+            finished[k] = true;
+            left--;
+            ctx.load.solving--;
+            ctx.load.done += sizes[k]!;
+            pump();
+          },
+          (e: unknown) => {
+            failed = true;
+            reject(e);
+          },
+        );
+      }
+    };
+    pump();
+  });
 }
 
 /** What one sub-factory's surplus offers its parent (A51). */
@@ -520,7 +613,7 @@ function attribute(
  * consumers go first, and a parent after its sub-factories (A51).
  * Ties go to the smallest factory id; members are sorted. Deterministic.
  */
-function solveOrder(ctx: Context): string[][] {
+function solveOrder(ctx: Context): { order: string[][]; waitsFor: number[][] } {
   const ids = [...ctx.base.keys()].sort();
   const next = new Map<string, string[]>(ids.map((id) => [id, []]));
   for (const l of ctx.links) if (l.mode.kind === 'pull') next.get(l.from)!.push(l.to);
@@ -574,13 +667,19 @@ function solveOrder(ctx: Context): string[][] {
   const left = succ.map((s) => s.size);
   const ready = sccs.map((_, k) => k).filter((k) => left[k] === 0);
   const order: string[][] = [];
+  const position = new Map<number, number>();
   while (ready.length) {
     ready.sort((a, b) => (sccs[a]![0]! < sccs[b]![0]! ? -1 : 1));
     const k = ready.shift()!;
+    position.set(k, order.length);
     order.push(sccs[k]!);
     for (const p of pred[k]!) if (--left[p]! === 0) ready.push(p);
   }
-  return order;
+  // S2: an SCC waits for the SCCs it draws on (its pull consumers, its sub-factories).
+  const waitsFor: number[][] = order.map(() => []);
+  for (const [k, at] of position)
+    waitsFor[at] = [...succ[k]!].map((b) => position.get(b)!).sort((a, b) => a - b);
+  return { order, waitsFor };
 }
 
 /**

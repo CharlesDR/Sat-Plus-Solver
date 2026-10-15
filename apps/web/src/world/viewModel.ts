@@ -92,7 +92,6 @@ export function breadcrumb(
   return { groups: chain.map((g) => known.get(g)!), parents, factory: f.name };
 }
 
-
 /** The transport tiers a link can pick for a kind, with their capacities. */
 export function transportTiers(
   catalog: Pick<Catalog, 'belts' | 'pipes'>,

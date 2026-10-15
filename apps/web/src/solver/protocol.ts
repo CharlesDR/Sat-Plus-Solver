@@ -188,6 +188,10 @@ export interface SolveProgress {
   step: number;
   factories: number;
   pass: number;
+  /** Factories solving at once (S2). */
+  solving?: number;
+  /** Factories finished in this pass (S2). */
+  done?: number;
 }
 
 export type FromWorker =

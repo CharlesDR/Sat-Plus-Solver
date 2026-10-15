@@ -40,6 +40,7 @@ import {
   type WorldResult,
 } from '@sps/world';
 import type { SavedCaches } from './cacheStore';
+import type { FactoryPool } from './pool';
 import { modelerSheet } from './modeler';
 import type {
   Catalog,
@@ -76,16 +77,19 @@ export const CACHE_LIMIT = 500;
 
 /**
  * `layout` lays out flowcharts for the Modeler export (A58); the worker
- * passes its own ELK, so the main thread never runs it.
+ * passes its own ELK, so the main thread never runs it. With `pool`, factory
+ * solves run side by side on its workers (S2); results are the same.
  */
 export function createSolverService(
   model: Model,
   backend: LpBackend,
   layout?: LayoutEngine,
+  pool?: FactoryPool,
 ): SolverService {
   const labels = modelLabels(model);
   const cache = createSolveCache();
-  const solveFactory: SolveFactory = (r) => solve(model, r, backend);
+  const solveFactory: SolveFactory = pool ? (r) => pool.solve(r) : (r) => solve(model, r, backend);
+  const concurrency = pool?.size ?? 1;
   return {
     dataHash: model.meta.dataHash,
     catalog: modelCatalog(model),
@@ -96,6 +100,7 @@ export function createSolverService(
       cache.clear();
       for (const [k, v] of [...saved.solves, ...now]) cache.set(k, v);
       seedCostCache(model, saved.costs);
+      pool?.seed(saved.costs);
     },
     snapshot: () => ({
       dataHash: model.meta.dataHash,
@@ -104,9 +109,12 @@ export function createSolverService(
     }),
     async solve({ world, focus, action }, onProgress) {
       const names = new Map(world.factories.map((f) => [f.id, f.name]));
-      const options: ResolveOptions = onProgress
-        ? { onProgress: (p) => onProgress({ ...p, factory: names.get(p.factory) ?? p.factory }) }
-        : {};
+      const options: ResolveOptions = {
+        concurrency,
+        ...(onProgress
+          ? { onProgress: (p) => onProgress({ ...p, factory: names.get(p.factory) ?? p.factory }) }
+          : {}),
+      };
       let result: WorldResult;
       let edited: World | undefined;
       let previews: SwapPreview[] | undefined;
@@ -149,7 +157,7 @@ export function createSolverService(
             from: action.from,
             to,
           });
-          const r = await resolveWorld(swapped, model, solveFactory, cache);
+          const r = await resolveWorld(swapped, model, solveFactory, cache, { concurrency });
           const f = r.factories.find((x) => x.id === action.factoryId);
           if (!f) throw new Error(`Unknown factory "${action.factoryId}".`);
           previews.push({
@@ -175,7 +183,7 @@ export function createSolverService(
                 : x,
             ),
           };
-          const r = await resolveWorld(importing, model, solveFactory, cache);
+          const r = await resolveWorld(importing, model, solveFactory, cache, { concurrency });
           const f = r.factories.find((x) => x.id === action.factoryId)!;
           importPreviews.after.push({ item, ...planSize(f) });
         }
