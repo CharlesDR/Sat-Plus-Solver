@@ -6,6 +6,7 @@ import type { Model } from '@sps/data';
 import { createHighsBackend } from '@sps/solver';
 import ELK from 'elkjs/lib/elk-api.js';
 import modelUrl from '../../../../data/generated/model.json?url';
+import { loadCaches, saveCaches } from './cacheStore';
 import type { FromWorker, ToWorker } from './protocol';
 import { createSolverService, type SolverService } from './service';
 
@@ -21,7 +22,22 @@ async function init(): Promise<SolverService> {
     workerFactory: () =>
       new Worker(new URL('../flowchart/layout.worker.ts', import.meta.url), { type: 'module' }),
   });
-  return createSolverService(model, createHighsBackend(), layout);
+  const service = createSolverService(model, createHighsBackend(), layout);
+  // Solves and import costs from the last visit with this data (A90).
+  const saved = await loadCaches(service.dataHash);
+  if (saved) service.seed(saved);
+  return service;
+}
+
+/** Saves the caches a moment after the last solve, so a burst of solves saves once. */
+let saving: ReturnType<typeof setTimeout> | undefined;
+const SAVE_DELAY_MS = 2000;
+function scheduleSave(s: SolverService) {
+  if (saving !== undefined) clearTimeout(saving);
+  saving = setTimeout(() => {
+    saving = undefined;
+    void saveCaches(s.snapshot());
+  }, SAVE_DELAY_MS);
 }
 
 const service = init().then(
@@ -49,6 +65,7 @@ globalThis.addEventListener('message', (e: MessageEvent<ToWorker>) => {
         (progress) => post({ type: 'progress', id: msg.id, progress }),
       );
       post({ type: 'solved', id: msg.id, ...solved, ms: performance.now() - t0 });
+      scheduleSave(s);
     } catch (err) {
       post({ type: 'failed', id: msg.id, message: (err as Error).message });
     }

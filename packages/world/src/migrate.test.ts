@@ -12,6 +12,7 @@ import v11 from '../../../fixtures/worlds/v11-world.json';
 import v12 from '../../../fixtures/worlds/v12-world.json';
 import v13 from '../../../fixtures/worlds/v13-world.json';
 import v14 from '../../../fixtures/worlds/v14-world.json';
+import v15 from '../../../fixtures/worlds/v15-world.json';
 import v9 from '../../../fixtures/worlds/v9-world.json';
 import { WORLD_VERSION, createWorld, factorySolveRequest } from './document';
 import { WorldMigrationError, migrateWorld } from './migrate';
@@ -331,11 +332,29 @@ describe('migrateWorld', () => {
     const request = (({ simplicity: _, ...r }) => r)(v14.factories[0]!.request);
     expect({
       ...v14,
+      meta: { ...v14.meta, v: WORLD_VERSION },
       factories: [{ ...v14.factories[0]!, request }, ...v14.factories.slice(1)],
     }).toEqual(w);
     expect(
       factorySolveRequest(v14 as unknown as typeof w, { nodes: [] }, 'factory-1'),
     ).not.toHaveProperty('simplicity');
+  });
+
+  test('a v14 save keeps its area settings and groups by pinch points (A87)', () => {
+    const before = JSON.stringify(v14);
+    const w = migrateWorld(v14);
+    expect(w).toEqual({ ...v14, meta: { ...v14.meta, v: WORLD_VERSION } });
+    expect(JSON.stringify(v14)).toBe(before);
+    // No factory carries "Group by: part type", so every one gets pinch points.
+    expect(w.factories.every((f) => f.areas?.by === undefined)).toBe(true);
+    // The v15 fixture is the migrated v14 one with part type picked in one factory.
+    expect({
+      ...v15,
+      factories: v15.factories.map((f) =>
+        f.id === 'factory-3' ? (({ areas: _, ...r }) => r)(f) : f,
+      ),
+    }).toEqual(w);
+    expect(migrateWorld(v15).factories[2]!.areas).toEqual({ by: 'parts' });
   });
 
   test('a current world passes through unchanged', () => {

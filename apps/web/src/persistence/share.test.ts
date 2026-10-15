@@ -1,7 +1,7 @@
 import { WorldLoadError, createWorld, migrateWorld } from '@sps/world';
 import { describe, expect, test } from 'vitest';
 import v1 from '../../../../fixtures/worlds/v1-world.json';
-import v14 from '../../../../fixtures/worlds/v14-world.json';
+import v15 from '../../../../fixtures/worlds/v15-world.json';
 import { SHARE_LIMIT, isShareHash, readShareHash, shareLink } from './share';
 import { bigWorld } from './testing';
 
@@ -12,7 +12,7 @@ const fragment = (url: string) => new URL(url).hash;
 
 describe('share links (PLAN M9)', () => {
   test('World → URL → World is deep-equal', () => {
-    for (const world of [createWorld('h'), v14, bigWorld(20)]) {
+    for (const world of [createWorld('h'), v15, bigWorld(20)]) {
       const link = shareLink(world as never, BASE);
       if (!link.ok) throw new Error('expected a link');
       expect(link.url.startsWith('https://example.test/app/?x=1#w=')).toBe(true);

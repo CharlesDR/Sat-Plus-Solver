@@ -21,6 +21,7 @@ export { findFreeLunch } from './checks/freeLunch';
 export type { FreeLunchResult } from './checks/freeLunch';
 export {
   clampTolerance,
+  costCacheEntries,
   DEFAULT_TOLERANCE,
   DUMPABLE_FLUIDS,
   FARM_CAP,
@@ -32,9 +33,11 @@ export {
   MIN_RATE,
   MIN_TOLERANCE,
   objectiveStack,
+  seedCostCache,
   solve,
   usageWeights,
 } from './factory/solve';
+export type { CostCacheEntry } from './factory/solve';
 export { OBJECTIVE_IDS } from './factory/types';
 export { filterMinerRoutes, minerFluidOptions, minerSupplyItem } from './factory/minerFluids';
 export type { MinerFluidOptions, MinerFluids, MinerFluidSupply } from './factory/minerFluids';

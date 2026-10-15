@@ -271,6 +271,12 @@ const AreaFrame = memo(function AreaFrame({ data }: NodeProps<FrameNode>) {
           </span>
         )}
         <span className="flow-area-stats num">{areaStats(area.machines, area.power)}</span>
+        <span
+          className="flow-area-stats flow-area-flows num"
+          title="Distinct parts coming into this area (imports too) and going out of it"
+        >
+          {area.ins} in · {area.outs} out
+        </span>
         <button
           type="button"
           className="flow-area-toggle nodrag"

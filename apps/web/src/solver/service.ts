@@ -13,7 +13,9 @@ import {
 import {
   bestNodeRates,
   compareTiers,
+  costCacheEntries,
   rawResources,
+  seedCostCache,
   sizeNetwork,
   solve,
   summarizePlan,
@@ -37,6 +39,7 @@ import {
   type World,
   type WorldResult,
 } from '@sps/world';
+import type { SavedCaches } from './cacheStore';
 import { modelerSheet } from './modeler';
 import type {
   Catalog,
@@ -45,6 +48,8 @@ import type {
   FocusPlan,
   ModelerImported,
   SolveProgress,
+  ImportPreviews,
+  PlanSize,
   SwapPreview,
   WorldSolved,
   WorldSolveRequest,
@@ -60,6 +65,10 @@ export interface SolverService {
    * `onProgress` hears each factory as it starts.
    */
   solve(request: WorldSolveRequest, onProgress?: (p: SolveProgress) => void): Promise<WorldSolved>;
+  /** Fills the caches from a previous visit's, for the same model data (A90). */
+  seed(saved: SavedCaches): void;
+  /** The caches as they stand, to keep across reloads (A90). */
+  snapshot(): SavedCaches;
 }
 
 /** Memoized factory solves kept between world solves; the oldest go first. */
@@ -80,6 +89,19 @@ export function createSolverService(
   return {
     dataHash: model.meta.dataHash,
     catalog: modelCatalog(model),
+    seed(saved) {
+      if (saved.dataHash !== model.meta.dataHash) return;
+      // Saved entries go first, so this visit's newer solves stay newest.
+      const now = [...cache];
+      cache.clear();
+      for (const [k, v] of [...saved.solves, ...now]) cache.set(k, v);
+      seedCostCache(model, saved.costs);
+    },
+    snapshot: () => ({
+      dataHash: model.meta.dataHash,
+      solves: [...cache],
+      costs: costCacheEntries(model),
+    }),
     async solve({ world, focus, action }, onProgress) {
       const names = new Map(world.factories.map((f) => [f.id, f.name]));
       const options: ResolveOptions = onProgress
@@ -88,6 +110,7 @@ export function createSolverService(
       let result: WorldResult;
       let edited: World | undefined;
       let previews: SwapPreview[] | undefined;
+      let importPreviews: ImportPreviews | undefined;
       let imported: ModelerImported | undefined;
       let sfmd: string | undefined;
       if (action?.kind === 'import-modeler') {
@@ -138,6 +161,25 @@ export function createSolverService(
           });
         }
       }
+      if (action?.kind === 'preview-imports') {
+        const factory = world.factories.find((x) => x.id === action.factoryId);
+        const now = result.factories.find((x) => x.id === action.factoryId);
+        if (!factory || !now) throw new Error(`Unknown factory "${action.factoryId}".`);
+        importPreviews = { before: planSize(now), after: [] };
+        for (const item of action.items) {
+          const importing: World = {
+            ...world,
+            factories: world.factories.map((x) =>
+              x.id === factory.id
+                ? { ...x, unassignedImports: [...x.unassignedImports, { item }] }
+                : x,
+            ),
+          };
+          const r = await resolveWorld(importing, model, solveFactory, cache);
+          const f = r.factories.find((x) => x.id === action.factoryId)!;
+          importPreviews.after.push({ item, ...planSize(f) });
+        }
+      }
       if (action?.kind === 'export-modeler') {
         if (!layout) throw new Error('Modeler export needs a layout engine.');
         const nested = action.factoryId === undefined;
@@ -168,6 +210,7 @@ export function createSolverService(
         ...(plan ? { focus: plan } : {}),
         ...(edited ? { edited } : {}),
         ...(previews ? { previews } : {}),
+        ...(importPreviews ? { importPreviews } : {}),
         ...(imported ? { imported } : {}),
         ...(sfmd !== undefined ? { sfmd } : {}),
       };
@@ -338,5 +381,18 @@ export function modelCatalog(model: Model): Catalog {
     itemAreas: Object.fromEntries(
       model.items.flatMap((i) => (i.area !== undefined ? [[i.id, i.area]] : [])),
     ),
+  };
+}
+
+/** A factory's size, as a suggested import compares it (A91). */
+function planSize(f: FactoryResult): PlanSize {
+  return {
+    status: f.status,
+    recipes: f.plan.length,
+    machines: f.machines,
+    resources: f.extraction
+      .filter((e) => e.rate > 0)
+      .map((e) => e.item)
+      .sort(),
   };
 }

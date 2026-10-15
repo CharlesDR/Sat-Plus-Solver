@@ -7,7 +7,9 @@
       "bends": 99,
       "edgeLength": 49003.2,
       "area": 6506631,
-      "minGap": 6
+      "minGap": 6,
+      "backEdges": 2,
+      "cost": 636
     },
     "reinforced-iron-plate-5": {
       "nodes": 20,
@@ -15,7 +17,9 @@
       "bends": 43,
       "edgeLength": 18260.1,
       "area": 2003642.7,
-      "minGap": 6
+      "minGap": 6,
+      "backEdges": 2,
+      "cost": 219.3
     },
     "ballistic-warp-drive-1": {
       "nodes": 151,
@@ -23,23 +27,49 @@
       "bends": 810,
       "edgeLength": 723050.5,
       "area": 55628631,
-      "minGap": 6
+      "minGap": 6,
+      "backEdges": 30,
+      "cost": 29423.1
     },
     "plastic-20-areas": {
       "nodes": 40,
-      "crossings": 56,
-      "bends": 184,
-      "edgeLength": 172409.9,
-      "area": 8594632.5,
-      "minGap": 6
+      "crossings": 55,
+      "bends": 128,
+      "edgeLength": 67550.9,
+      "area": 7296531.5,
+      "minGap": 6,
+      "backEdges": 3,
+      "cost": 757.6
     },
     "ballistic-warp-drive-1-areas": {
       "nodes": 151,
-      "crossings": 3472,
-      "bends": 1059,
-      "edgeLength": 1902145.7,
-      "area": 135671901,
-      "minGap": 6
+      "crossings": 3430,
+      "bends": 1138,
+      "edgeLength": 1889200.3,
+      "area": 129137400,
+      "minGap": 6,
+      "backEdges": 37,
+      "cost": 37475.2
+    },
+    "plastic-20-pinch": {
+      "nodes": 40,
+      "crossings": 28,
+      "bends": 127,
+      "edgeLength": 76507.6,
+      "area": 8740760,
+      "minGap": 6,
+      "backEdges": 4,
+      "cost": 499.5
+    },
+    "ballistic-warp-drive-1-pinch": {
+      "nodes": 151,
+      "crossings": 2114,
+      "bends": 1046,
+      "edgeLength": 1884516.7,
+      "area": 164643147,
+      "minGap": 6,
+      "backEdges": 42,
+      "cost": 24238.5
     }
   }
 }

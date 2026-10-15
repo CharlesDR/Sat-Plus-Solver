@@ -1,11 +1,13 @@
 /**
- * Areas of a large factory flowchart (A63): framed groups such as Ore
- * Processing, Steelworks or Final Assembly. Which area an item's recipes
- * belong to is decided at data-build time (data/areas.json); this module
- * places a plan's nodes in areas, applies the factory's own renames and
- * moves, and collapses areas to one box each.
+ * Areas of a large factory flowchart (A63): framed groups. By default they
+ * come from the plan's pinch points (A87, pinch.ts); "Group by: part type"
+ * uses the part types decided at data-build time (data/areas.json), such as
+ * Ore Processing or Steelworks. This module places a plan's nodes in areas,
+ * applies the factory's own renames and moves, counts the parts crossing
+ * each border, and collapses areas to one box each.
  */
 import type { FactoryGraph, FlowEdge, FlowNode, GraphArea } from './factory';
+import { areaFlows, isBox, pinchAreas } from './pinch';
 
 /** The areas the data build defines, in production order. */
 export interface AreaCatalog {
@@ -18,6 +20,11 @@ export interface AreaCatalog {
 export interface AreaSettings {
   /** "Disable factory component grouping": draw the plan as one flowchart. */
   off?: boolean;
+  /**
+   * How boxes are grouped (A87): `pinch` (the default) builds areas from the
+   * plan's pinch points, `parts` from the catalog's part types (A63).
+   */
+  by?: 'pinch' | 'parts';
   /** New names, by area id. */
   names?: Readonly<Record<string, string>>;
   /** Nodes moved to another area, by node id. */
@@ -33,8 +40,7 @@ export const areaNodeId = (area: string) => `area:${area}`;
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 /** Recipe-like boxes: what the size threshold counts. */
-const counted = (n: FlowNode) =>
-  n.kind === 'recipe' || n.kind === 'resource' || n.kind === 'sub-factory';
+const counted = isBox;
 
 /** The node's largest flow among `flows`, ties to the first item. */
 const largest = (flows: readonly { item: string; rate: number }[]) =>
@@ -67,7 +73,18 @@ export function defaultAreas(graph: FactoryGraph, catalog: AreaCatalog): Map<str
       if (area !== undefined) at.set(n.id, area);
     } else if (n.kind === 'target' && targets) at.set(n.id, targets);
   }
-  // Ends of the plan sit with what they feed or what feeds them.
+  return placeEnds(graph, at, fallback);
+}
+
+/**
+ * Ends of the plan (imports, missing inputs, targets, byproducts) not yet in
+ * an area sit with their largest consumer or producer.
+ */
+function placeEnds(
+  graph: FactoryGraph,
+  at: Map<string, string>,
+  fallback: string | undefined,
+): Map<string, string> {
   const biggest = (edges: readonly FlowEdge[], end: 'source' | 'target') =>
     [...edges].sort((a, b) => b.rate - a.rate || cmp(a.id, b.id)).find((e) => at.has(e[end]))?.[
       end
@@ -103,15 +120,28 @@ export function groupAreas(
   settings: AreaSettings = {},
   collapsed: ReadonlySet<string> = new Set(),
 ): FactoryGraph {
-  if (!catalog || settings.off || graph.nodes.filter(counted).length < AREA_MIN_NODES) return graph;
-  const at = defaultAreas(graph, catalog);
-  const known = new Set(catalog.areas.map((a) => a.id));
+  if (settings.off || graph.nodes.filter(counted).length < AREA_MIN_NODES) return graph;
+  const pinch = settings.by !== 'parts';
+  if (!pinch && !catalog) return graph;
+  let at: Map<string, string>;
+  let list: readonly { id: string; name: string }[];
+  if (pinch) {
+    const p = pinchAreas(graph);
+    at = placeEnds(graph, p.at, p.areas[0]?.id);
+    list = p.areas;
+  } else {
+    at = defaultAreas(graph, catalog!);
+    list = catalog!.areas;
+  }
+  const known = new Set(list.map((a) => a.id));
   for (const [node, area] of Object.entries(settings.moves ?? {}))
     if (at.has(node) && known.has(area)) at.set(node, area);
   const used = new Set(at.values());
   if (used.size < 2) return graph;
 
-  const areas: GraphArea[] = catalog.areas
+  const boxes = new Set(graph.nodes.filter(counted).map((n) => n.id));
+  const flows = areaFlows(graph.edges, at, boxes);
+  const areas: GraphArea[] = list
     .filter((a) => used.has(a.id))
     .map((a) => {
       const inside = graph.nodes.filter((n) => at.get(n.id) === a.id);
@@ -120,6 +150,8 @@ export function groupAreas(
         name: settings.names?.[a.id]?.trim() || a.name,
         machines: inside.reduce((s, n) => s + (n.machines ?? 0), 0),
         power: inside.reduce((s, n) => s + (n.power ?? 0), 0),
+        ins: flows.get(a.id)?.ins.size ?? 0,
+        outs: flows.get(a.id)?.outs.size ?? 0,
         ...(collapsed.has(a.id) ? { collapsed: true as const } : {}),
       };
     });

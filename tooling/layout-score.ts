@@ -51,12 +51,16 @@ export const SCORE_PLANS: Record<string, (model: Model) => SolveRequest> = {
   'plastic-20': appDefaults('plastic', 20),
   'reinforced-iron-plate-5': appDefaults('reinforced-iron-plate', 5),
   'ballistic-warp-drive-1': warpDrive,
-  // The same plans drawn in areas (A63), as the app draws them by default;
-  // the plain ones above are drawn with grouping off.
+  // The same plans drawn in part-type areas (A63); the plain ones above are
+  // drawn with grouping off.
   'plastic-20-areas': appDefaults('plastic', 20),
   'ballistic-warp-drive-1-areas': warpDrive,
+  // And in pinch-point areas (A87), as the app draws them by default.
+  'plastic-20-pinch': appDefaults('plastic', 20),
+  'ballistic-warp-drive-1-pinch': warpDrive,
 };
-const grouped = (name: string) => name.endsWith('-areas');
+const grouped = (name: string) => name.endsWith('-areas') || name.endsWith('-pinch');
+const by = (name: string) => (name.endsWith('-areas') ? 'parts' : 'pinch');
 
 /** The data build's areas (A63), as the app reads them. */
 export function areaCatalog(model: Model): AreaCatalog | undefined {
@@ -96,7 +100,7 @@ export async function scorePlans(
     const result = await solve(model, request(model), backend);
     if (result.status !== 'ok') throw new Error(`${name} did not solve: ${result.status}`);
     const flat = factoryGraph(result, labels);
-    const graph = grouped(name) ? groupAreas(flat, areaCatalog(model)) : flat;
+    const graph = grouped(name) ? groupAreas(flat, areaCatalog(model), { by: by(name) }) : flat;
     if (grouped(name) && !graph.areas) throw new Error(`${name} is not drawn in areas`);
     const layout = await layoutFactoryGraph(graph, new ELK(), {
       iconSize: ICON_SIZE,

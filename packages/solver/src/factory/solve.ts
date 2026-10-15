@@ -1399,6 +1399,27 @@ function stageValue(p: Problem, objective: ObjectiveId, values: Map<string, numb
 
 const embodiedCache = new WeakMap<Model, Map<string, ImportCost | Diagnostic>>();
 
+/** One embodied-cost cache entry: the standalone request's key and its cost. */
+export type CostCacheEntry = [key: string, cost: ImportCost | Diagnostic];
+
+/**
+ * The embodied-cost cache for `model` (A90), oldest first, so the app can
+ * keep it across reloads. Entries are plain data.
+ */
+export function costCacheEntries(model: Model): CostCacheEntry[] {
+  return [...(embodiedCache.get(model) ?? [])];
+}
+
+/**
+ * Seeds the embodied-cost cache for `model` with entries saved by
+ * `costCacheEntries` for the same model data (A90). Entries already cached win.
+ */
+export function seedCostCache(model: Model, entries: readonly CostCacheEntry[]): void {
+  let cache = embodiedCache.get(model);
+  if (!cache) embodiedCache.set(model, (cache = new Map()));
+  for (const [key, cost] of entries) if (!cache.has(key)) cache.set(key, cost);
+}
+
 /**
  * Embodied cost per 1/min of an unassigned import at `rate` (§3.3, A18): the
  * stack's values on a standalone plan that makes `rate`/min of it from the

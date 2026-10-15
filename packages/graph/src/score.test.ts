@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { FactoryLayout, PlacedEdge, PlacedNode } from './layout';
-import { gap, layoutScore } from './score';
+import { COST_WEIGHTS, gap, layoutScore } from './score';
 
 const node = (id: string, x: number, y: number): PlacedNode =>
   ({ id, x, y, width: 40, height: 20 }) as PlacedNode;
@@ -47,7 +47,50 @@ describe('layoutScore (A43)', () => {
       area: 20_000,
       // The Z label sits 20 px left of node b and 2 px below its top: hypot(20, 2).
       minGap: 20.1,
+      backEdges: 0,
+      // 10 per crossing, 1 per bend, 0.001 per px (A88).
+      cost: 10 + 2 + 0.3,
     });
+  });
+
+  test('counts stretches heading back, right to left, in the blended cost (A88)', () => {
+    const layout: FactoryLayout = {
+      width: 200,
+      height: 100,
+      nodes: [],
+      edges: [
+        // Out right, down, back left past where it started, down, and right again.
+        edge(
+          'loop',
+          [
+            [100, 10],
+            [120, 10],
+            [120, 50],
+            [20, 50],
+            [20, 90],
+            [60, 90],
+          ],
+          [150, 0],
+        ),
+        // A 2 px jog to meet a port is not a line going back.
+        edge(
+          'jog',
+          [
+            [150, 20],
+            [148, 20],
+          ],
+          [180, 0],
+        ),
+      ],
+      bundles: [],
+    };
+    const s = layoutScore(layout);
+    expect(s.backEdges).toBe(1);
+    expect(s.bends).toBe(4);
+    // 4 for the line heading back, 1 per bend, 242 px of line, rounded to 0.1.
+    expect(s.cost).toBe(4 + 4 + 0.2);
+    expect(COST_WEIGHTS.backEdges).toBeLessThan(COST_WEIGHTS.crossings);
+    expect(COST_WEIGHTS.bends).toBeLessThan(COST_WEIGHTS.backEdges);
   });
 
   test('edges that only meet at a shared end do not cross', () => {

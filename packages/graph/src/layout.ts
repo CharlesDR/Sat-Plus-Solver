@@ -15,6 +15,7 @@
  */
 import type { ElkExtendedEdge, ElkNode, ElkPoint, ElkPort } from 'elkjs/lib/elk-api';
 import type { FactoryGraph, FlowEdge, FlowNode, FlowNodeKind, GraphArea } from './factory';
+import { layoutScore } from './score';
 
 /** What `layoutFactoryGraph` needs from ELK (the `ELK` instance's `layout`). */
 export interface LayoutEngine {
@@ -203,15 +204,15 @@ const AREA_GAP = 24;
 
 /**
  * The layout of the areas themselves (A63): blocks left to right in
- * production order, wrapped into rows between areas (B9) so the drawing is
- * about twice as wide as it is tall, like the canvas.
+ * production order, areas with no line between them stacked in one column.
+ * Rows are no longer wrapped to fit the canvas (B9 until A88): every line
+ * from a later row looped back, and an easily followed chart beats one that
+ * fits in a single view, so a wide chart scrolls and zooms instead.
  */
 const AREA_ROOT_OPTIONS = {
   ...ELK_OPTIONS,
   'elk.spacing.nodeNode': String(AREA_GAP),
   'elk.layered.spacing.nodeNodeBetweenLayers': String(AREA_GAP),
-  'elk.layered.wrapping.strategy': 'MULTI_EDGE',
-  'elk.aspectRatio': '2',
 };
 /**
  * A grouped plan's first pass only learns each node's port order, which
@@ -439,11 +440,42 @@ type Sized = {
 type Label = { text: string; width: number; height: number };
 type Order = { ins: string[]; outs: string[] };
 
-/** Lays the flowchart out left to right: targets and byproducts last. */
+/** How nodes are placed inside each area: the candidates a grouped chart is laid out with (A88). */
+const PLACEMENTS = ['BRANDES_KOEPF', 'NETWORK_SIMPLEX'] as const;
+type Placement = (typeof PLACEMENTS)[number];
+
+/**
+ * Lays the flowchart out left to right: targets and byproducts last. A chart
+ * of fewer than `SMALL_PLAN` nodes in two or more open areas is laid out once
+ * per placement candidate and the cheapest by `layoutCost` is kept (A88),
+ * among those that keep boxes at least `LABEL_CLEAR` apart; ties go to the
+ * first candidate. A larger chart gets the first candidate only, which keeps
+ * a 150-node plan inside the 2 s budget.
+ */
 export async function layoutFactoryGraph(
   graph: FactoryGraph,
   engine: LayoutEngine,
   options: LayoutOptions = {},
+): Promise<FactoryLayout> {
+  const framed = graph.areas?.filter((a) => !a.collapsed).length ?? 0;
+  if (framed < 2 || graph.nodes.length >= SMALL_PLAN)
+    return layoutWith(graph, engine, options, PLACEMENTS[0]);
+  let best: { layout: FactoryLayout; clear: boolean; cost: number } | undefined;
+  for (const placement of PLACEMENTS) {
+    const layout = await layoutWith(graph, engine, options, placement);
+    const s = layoutScore(layout);
+    const clear = s.minGap >= LABEL_CLEAR;
+    if (!best || (clear && !best.clear) || (clear === best.clear && s.cost < best.cost))
+      best = { layout, clear, cost: s.cost };
+  }
+  return best!.layout;
+}
+
+async function layoutWith(
+  graph: FactoryGraph,
+  engine: LayoutEngine,
+  options: LayoutOptions,
+  placement: Placement,
 ): Promise<FactoryLayout> {
   const rate = options.rate ?? rateText;
   const lines = options.nodeLines ?? ((n: FlowNode) => nodeLines(n, rate));
@@ -756,6 +788,11 @@ export async function layoutFactoryGraph(
           id: frameId(id),
           layoutOptions: {
             ...elkOptions(children.length),
+            ...(framed ? { 'elk.layered.nodePlacement.strategy': placement } : {}),
+            // Scanline constraints let compaction slide two boxes of
+            // neighbouring layers to 4 px apart; quadratic ones keep the
+            // spacing (A88).
+            ...(framed ? { 'elk.layered.compaction.postCompaction.constraints': 'QUADRATIC' } : {}),
             ...(orders ? {} : ORDER_ONLY),
             ...(seen ? KEEP_ORDER : {}),
             'elk.padding': `[top=${PAD + (framed ? AREA_TITLE : 0)},left=${PAD},bottom=${PAD},right=${PAD}]`,

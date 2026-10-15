@@ -78,6 +78,29 @@ describe('solver service', () => {
     expect(structuredClone(solved)).toEqual(solved);
   });
 
+  test('its caches survive a reload: a seeded service answers from them (A90)', async () => {
+    const world = createWorld('vanilla-mini');
+    world.factories[0]!.request.targets.push({ item: 'iron-plate', rate: 60 });
+    const first = createSolverService(mini, backend);
+    const solved = await first.solve({ world, focus: DEFAULT_FACTORY_ID });
+    const saved = first.snapshot();
+    expect(saved.dataHash).toBe('vanilla-mini');
+    expect(saved.solves.length).toBe(1);
+    // Saved through IndexedDB, so it must survive structured cloning.
+    const reloaded = structuredClone(saved);
+    // A solver that would fail shows the second service never solves.
+    const broken = { ...backend, solve: () => Promise.reject(new Error('solved again')) };
+    const second = createSolverService(mini, broken as typeof backend);
+    second.seed(reloaded);
+    const again = (await second.solve({ world, focus: DEFAULT_FACTORY_ID })).world;
+    expect(again.stats).toMatchObject({ solves: 0, cacheHits: 1 });
+    expect(again.factories).toEqual(solved.world.factories);
+    // Caches of other data are ignored.
+    const third = createSolverService(mini, backend);
+    third.seed({ ...reloaded, dataHash: 'other' });
+    expect(third.snapshot().solves).toEqual([]);
+  });
+
   test('solver diagnostics come back in the summary', async () => {
     const service = createSolverService(mini, backend);
     const world = createWorld();

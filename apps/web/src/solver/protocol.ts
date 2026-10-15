@@ -111,6 +111,8 @@ export interface FocusPlan {
 export type WorldAction =
   | { kind: 'size-power'; factoryId: string }
   | { kind: 'preview-swaps'; factoryId: string; from: string; candidates: string[] }
+  /** Suggested imports (A91): the factory as it would solve importing each item. */
+  | { kind: 'preview-imports'; factoryId: string; items: string[] }
   /** Modeler import (M14, A57): `text` is the `.sfmd` file; `at` the ISO time of the build marks. */
   | { kind: 'import-modeler'; text: string; at: string }
   /** Modeler export (M14, A58): one factory, or the whole world when `factoryId` is missing. */
@@ -136,6 +138,23 @@ export interface SwapPreview {
   extraction: { item: string; rate: number }[];
 }
 
+/** A factory's size, before and after a suggested import (A91). */
+export interface PlanSize {
+  status: FactoryResult['status'];
+  /** Recipe groups in the plan, extraction included. */
+  recipes: number;
+  /** Machines to build. */
+  machines: number;
+  /** Raw resources it extracts, sorted. */
+  resources: string[];
+}
+
+/** Suggested imports (A91): the factory as it is, and importing each item. */
+export interface ImportPreviews {
+  before: PlanSize;
+  after: (PlanSize & { item: string })[];
+}
+
 /** What one world solve asks for. */
 export interface WorldSolveRequest {
   world: World;
@@ -152,6 +171,8 @@ export interface WorldSolved {
   edited?: World;
   /** `preview-swaps`: one per candidate, in its order. */
   previews?: SwapPreview[];
+  /** `preview-imports`: the factory now, and with each item imported, in its order. */
+  importPreviews?: ImportPreviews;
   /** `import-modeler`: what it made (the world is in `edited`). */
   imported?: ModelerImported;
   /** `export-modeler`: the `.sfmd` file's text. */

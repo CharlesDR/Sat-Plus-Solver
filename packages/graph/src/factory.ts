@@ -89,6 +89,9 @@ export interface GraphArea {
   /** Machines and draw (MW, negative = generation) of the recipes in it. */
   machines: number;
   power: number;
+  /** Distinct parts crossing its border (A87): coming in (imports too) and going out. */
+  ins: number;
+  outs: number;
   collapsed?: true;
 }
 
