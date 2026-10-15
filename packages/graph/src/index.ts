@@ -35,6 +35,13 @@ export {
   type AreaSettings,
 } from './areas';
 export {
+  importSuggestions,
+  SUGGEST_MIN_RESOURCES,
+  SUGGEST_MIN_SHARE,
+  type ImportSuggestion,
+} from './suggest';
+export { PINCH_MAX, PINCH_MIN, PINCH_PREFIX, pinchAreas, type PinchArea } from './pinch';
+export {
   AREA_TITLE,
   areaStats,
   CHAR_WIDTH,
@@ -57,7 +64,7 @@ export {
 } from './layout';
 export { flowForm, GASES, type FlowForm } from './forms';
 export { productionDepths, productionOrder, type OrderedRecipe } from './order';
-export { gap, layoutScore, type LayoutScore } from './score';
+export { COST_WEIGHTS, gap, layoutCost, layoutScore, type LayoutScore } from './score';
 export type {
   Box,
   Bundle,

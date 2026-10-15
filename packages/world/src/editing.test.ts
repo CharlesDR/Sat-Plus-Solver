@@ -198,6 +198,14 @@ describe('setFactoryAreas (A64)', () => {
     expect(w.factories[0]).not.toHaveProperty('areas');
     expect(migrateWorld(w)).toEqual(w);
   });
+  test('keeps "Group by: part type" and drops it back at pinch points (A87)', () => {
+    let w = setFactoryAreas(createWorld('t'), id, { by: 'parts' });
+    expect(w.factories[0]!.areas).toEqual({ by: 'parts' });
+    w = setFactoryAreas(w, id, { off: true });
+    expect(w.factories[0]!.areas).toEqual({ off: true, by: 'parts' });
+    w = setFactoryAreas(w, id, { off: false, by: 'pinch' });
+    expect(w.factories[0]).not.toHaveProperty('areas');
+  });
   test('refuses an unknown factory', () => {
     expect(() => setFactoryAreas(createWorld('t'), 'nope', { off: true })).toThrow(WorldEditError);
   });

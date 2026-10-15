@@ -1812,6 +1812,9 @@ input.flow-area-name {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+.flow-area-flows {
+  flex: none;
+}
 .flow-area-toggle {
   display: grid;
   place-items: center;
@@ -2708,4 +2711,27 @@ details.more-menu > summary {
   display: inline-block;
   margin-left: 4px;
   vertical-align: middle;
+}
+
+/* Suggested imports (A91). */
+.suggested-imports {
+  margin: 8px 0;
+  font-size: 13px;
+}
+.suggested-imports summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.suggested-imports ul {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.suggested-imports li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-top: 1px solid var(--line);
 }

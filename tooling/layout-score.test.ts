@@ -1,7 +1,8 @@
 /**
  * Layout score guard (A43): every flowchart change is measured on fixed plans.
- * A change may not add crossings, bends, edge length or area on any of them,
- * and may not bring two boxes closer than the floor. A change that improves
+ * A change may not add crossings, bends, edge length, area, lines heading
+ * back or blended cost (A88) on any of them, and may not bring two boxes
+ * closer than the floor. A change that improves
  * the scores lowers the baseline (`pnpm layout-score --update`) in the same
  * PR; raising a baseline number or lowering the floor needs Charles's OK.
  */
@@ -37,6 +38,8 @@ describe('flowchart layout score (A43)', () => {
       expect(s.bends).toBeLessThanOrEqual(b.bends);
       expect(s.edgeLength).toBeLessThanOrEqual(b.edgeLength * (1 + SLACK));
       expect(s.area).toBeLessThanOrEqual(b.area * (1 + SLACK));
+      expect(s.backEdges).toBeLessThanOrEqual(b.backEdges);
+      expect(s.cost).toBeLessThanOrEqual(b.cost * (1 + SLACK));
       expect(s.minGap).toBeGreaterThanOrEqual(baseline.minGapFloor);
     });
 });

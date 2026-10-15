@@ -150,11 +150,13 @@ describe('factory flowchart on the SF+ model', () => {
       const plain = { ...model, scarcityUsage: {} };
       const flat = await graphOf(factorySolveRequest(world, plain, world.factories[0]!.id));
       const catalog = areaCatalog(model);
-      const areas = groupAreas(flat, catalog).areas ?? [];
+      // Part-type areas (A63), the grouping this was written for.
+      const parts = { by: 'parts' } as const;
+      const areas = groupAreas(flat, catalog, parts).areas ?? [];
       expect(areas.length).toBeGreaterThan(1);
       let splits = 0;
       for (const a of areas) {
-        const g = groupAreas(flat, catalog, {}, new Set([a.id]));
+        const g = groupAreas(flat, catalog, parts, new Set([a.id]));
         const layout = await layoutFactoryGraph(g, new ELK(), { iconSize: 32, labelIconSize: 16 });
         expect(overlaps(layout)).toEqual([]);
         expect(layout.areas?.map((f) => f.id)).not.toContain(a.id);

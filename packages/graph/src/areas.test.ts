@@ -106,11 +106,13 @@ const catalog: AreaCatalog = {
   itemArea: (item) =>
     item === 'ore' || item === 'ingot' ? 'ore' : item === 'slag' ? undefined : 'parts',
 };
+/** These tests cover part-type areas (A63); pinch points (A87) are tested in pinch.test.ts. */
+const PARTS = { by: 'parts' } as const;
 const areaOf = (g: FactoryGraph, id: string) => g.nodes.find((n) => n.id === id)?.area;
 
 describe('groupAreas (A63)', () => {
   test('places each node: recipes by main product, the target maker and target in Final Assembly, ends with their neighbours', () => {
-    const g = groupAreas(graph(), catalog);
+    const g = groupAreas(graph(), catalog, PARTS);
     expect(g.areas?.map((a) => a.id)).toEqual(['ore', 'parts', 'final']);
     expect(areaOf(g, 'recipe:smelt-0')).toBe('ore');
     expect(areaOf(g, 'recipe:part-0')).toBe('parts');
@@ -124,19 +126,20 @@ describe('groupAreas (A63)', () => {
   test('stays one flowchart when off, small, or all in one area', () => {
     const g = graph();
     expect(groupAreas(g, catalog, { off: true })).toBe(g);
-    expect(groupAreas(g, undefined)).toBe(g);
+    expect(groupAreas(g, undefined, PARTS)).toBe(g);
     const small = { nodes: g.nodes.filter((n) => !n.id.startsWith('recipe:part')), edges: [] };
     expect(small.nodes.filter((n) => n.kind === 'recipe').length).toBeLessThan(AREA_MIN_NODES);
-    expect(groupAreas(small, catalog)).toBe(small);
+    expect(groupAreas(small, catalog, PARTS)).toBe(small);
     const one = {
       areas: catalog.areas.filter((a) => a.rule !== 'targets'),
       itemArea: () => 'parts',
     };
-    expect(groupAreas(g, one)).toBe(g);
+    expect(groupAreas(g, one, PARTS)).toBe(g);
   });
 
   test('applies the factory’s names and moves; an unknown area or node is ignored', () => {
     const g = groupAreas(graph(), catalog, {
+      ...PARTS,
       names: { parts: 'Gear Shop', ore: '  ' },
       moves: { 'recipe:part-0': 'ore', 'recipe:smelt-1': 'nope', 'recipe:gone': 'parts' },
     });
@@ -146,7 +149,7 @@ describe('groupAreas (A63)', () => {
   });
 
   test('a collapsed area is one box with what crosses its border', () => {
-    const g = groupAreas(graph(), catalog, {}, new Set(['ore']));
+    const g = groupAreas(graph(), catalog, PARTS, new Set(['ore']));
     const box = g.nodes.find((n) => n.id === areaNodeId('ore'))!;
     expect(box).toMatchObject({ kind: 'area', label: 'Ore Processing', machines: N });
     expect(box.inputs).toEqual([]);
@@ -161,7 +164,7 @@ describe('groupAreas (A63)', () => {
 
 describe('a grouped layout (A63)', () => {
   test('frames hold their own nodes and labels, nothing overlaps, lines are square, and it repeats', async () => {
-    const g = groupAreas(graph(), catalog);
+    const g = groupAreas(graph(), catalog, PARTS);
     const layout = await layoutFactoryGraph(g, new ELK(), { iconSize: 32, labelIconSize: 16 });
     expect(overlaps(layout)).toEqual([]);
     expect(layout.areas?.map((a) => a.id)).toEqual(['ore', 'parts', 'final']);
@@ -205,7 +208,7 @@ describe('a grouped layout (A63)', () => {
   });
 
   test('a collapsed area is laid out as a box outside every frame', async () => {
-    const g = groupAreas(graph(), catalog, {}, new Set(['ore']));
+    const g = groupAreas(graph(), catalog, PARTS, new Set(['ore']));
     const layout = await layoutFactoryGraph(g, new ELK());
     expect(layout.areas?.map((a) => a.id)).toEqual(['parts', 'final']);
     expect(layout.nodes.find((n) => n.id === areaNodeId('ore'))).toBeDefined();

@@ -14,7 +14,9 @@
  * build marks (A44); v10 added nested factories (A45, A49); v11 added
  * flowchart areas (A64); v12 added the miner fluid settings (A69), which an
  * older world leaves out (fluid modules modelled, fluid made here); v13 added
- * the world name (N8), which an older world has none of.
+ * the world name (N8), which an older world has none of; v14 added
+ * "Simplicity" (A73); v15 added the area grouping choice (A87), which an
+ * older world leaves out (pinch points, the new default).
  * `migrateWorld` upgrades older documents.
  */
 import type { Model } from '@sps/data';
@@ -28,7 +30,7 @@ import type {
   SolveRequest,
 } from '@sps/solver';
 
-export const WORLD_VERSION = 14;
+export const WORLD_VERSION = 15;
 
 /** Lexicographic tolerance bounds (CLAUDE.md): 0.01%–90%, default 0.01%. */
 export const TOLERANCE_MIN = 0.0001;
@@ -164,6 +166,8 @@ export interface Factory {
 export interface FactoryAreas {
   /** "Disable factory component grouping": one flowchart, no areas. */
   off?: true;
+  /** "Group by: part type" (A63); missing = pinch points (A87). */
+  by?: 'parts';
   /** Area names chosen for this factory, by area id. */
   names?: Record<string, string>;
   /** Recipes and sub-factories moved to another area, by node id. */

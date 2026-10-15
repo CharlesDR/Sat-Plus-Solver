@@ -100,6 +100,7 @@ export function setFactoryAreas(
   id: string,
   change: {
     off?: boolean;
+    by?: 'pinch' | 'parts';
     names?: Record<string, string | undefined>;
     moves?: Record<string, string | undefined>;
   },
@@ -118,10 +119,12 @@ export function setFactoryAreas(
     return Object.keys(out).length ? out : undefined;
   };
   const off = change.off ?? f.areas?.off === true;
+  const parts = (change.by ?? (f.areas?.by === 'parts' ? 'parts' : 'pinch')) === 'parts';
   const names = merged(f.areas?.names, change.names);
   const moves = merged(f.areas?.moves, change.moves);
   const areas: FactoryAreas = {
     ...(off ? { off: true as const } : {}),
+    ...(parts ? { by: 'parts' as const } : {}),
     ...(names ? { names } : {}),
     ...(moves ? { moves } : {}),
   };

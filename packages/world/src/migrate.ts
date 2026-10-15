@@ -145,6 +145,11 @@ function v13ToV14(doc: Doc): Doc {
   };
 }
 
+/** v14 → v15 (A87): factories may pick part-type areas; none do, so all get pinch points. */
+function v14ToV15(doc: Doc): Doc {
+  return { ...doc, meta: { ...(doc.meta as Doc), v: 15 } };
+}
+
 const MIGRATIONS: Record<number, (doc: Doc) => Doc> = {
   1: v1ToV2,
   2: v2ToV3,
@@ -159,6 +164,7 @@ const MIGRATIONS: Record<number, (doc: Doc) => Doc> = {
   11: v11ToV12,
   12: v12ToV13,
   13: v13ToV14,
+  14: v14ToV15,
 };
 
 /** Returns `doc` upgraded to the current version; throws on a newer or malformed document. */

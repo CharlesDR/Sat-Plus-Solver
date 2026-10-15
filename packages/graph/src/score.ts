@@ -16,6 +16,32 @@ export interface LayoutScore {
   area: number;
   /** Smallest gap between two boxes (nodes, edge labels and trunk labels), px. */
   minGap: number;
+  /** Stretches of line heading right to left, against the flow (A88). */
+  backEdges: number;
+  /** The blended cost layouts are compared by (A88): see `layoutCost`. */
+  cost: number;
+}
+
+/**
+ * Weights of the blended layout cost (A88, Charles 2026-10-14): a crossing
+ * costs most, a line heading back less, an elbow least; length breaks ties.
+ */
+export const COST_WEIGHTS = { crossings: 10, backEdges: 4, bends: 1, edgeLength: 0.001 };
+
+/** The blended cost of a score: lower is an easier chart to follow. */
+export function layoutCost(
+  s: Pick<LayoutScore, 'crossings' | 'backEdges' | 'bends' | 'edgeLength'>,
+) {
+  const w = COST_WEIGHTS;
+  return (
+    Math.round(
+      (w.crossings * s.crossings +
+        w.backEdges * s.backEdges +
+        w.bends * s.bends +
+        w.edgeLength * s.edgeLength) *
+        10,
+    ) / 10
+  );
 }
 
 type Segment = { x1: number; y1: number; x2: number; y2: number };
@@ -71,6 +97,8 @@ export function layoutScore(layout: FactoryLayout): LayoutScore {
           else if (isVertical(a) && isHorizontal(b) && crosses(b, a)) crossings++;
         }
   const bends = corners.size;
+  // Ignore stubs: a jog of a few px to meet a port is not a line going back.
+  const backEdges = segments.flat().filter((g) => isHorizontal(g) && g.x1 - g.x2 > 2).length;
   const edgeLength = segments
     .flat()
     .reduce((s, g) => s + Math.abs(g.x2 - g.x1) + Math.abs(g.y2 - g.y1), 0);
@@ -82,11 +110,13 @@ export function layoutScore(layout: FactoryLayout): LayoutScore {
   let minGap = Infinity;
   for (let i = 0; i < boxes.length; i++)
     for (let j = i + 1; j < boxes.length; j++) minGap = Math.min(minGap, gap(boxes[i]!, boxes[j]!));
-  return {
+  const score = {
     crossings,
     bends,
     edgeLength: round1(edgeLength),
     area: round1(layout.width * layout.height),
     minGap: Number.isFinite(minGap) ? round1(minGap) : 0,
+    backEdges,
   };
+  return { ...score, cost: layoutCost(score) };
 }

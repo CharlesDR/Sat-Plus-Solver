@@ -57,6 +57,7 @@ export function SettingsPanel({ store, scope, catalog, simple = false }: Props) 
     minerFluids !== base.minerFluids ||
     (values.minerFluidSupply ?? 'local') !== base.minerFluidSupply ||
     factory?.areas?.off === true ||
+    factory?.areas?.by === 'parts' ||
     ADVANCED.some((k) => overridden?.[k] === true);
   const [advancedOpen, setAdvancedOpen] = useOpenPref('advanced');
 
@@ -210,9 +211,26 @@ export function SettingsPanel({ store, scope, catalog, simple = false }: Props) 
               />
               Disable factory component grouping
             </label>
+            <p className="hint">Draws a large plan as one flowchart instead of areas.</p>
+            {factory.areas?.off !== true && (
+              <label>
+                Group by{' '}
+                <select
+                  value={factory.areas?.by ?? 'pinch'}
+                  onChange={(e) =>
+                    setFactoryAreas(factory.id, {
+                      by: e.target.value === 'parts' ? 'parts' : 'pinch',
+                    })
+                  }
+                >
+                  <option value="pinch">Pinch points</option>
+                  <option value="parts">Part type</option>
+                </select>
+              </label>
+            )}
             <p className="hint">
-              Draws a large plan as one flowchart instead of areas such as Ore Processing and
-              Steelworks.
+              Pinch points: each area sends out only a few parts, so it builds as one piece. Part
+              type: areas such as Ore Processing and Steelworks.
             </p>
           </div>
         )}
