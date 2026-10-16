@@ -52,7 +52,10 @@ test('new world: name, save first, undo, start screen', async ({ page }) => {
   await dialog.getByRole('button', { name: 'Start new world' }).click();
   await expect(page.locator('.topbar .world-name')).toHaveCount(0);
   await page.getByRole('button', { name: /Open the sample world/ }).click();
-  await expect(page.getByRole('button', { name: 'Open Iron Works', exact: true })).toBeVisible();
+  // The sample's cards draw once its four factories solve, about 5 s with the v3 scarcity weights.
+  await expect(page.getByRole('button', { name: 'Open Iron Works', exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
 
   // Part icons (UI-8): each factory card shows what it makes, each link what it carries.
   await expect(page.getByRole('group', { name: 'Makes' }).locator('img').first()).toBeVisible();
