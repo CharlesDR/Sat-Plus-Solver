@@ -90,7 +90,7 @@ jobs:
       - run: pnpm build
       # The prebuilt solver CLI (scenario tooling) ships as a build artifact.
       - run: pnpm cli:bundle
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sps-cli
           path: dist-cli/sps.mjs
