@@ -51,6 +51,7 @@ import {
   type SolveRequest,
   type SolveResult,
   type SummaryFlow,
+  usageWeights,
 } from '@sps/solver';
 import { ROOT, runPipeline } from './build-data';
 
@@ -201,9 +202,12 @@ export function parseCli(argv: string[], model: Model): CliArgs {
     }
     nodeBudget = caps;
   }
+  // O2 uses the same likely-usage weights as the app (A85).
+  const scarcityWeights = usageWeights(model);
   return {
     request: {
       targets,
+      ...(scarcityWeights ? { scarcityWeights } : {}),
       ...(stack.length === 1 ? { objective: stack[0]! } : { objectives: stack }),
       ...(tolerance !== undefined ? { tolerance } : {}),
       ...(minBranch !== undefined ? { minBranch } : {}),

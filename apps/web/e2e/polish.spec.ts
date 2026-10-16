@@ -154,7 +154,7 @@ test('counts show 2 decimals, or 1 to 4 rounded up with the exact fraction (A41,
   await page.getByLabel('Precise numbers').check();
   await expect(count).toHaveText('0.6667 (2/3)');
   await page.getByLabel('Precise numbers').uncheck();
-  await expect(page.locator('summary', { hasText: 'Imports' })).toHaveText(
+  await expect(page.locator('summary', { hasText: /^Imports/ })).toHaveText(
     'Imports (0 unassigned)',
   );
 });

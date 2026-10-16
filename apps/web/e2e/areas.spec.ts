@@ -31,11 +31,11 @@ test('a small plan stays one flowchart', async ({ page }) => {
   await expect(frames(page)).toHaveCount(0);
 });
 
-test('Plastic 20/min is drawn in areas that collapse, expand and rename (A63, A64)', async ({
+test('a Computer 5/min plan is drawn in areas that collapse, expand and rename (A63, A64)', async ({
   page,
 }) => {
   await openFactory(page);
-  await plan(page, 'Plastic', '20');
+  await plan(page, 'Computer', '5');
   await groupBy(page, 'Part type');
   await expect(frames(page).first()).toBeVisible();
   expect(await frames(page).count()).toBeGreaterThan(1);
