@@ -40,7 +40,7 @@
         "targets": [
           {
             "item": "steel-beam",
-            "rate": 10
+            "rate": 40
           }
         ]
       },
@@ -57,7 +57,7 @@
         "targets": [
           {
             "item": "mw",
-            "rate": 1527.4887
+            "rate": 188.3294
           }
         ],
         "recipes": {

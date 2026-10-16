@@ -1,81 +1,81 @@
 {
-  "$comment": "Likely-usage factor per node resource for the scarcity objective O2 (A85). O2 weighs a resource usage / map total NNE, so a resource that is rare on the map but little needed costs less than its rarity alone says. A resource not listed has usage 1. Values must be > 0, and each needs a reason. Keys are game_data.json part names that appear in data/nodes.csv. Every value is 1 for now, so plans are unchanged; each reason carries what `pnpm scarcity-sweep` suggested on 2026-10-13 (every part at 1/min under O1, all alternates, map pool: each resource's share of each plan's NNE summed over the 340 parts, divided by the mean, rounded to 0.01, floored at 0.05). Edit a value and say why in its reason.",
+  "$comment": "Likely-usage factor per node resource for the scarcity objective O2 (A85). O2 weighs a resource usage / map total NNE, so a resource that is rare on the map but little needed costs less than its rarity alone says. A resource not listed has usage 1. Values must be > 0, and each needs a reason. Keys are game_data.json part names that appear in data/nodes.csv. Values are the scarcity weights v3 (2026-10-16, demand blend 10% standard / 90% all alternates, from the scarcity review): usage = final weight x map supply NNE / 29.025 (Kyalite's weight x supply, so Kyalite is 1), rounded to 4 decimals; O2 cost per NNE is then the v3 weight / 29.025. Edit a value and say why in its reason.",
   "usage": {
     "Algal Mass": {
-      "usage": 1,
-      "reason": "Sweep 2026-10-13 suggests 0.11: 0.57% of the NNE of all 340 part plans (O1, 1/min), used by 2."
+      "usage": 1.7227,
+      "reason": "Scarcity weights v3 (Charles 2026-10-16): weight 1.0 per NNE x map supply 50.0 NNE. Blended demand 3.83 NNE (10% standard / 90% all alternates), 7.7% of supply."
     },
     "Aurovite Ore": {
-      "usage": 1,
-      "reason": "Sweep 2026-10-13 suggests 0.05: 0.00% of the NNE of all 340 part plans (O1, 1/min), used by 0."
+      "usage": 0.758,
+      "reason": "Scarcity weights v3 (Charles 2026-10-16): weight 0.88 per NNE x map supply 25.0 NNE. Blended demand 1.69 NNE (10% standard / 90% all alternates), 6.7% of supply."
     },
     "Callanite Ore": {
-      "usage": 1,
-      "reason": "Sweep 2026-10-13 suggests 0.05: 0.06% of the NNE of all 340 part plans (O1, 1/min), used by 16."
+      "usage": 2.3943,
+      "reason": "Scarcity weights v3 (Charles 2026-10-16): weight 1.13 per NNE x map supply 61.5 NNE. Blended demand 5.31 NNE (10% standard / 90% all alternates), 8.6% of supply."
     },
     "Chlorine Gas": {
-      "usage": 1,
-      "reason": "Sweep 2026-10-13 suggests 0.05: 0.00% of the NNE of all 340 part plans (O1, 1/min), used by 0."
+      "usage": 0.6615,
+      "reason": "Scarcity weights v3 (Charles 2026-10-16): weight 0.48 per NNE x map supply 40.0 NNE. Blended demand 1.47 NNE (10% standard / 90% all alternates), 3.7% of supply."
     },
     "Coal": {
-      "usage": 1,
-      "reason": "Sweep 2026-10-13 suggests 0.82: 4.28% of the NNE of all 340 part plans (O1, 1/min), used by 92."
+      "usage": 3.0362,
+      "reason": "Scarcity weights v3 (Charles 2026-10-16): weight 1.25 per NNE x map supply 70.5 NNE. Blended demand 6.75 NNE (10% standard / 90% all alternates), 9.6% of supply."
     },
     "Crude Oil": {
-      "usage": 1,
-      "reason": "Sweep 2026-10-13 suggests 1.37: 7.10% of the NNE of all 340 part plans (O1, 1/min), used by 51."
+      "usage": 4.502,
+      "reason": "Scarcity weights v3 (Charles 2026-10-16): weight 1.79 per NNE x map supply 73.0 NNE. Blended demand 10.02 NNE (10% standard / 90% all alternates), 13.7% of supply."
     },
     "Dirt": {
-      "usage": 1,
-      "reason": "Sweep 2026-10-13 suggests 2.91: 15.13% of the NNE of all 340 part plans (O1, 1/min), used by 67."
+      "usage": 0.4806,
+      "reason": "Scarcity weights v3 (Charles 2026-10-16): weight 0.31 per NNE x map supply 45.0 NNE. Blended demand 1.05 NNE (10% standard / 90% all alternates), 2.3% of supply."
     },
     "Kerr Crystal": {
-      "usage": 1,
-      "reason": "Sweep 2026-10-13 suggests 0.05: 0.00% of the NNE of all 340 part plans (O1, 1/min), used by 0."
+      "usage": 1.5587,
+      "reason": "Scarcity weights v3 (Charles 2026-10-16): weight 11.31 per NNE x map supply 4.0 NNE. Blended demand 3.46 NNE (10% standard / 90% all alternates), 86.6% of supply."
     },
     "Kyalite": {
-      "usage": 1,
-      "reason": "Sweep 2026-10-13 suggests 2.68: 13.95% of the NNE of all 340 part plans (O1, 1/min), used by 149."
+      "usage": 1.0,
+      "reason": "Scarcity weights v3 (Charles 2026-10-16): weight 1.29 per NNE x map supply 22.5 NNE. Blended demand 2.22 NNE (10% standard / 90% all alternates), 9.8% of supply."
     },
     "Larrussite Ore": {
-      "usage": 1,
-      "reason": "Sweep 2026-10-13 suggests 0.05: 0.11% of the NNE of all 340 part plans (O1, 1/min), used by 8."
+      "usage": 2.4672,
+      "reason": "Scarcity weights v3 (Charles 2026-10-16): weight 0.62 per NNE x map supply 115.5 NNE. Blended demand 5.48 NNE (10% standard / 90% all alternates), 4.7% of supply."
     },
     "Loam": {
-      "usage": 1,
-      "reason": "Sweep 2026-10-13 suggests 0.65: 3.37% of the NNE of all 340 part plans (O1, 1/min), used by 20."
+      "usage": 0.3101,
+      "reason": "Scarcity weights v3 (Charles 2026-10-16): weight 0.2 per NNE x map supply 45.0 NNE. Blended demand 0.7 NNE (10% standard / 90% all alternates), 1.6% of supply."
     },
     "Montanion Ore": {
-      "usage": 1,
-      "reason": "Sweep 2026-10-13 suggests 0.67: 3.50% of the NNE of all 340 part plans (O1, 1/min), used by 60."
+      "usage": 0.5862,
+      "reason": "Scarcity weights v3 (Charles 2026-10-16): weight 0.83 per NNE x map supply 20.5 NNE. Blended demand 1.3 NNE (10% standard / 90% all alternates), 6.3% of supply."
     },
     "Nitrogen Gas": {
-      "usage": 1,
-      "reason": "Sweep 2026-10-13 suggests 0.05: 0.00% of the NNE of all 340 part plans (O1, 1/min), used by 0."
+      "usage": 15.2696,
+      "reason": "Scarcity weights v3 (Charles 2026-10-16): weight 5.54 per NNE x map supply 80.0 NNE. Blended demand 33.94 NNE (10% standard / 90% all alternates), 42.4% of supply."
     },
     "Peat": {
-      "usage": 1,
-      "reason": "Sweep 2026-10-13 suggests 0.57: 2.97% of the NNE of all 340 part plans (O1, 1/min), used by 13."
+      "usage": 0.3307,
+      "reason": "Scarcity weights v3 (Charles 2026-10-16): weight 0.3 per NNE x map supply 32.0 NNE. Blended demand 0.74 NNE (10% standard / 90% all alternates), 2.3% of supply."
     },
     "SAM": {
-      "usage": 1,
-      "reason": "Sweep 2026-10-13 suggests 3.39: 17.65% of the NNE of all 340 part plans (O1, 1/min), used by 189."
+      "usage": 1.1187,
+      "reason": "Scarcity weights v3 (Charles 2026-10-16): weight 1.91 per NNE x map supply 17.0 NNE. Blended demand 2.48 NNE (10% standard / 90% all alternates), 14.6% of supply."
     },
     "Siterite Ore": {
-      "usage": 1,
-      "reason": "Sweep 2026-10-13 suggests 2.98: 15.48% of the NNE of all 340 part plans (O1, 1/min), used by 149."
+      "usage": 3.7549,
+      "reason": "Scarcity weights v3 (Charles 2026-10-16): weight 0.71 per NNE x map supply 153.5 NNE. Blended demand 8.33 NNE (10% standard / 90% all alternates), 5.4% of supply."
     },
     "Sulfur": {
-      "usage": 1,
-      "reason": "Sweep 2026-10-13 suggests 2.23: 11.59% of the NNE of all 340 part plans (O1, 1/min), used by 147."
+      "usage": 0.5395,
+      "reason": "Scarcity weights v3 (Charles 2026-10-16): weight 0.87 per NNE x map supply 18.0 NNE. Blended demand 1.19 NNE (10% standard / 90% all alternates), 6.6% of supply."
     },
     "Toxic Air": {
-      "usage": 1,
-      "reason": "Sweep 2026-10-13 suggests 0.11: 0.58% of the NNE of all 340 part plans (O1, 1/min), used by 2."
+      "usage": 0.6126,
+      "reason": "Scarcity weights v3 (Charles 2026-10-16): weight 1.27 per NNE x map supply 14.0 NNE. Blended demand 1.36 NNE (10% standard / 90% all alternates), 9.7% of supply."
     },
     "Uranium": {
-      "usage": 1,
-      "reason": "Sweep 2026-10-13 suggests 0.47: 2.46% of the NNE of all 340 part plans (O1, 1/min), used by 89."
+      "usage": 0.7332,
+      "reason": "Scarcity weights v3 (Charles 2026-10-16): weight 6.08 per NNE x map supply 3.5 NNE. Blended demand 1.63 NNE (10% standard / 90% all alternates), 46.5% of supply."
     }
   }
 }
