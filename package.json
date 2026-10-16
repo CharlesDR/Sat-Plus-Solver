@@ -30,7 +30,7 @@
     "@sps/graph": "workspace:*",
     "@sps/solver": "workspace:*",
     "@sps/world": "workspace:*",
-    "@types/node": "^22.20.4",
+    "@types/node": "^26.6.5",
     "elkjs": "^0.12.0",
     "esbuild": "0.28.2",
     "eslint": "^10.11.0",
