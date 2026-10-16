@@ -63,7 +63,7 @@ jobs:
       - run: pnpm typecheck
       # C1: the normalized model only changes with its inputs.
       - id: data-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: data/generated
           key: build-data-${{ hashFiles('game_data.json', 'data.schema.json', 'data/**', '!data/generated/**', 'packages/data/**', 'tooling/build-data.ts') }}
