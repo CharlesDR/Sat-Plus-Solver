@@ -38,7 +38,6 @@ describe('layoutScore (A43)', () => {
           [120, 92],
         ),
       ],
-      bundles: [],
     };
     expect(layoutScore(layout)).toEqual({
       crossings: 1,
@@ -82,7 +81,6 @@ describe('layoutScore (A43)', () => {
           [180, 0],
         ),
       ],
-      bundles: [],
     };
     const s = layoutScore(layout);
     expect(s.backEdges).toBe(1);
@@ -116,7 +114,6 @@ describe('layoutScore (A43)', () => {
           [80, 80],
         ),
       ],
-      bundles: [],
     };
     expect(layoutScore(layout).crossings).toBe(0);
   });
@@ -151,7 +148,6 @@ describe('layoutScore (A43)', () => {
           [80, 80],
         ),
       ],
-      bundles: [],
     };
     const s = layoutScore(layout);
     expect(s.crossings).toBe(1);

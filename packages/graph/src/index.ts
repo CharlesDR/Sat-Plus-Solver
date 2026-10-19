@@ -55,7 +55,7 @@ export {
   isRaw,
   LABEL_ICON_GAP,
   multiStageInputs,
-  TRAY_PAD,
+  LABEL_PAD,
   rateText,
   quietText,
   countText,
@@ -67,7 +67,6 @@ export { productionDepths, productionOrder, type OrderedRecipe } from './order';
 export { COST_WEIGHTS, gap, layoutCost, layoutScore, type LayoutScore } from './score';
 export type {
   Box,
-  Bundle,
   FactoryLayout,
   LayoutEngine,
   LayoutOptions,
@@ -76,7 +75,6 @@ export type {
   PlacedArea,
   PlacedEdge,
   PlacedNode,
-  TrayRow,
 } from './layout';
 export { factoryNodeId, groupNodeId, MAX_OUT_PORTS, nestNodeId, worldGraph } from './world';
 export type {

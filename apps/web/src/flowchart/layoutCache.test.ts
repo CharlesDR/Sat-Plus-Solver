@@ -8,7 +8,6 @@ const layout = (w: number): FactoryLayout => ({
   height: 1,
   nodes: [],
   edges: [],
-  bundles: [],
 });
 
 describe('layout cache (S3)', () => {
