@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { createHighsBackend } from './highs';
-import { toLpText } from './lpFormat';
+import { toLpArrays, toLpText } from './lpFormat';
 import type { LpModel } from './types';
 
 const backend = createHighsBackend();
@@ -54,6 +54,65 @@ describe('toLpText', () => {
       /Unknown LP variable/,
     );
     expect(() => toLpText({ ...base, objective: [{ var: 'x', coef: NaN }] })).toThrow(/Non-finite/);
+  });
+});
+
+describe('toLpArrays', () => {
+  test('orders columns as the LP reader would and splits ranged rows like the text', () => {
+    const a = toLpArrays({
+      sense: 'min',
+      objective: [{ var: 'b', coef: 1 }],
+      variables: [{ name: 'a', hi: 4 }, { name: 'b' }, { name: 'c', lo: -Infinity, integer: true }],
+      constraints: [
+        {
+          name: 'r',
+          terms: [
+            { var: 'c', coef: 2 },
+            { var: 'a', coef: 1 },
+          ],
+          lo: 1,
+          hi: 3,
+        },
+        {
+          name: 'eq',
+          terms: [
+            { var: 'a', coef: 1 },
+            { var: 'a', coef: -1 },
+          ],
+          lo: 0,
+          hi: 0,
+        },
+      ],
+    });
+    // b from the objective, then c and a from row r; the empty row writes `0 a`.
+    expect(a.columns).toEqual(['b', 'c', 'a']);
+    expect(a.rows).toEqual(['r', 'r', 'eq']);
+    expect([...a.rowLower]).toEqual([1, -Infinity, 0]);
+    expect([...a.rowUpper]).toEqual([Infinity, 3, 0]);
+    expect([...a.starts]).toEqual([0, 2, 4, 4]);
+    expect([...a.indices]).toEqual([1, 2, 1, 2]);
+    expect([...a.colCost]).toEqual([1, 0, 0]);
+    expect([...a.colLower]).toEqual([0, -Infinity, 0]);
+    expect([...a.colUpper]).toEqual([Infinity, Infinity, 4]);
+    expect([...a.integrality]).toEqual([0, 1, 0]);
+  });
+
+  test('rejects what the text rejects', () => {
+    const base: LpModel = {
+      sense: 'min',
+      objective: [],
+      variables: [{ name: 'x' }],
+      constraints: [],
+    };
+    expect(() => toLpArrays({ ...base, objective: [{ var: 'nope', coef: 1 }] })).toThrow(
+      /Unknown LP variable/,
+    );
+    expect(() => toLpArrays({ ...base, objective: [{ var: 'x', coef: NaN }] })).toThrow(
+      /Non-finite/,
+    );
+    expect(() => toLpArrays({ ...base, variables: [{ name: 'x' }, { name: 'x' }] })).toThrow(
+      /Duplicate/,
+    );
   });
 });
 
