@@ -6,12 +6,12 @@
  * their text, never measured, and ELK runs with a fixed seed, so identical
  * graphs always get identical coordinates.
  *
- * Ports and labels (A46, A48): every node has one port per item it takes,
- * on the left slanted sides of its hexagon, and one per item it makes, on
- * the right edge of its output tray, the main product in the middle. Each
- * line's label (icon and rate) sits just before the port it enters. ELK lays
- * the chart out twice: once free to order each node's ports, to learn the
- * order with the fewest crossings, then with the ports fixed in that order.
+ * Ports and labels (A93): every node is a box with one port per item it
+ * takes on its left edge and one per item it makes on its right edge, the
+ * main product in the middle. Each line's label (icon and rate) sits on its
+ * route, centred, where ELK makes room for it. ELK lays the chart out
+ * twice: once free to order each node's ports, to learn the order with the
+ * fewest crossings, then with the ports fixed in that order.
  */
 import type { ElkExtendedEdge, ElkNode, ElkPoint, ElkPort } from 'elkjs/lib/elk-api';
 import type { FactoryGraph, FlowEdge, FlowNode, FlowNodeKind, GraphArea } from './factory';
@@ -43,27 +43,14 @@ export interface NodePort {
   y: number;
 }
 
-/** One row of a node's output tray (A48): an item it makes, centred on its port. */
-export interface TrayRow {
-  item: string;
-  rate: number;
-  /** The row's centre, relative to the node's box. */
-  y: number;
-}
-
 /**
- * A node as drawn: a hexagon with vertices left and right (A40), and right
- * of it the output tray (A48), `tray` wide, one row per item the node makes.
- * `slant` is how far the hexagon's slanted sides reach in from its left and
- * right edges; the text sits between them. `stages`: a raw input feeding
- * recipes at that many stages of the plan (2 or more), drawn marked (A47).
+ * A node as drawn: a solid box (A93), its inputs on the left edge and its
+ * outputs on the right. `stages`: a raw input feeding recipes at that many
+ * stages of the plan (2 or more), drawn marked (A47).
  */
 export type PlacedNode = FlowNode &
   Box & {
     text: NodeText;
-    slant: number;
-    tray: number;
-    rows: TrayRow[];
     ports: NodePort[];
     stages?: number;
   };
@@ -71,21 +58,7 @@ export type PlacedNode = FlowNode &
 export interface PlacedEdge extends FlowEdge {
   /** The routed polyline, start to end (orthogonal segments). */
   points: ElkPoint[];
-  /** Just before the port the line enters, above the line (A48). */
-  label: Box & { text: string };
-}
-
-/**
- * One output that feeds several consumers (A46): the lines share a trunk
- * labelled with the total, and each branch is labelled with its rate.
- */
-export interface Bundle {
-  source: string;
-  item: string;
-  rate: number;
-  /** Where the trunk splits into branches. */
-  split: ElkPoint;
-  /** Just before the split point, above the trunk. */
+  /** Centred on the route, where ELK placed it among the boxes (A93). */
   label: Box & { text: string };
 }
 
@@ -97,7 +70,6 @@ export interface FactoryLayout {
   height: number;
   nodes: PlacedNode[];
   edges: PlacedEdge[];
-  bundles: Bundle[];
   /** Frames of the open areas of a grouped plan (A63). */
   areas?: PlacedArea[];
 }
@@ -105,7 +77,7 @@ export interface FactoryLayout {
 export interface LayoutOptions {
   /** Node text lines, used to size it. Default: `nodeLines` with `rate`. */
   nodeLines?: (n: FlowNode) => string[];
-  /** How rates and counts are written in nodes, labels and trays. Default: `rateText` (A41). */
+  /** How rates and counts are written in nodes and labels. Default: `rateText` (A41). */
   rate?: (n: number) => string;
   /**
    * Side of a square icon drawn left of each node's text, in px. Default 0
@@ -113,8 +85,8 @@ export interface LayoutOptions {
    */
   iconSize?: number;
   /**
-   * Side of the item icon drawn before the rate in every line label and tray
-   * row (A48), in px. Default 0 (no icon).
+   * Side of the item icon drawn before the rate in every line label (A48),
+   * in px. Default 0 (no icon).
    */
   labelIconSize?: number;
 }
@@ -123,8 +95,8 @@ export interface LayoutOptions {
 export const ICON_GAP = 6;
 /** Space between a label's item icon and its rate. */
 export const LABEL_ICON_GAP = 3;
-/** Padding either side of a tray row's icon and rate. */
-export const TRAY_PAD = 4;
+/** Padding either side of a line label's icon and rate, inside its box (A93). */
+export const LABEL_PAD = 3;
 
 /** Estimated text metrics of the world graph's 12px UI font. */
 export const CHAR_WIDTH = 7;
@@ -145,20 +117,16 @@ const PADDING_Y = 4;
 /** The node's 1px border, inside its box. */
 const BORDER = 1;
 const MIN_NODE_WIDTH = 80;
-/** Slanted sides at 60° to the flat top and bottom: they reach in tan 30° × height / 2. */
-const SLANT = Math.tan(Math.PI / 6) / 2;
-/** Shortest hexagon, so short nodes keep clear vertices for their edges. */
-const MIN_NODE_HEIGHT = 44;
+/** Shortest box: room for its icon and padding. */
+const MIN_NODE_HEIGHT = 40;
+/** Space between two ports on one side of a box, enough for the thickest lines. */
+const PORT_ROW = 12;
 /** Wrap width, in characters, of node text. */
 const NODE_CHARS = 18;
 /** The drawing's margin. */
 const PAD = 8;
-/** A label's clearance from the node it sits beside (A43's gap floor is 6). */
+/** A label's clearance from boxes and other labels (A43's gap floor is 6). */
 const LABEL_CLEAR = 6;
-/** Gap between a label and the line under it. */
-const LABEL_LIFT = 2;
-/** One row of labels before a node's inputs, with the clearance between rows. */
-const LABEL_ROW = FLOW_LINE_HEIGHT + LABEL_CLEAR;
 
 const ELK_OPTIONS = {
   'elk.algorithm': 'layered',
@@ -199,6 +167,8 @@ export const elkOptions = (nodes: number): Record<string, string> =>
 
 /** Height of an area's title bar (A63), inside its frame. */
 export const AREA_TITLE = 28;
+/** Each line's label sits on it, centred, and ELK makes room for it (A93). */
+const LABEL_OPTIONS = { 'elk.edgeLabels.placement': 'CENTER', 'elk.edgeLabels.inline': 'true' };
 /** Space between area frames, and around the lines between them. */
 const AREA_GAP = 24;
 
@@ -215,20 +185,16 @@ const AREA_ROOT_OPTIONS = {
   'elk.layered.spacing.nodeNodeBetweenLayers': String(AREA_GAP),
 };
 /**
- * A grouped plan's first pass only learns each node's port order, which
- * crossing reduction settles; placing and compacting nodes can wait, and a
- * lighter sweep is enough (A63).
+ * The first pass only learns each node's port order, which crossing
+ * reduction settles; placing and compacting nodes can wait, and a lighter
+ * sweep is enough (A63). The second sweeps in full: with the lines' labels
+ * in the chart (A93), keeping the first pass's order crosses far more lines.
  */
 const ORDER_ONLY = {
   'elk.layered.nodePlacement.strategy': 'SIMPLE',
   'elk.layered.compaction.postCompaction.strategy': 'NONE',
   'elk.layered.thoroughness': '3',
 };
-/**
- * The second pass keeps the first pass's order of nodes in each layer, read
- * from where it put them, instead of sweeping again (A63).
- */
-const KEEP_ORDER = { 'elk.layered.crossingMinimization.strategy': 'INTERACTIVE' };
 /** A gate's size: a point, but ELK wants a box. */
 const GATE = 1;
 const frameId = (area: string) => `frame:${area}`;
@@ -406,9 +372,6 @@ function stages(graph: FactoryGraph, raw: ReadonlySet<string>): Map<string, numb
   return stage;
 }
 
-/** How far in from the hexagon's edge its slanted side is at height `y`. */
-const reach = (h: number, slant: number, y: number) => (slant * Math.abs(y - h / 2)) / (h / 2);
-
 /**
  * Puts the main product in the middle of ELK's order of a node's outputs:
  * as many above as ELK put there, but never more than one more on one side
@@ -427,20 +390,8 @@ function centreMain(order: readonly string[], main: string | undefined): string[
 
 const inPort = (node: string, item: string) => `${node}#in:${item}`;
 const outPort = (node: string, item: string) => `${node}#out:${item}`;
-/** The point where a bundle's trunk splits (A46). */
-const splitNode = (node: string, item: string) => `split:${node}:${item}`;
 
-type Sized = {
-  node: FlowNode;
-  text: NodeText;
-  /** The hexagon's size; the tray sits right of it, `pad` room left of it. */
-  width: number;
-  height: number;
-  slant: number;
-  tray: number;
-  /** Room left of the hexagon for the labels of lines coming in. */
-  pad: number;
-};
+type Sized = { node: FlowNode; text: NodeText; width: number; height: number };
 type Label = { text: string; width: number; height: number };
 type Order = { ins: string[]; outs: string[] };
 
@@ -488,51 +439,16 @@ async function layoutWith(
   const labelIcon = options.labelIconSize ?? 0;
   const labelIconSpace = labelIcon > 0 ? labelIcon + LABEL_ICON_GAP : 0;
   const multi = multiStageInputs(graph);
-  /** A tray row's height: its icon or its text, and a little air. */
-  const trayRow = Math.max(FLOW_LINE_HEIGHT, labelIcon) + 4;
 
-  // An output feeding two or more lines is a bundle.
-  const fanOut = new Map<string, FlowEdge[]>();
-  for (const e of graph.edges) {
-    const key = `${e.source}\n${e.item}`;
-    fanOut.set(key, [...(fanOut.get(key) ?? []), e]);
-  }
-  const bundled = new Map([...fanOut].filter(([, list]) => list.length > 1));
-  const isBranch = (e: FlowEdge) => bundled.has(`${e.source}\n${e.item}`);
   const labelOf = (value: number): Label => {
     const text = rate(value);
     return {
       text,
-      width: labelIconSpace + text.length * FLOW_CHAR_WIDTH,
-      height: Math.max(FLOW_LINE_HEIGHT, labelIcon),
+      width: labelIconSpace + text.length * FLOW_CHAR_WIDTH + 2 * LABEL_PAD,
+      height: Math.max(FLOW_LINE_HEIGHT, labelIcon) + 2,
     };
   };
   const labels = new Map<string, Label>(graph.edges.map((e) => [e.id, labelOf(e.rate)]));
-  // Each bundle's trunk runs from its output to a split point, a node of its
-  // own wide enough for the trunk's label, where the branches leave.
-  const trunks = [...bundled.values()].map((list) => {
-    const first = list[0]!;
-    const rate = list.reduce((s, e) => s + e.rate, 0);
-    const label = labelOf(rate);
-    return {
-      first,
-      rate,
-      split: splitNode(first.source, first.item),
-      label,
-      width: label.width + LABEL_CLEAR,
-      height: 2 * (label.height + LABEL_LIFT) + 2,
-    };
-  });
-  const splitOf = (e: FlowEdge) => (isBranch(e) ? splitNode(e.source, e.item) : undefined);
-
-  // How many lines enter each input port: their labels stack above it.
-  const into = new Map<string, FlowEdge[]>();
-  for (const e of graph.edges) {
-    const key = inPort(e.target, e.item);
-    into.set(key, [...(into.get(key) ?? []), e]);
-  }
-  const rowsBefore = (n: FlowNode, item: string) =>
-    Math.max(1, into.get(inPort(n.id, item))?.length ?? 0);
 
   const sized = new Map<string, Sized>();
   for (const n of graph.nodes) {
@@ -541,50 +457,31 @@ async function layoutWith(
       longest(text.title) * FLOW_TITLE_CHAR_WIDTH,
       longest(text.details) * FLOW_CHAR_WIDTH,
     );
-    // Room for each input's label rows, and for the tray's rows with the
-    // main product in the middle.
-    const inRows = n.inputs.reduce((s, f) => s + rowsBefore(n, f.item), 0);
+    // Room for each port, with the main product in the middle of the outputs.
     const side = n.main !== undefined ? Math.ceil((n.outputs.length - 1) / 2) : 0;
     const outRows = n.main !== undefined ? 2 * side + 1 : n.outputs.length;
     const height = Math.max(
       MIN_NODE_HEIGHT,
-      inRows * LABEL_ROW,
-      outRows * trayRow,
+      (n.inputs.length + 1) * PORT_ROW,
+      (outRows + 1) * PORT_ROW,
       Math.max((text.title.length + text.details.length) * FLOW_LINE_HEIGHT, icon) +
         2 * (PADDING_Y + BORDER),
     );
-    const slant = Math.round(height * SLANT);
-    const width = Math.max(
-      MIN_NODE_WIDTH,
-      textWidth + iconSpace + 2 * (PADDING_X + BORDER) + 2 * slant,
-    );
-    const tray = n.outputs.length
-      ? 2 * TRAY_PAD +
-        labelIconSpace +
-        longest(n.outputs.map((f) => rate(f.rate))) * FLOW_CHAR_WIDTH
-      : 0;
-    const inLabels = n.inputs.flatMap((f) => into.get(inPort(n.id, f.item)) ?? []);
-    const pad = inLabels.length
-      ? Math.max(...inLabels.map((e) => labels.get(e.id)!.width)) + LABEL_CLEAR + 2
-      : 0;
-    sized.set(n.id, { node: n, text, width, height, slant, tray, pad });
+    const width = Math.max(MIN_NODE_WIDTH, textWidth + iconSpace + 2 * (PADDING_X + BORDER));
+    sized.set(n.id, { node: n, text, width, height });
   }
 
   /** Port heights on a node, given the order of its inputs and outputs. */
   const portYs = (s: Sized, order: Order) => {
     const n = s.node;
     const ys = new Map<string, number>();
-    const inRows = order.ins.reduce((t, i) => t + rowsBefore(n, i), 0);
-    // Each input's port at the foot of its rows of labels.
-    let row = (s.height - inRows * LABEL_ROW) / 2;
-    for (const i of order.ins) {
-      row += rowsBefore(n, i) * LABEL_ROW;
-      ys.set(inPort(n.id, i), row - LABEL_CLEAR / 2);
-    }
+    order.ins.forEach((i, k) =>
+      ys.set(inPort(n.id, i), s.height / 2 + (k - (order.ins.length - 1) / 2) * PORT_ROW),
+    );
     const at = n.main !== undefined ? order.outs.indexOf(n.main) : -1;
     order.outs.forEach((o, k) => {
       const off = at >= 0 ? k - at : k - (order.outs.length - 1) / 2;
-      ys.set(outPort(n.id, o), s.height / 2 + off * trayRow);
+      ys.set(outPort(n.id, o), s.height / 2 + off * PORT_ROW);
     });
     return ys;
   };
@@ -597,7 +494,7 @@ async function layoutWith(
   // laid out separately and joined here. A collapsed area is a block too,
   // with its one box and no frame (B2): placed among the frames like an open
   // area, its lines leave and enter through gates the same way, instead of
-  // the box and its split points being wrapped into rows of their own.
+  // the box being wrapped into rows of its own.
   const open = new Map((graph.areas ?? []).filter((a) => !a.collapsed).map((a) => [a.id, a]));
   const shut = new Set(
     graph.nodes.flatMap((n) => (n.kind === 'area' && n.area !== undefined ? [n.area] : [])),
@@ -612,32 +509,50 @@ async function layoutWith(
       n.id,
       n.area !== undefined && (n.kind === 'area' ? shut : open).has(n.area) ? n.area : ROOT,
     );
-  for (const t of trunks) containerOf.set(t.split, containerOf.get(t.first.source)!);
-  const segments = [
-    ...graph.edges.map((e) => ({
-      id: e.id,
-      source: splitOf(e) ? `${splitOf(e)!}#out` : outPort(e.source, e.item),
-      target: inPort(e.target, e.item),
-      from: splitOf(e) ?? e.source,
-      to: e.target,
-    })),
-    ...trunks.map((t) => ({
-      id: t.split,
-      source: outPort(t.first.source, t.first.item),
-      target: `${t.split}#in`,
-      from: t.first.source,
-      to: t.split,
-    })),
-  ];
+  const segments = graph.edges.map((e) => ({
+    id: e.id,
+    source: outPort(e.source, e.item),
+    target: inPort(e.target, e.item),
+    from: e.source,
+    to: e.target,
+  }));
   const edgesIn = new Map<string, ElkExtendedEdge[]>([[ROOT, []]]);
   /** Gates per area: exits on its right edge, entries on its left. */
   const gatesOf = new Map<string, { id: string; exit: boolean }[]>();
   const made = new Set<string>();
-  const addEdge = (container: string, id: string, source: string, target: string) => {
+  /** The ELK edge each line's label rides on (A93): its own, or its part in the area it enters. */
+  const labelled = new Map<string, string>();
+  const addEdge = (
+    container: string,
+    id: string,
+    source: string,
+    target: string,
+    line?: string,
+  ) => {
     if (made.has(id)) return;
     made.add(id);
     const list = edgesIn.get(container) ?? [];
-    list.push({ id, sources: [source], targets: [target] });
+    const l = line !== undefined ? labels.get(line) : undefined;
+    if (line !== undefined) labelled.set(line, id);
+    list.push({
+      id,
+      sources: [source],
+      targets: [target],
+      ...(l
+        ? {
+            labels: [
+              {
+                id: `label:${id}`,
+                // A margin all round keeps neighbouring labels LABEL_CLEAR apart.
+                width: l.width + LABEL_CLEAR,
+                height: l.height + LABEL_CLEAR,
+                text: l.text,
+                layoutOptions: LABEL_OPTIONS,
+              },
+            ],
+          }
+        : {}),
+    });
     edgesIn.set(container, list);
   };
   const addGate = (area: string, id: string, exit: boolean) => {
@@ -656,7 +571,7 @@ async function layoutWith(
     const a = containerOf.get(seg.from) ?? ROOT;
     const b = containerOf.get(seg.to) ?? ROOT;
     if (a === b) {
-      addEdge(a, seg.id, seg.source, seg.target);
+      addEdge(a, seg.id, seg.source, seg.target, seg.id);
       parts.set(seg.id, [{ id: seg.id }]);
       continue;
     }
@@ -675,10 +590,10 @@ async function layoutWith(
       addGate(b, entry, false);
       to = entry;
     }
-    addEdge(ROOT, `r:${from}→${to}`, from, to);
+    addEdge(ROOT, `r:${from}→${to}`, from, to, b === ROOT ? seg.id : undefined);
     list.push({ id: `r:${from}→${to}` });
     if (b !== ROOT) {
-      addEdge(b, `i:${seg.id}`, `${to}#p`, seg.target);
+      addEdge(b, `i:${seg.id}`, `${to}#p`, seg.target, seg.id);
       list.push({ id: `i:${seg.id}`, entry: b });
     }
     parts.set(seg.id, list);
@@ -688,7 +603,7 @@ async function layoutWith(
     const s = sized.get(n.id)!;
     const layer = LAYER[n.kind];
     const order = orders?.get(n.id);
-    const width = s.pad + s.width + s.tray;
+    const width = s.width;
     const ys = order ? portYs(s, order) : undefined;
     const port = (id: string, side: 'EAST' | 'WEST'): ElkPort => ({
       id,
@@ -711,19 +626,6 @@ async function layoutWith(
       ],
     };
   };
-  const splitBox = (t: (typeof trunks)[number], fixed: boolean): ElkNode => ({
-    id: t.split,
-    width: t.width,
-    height: t.height,
-    layoutOptions: { 'elk.portConstraints': fixed ? 'FIXED_POS' : 'FIXED_SIDE' },
-    ports: (['in', 'out'] as const).map((dir) => ({
-      id: `${t.split}#${dir}`,
-      width: 0,
-      height: 0,
-      ...(fixed ? { x: dir === 'in' ? 0 : t.width, y: t.height / 2 } : {}),
-      layoutOptions: { 'elk.port.side': dir === 'in' ? 'WEST' : 'EAST' },
-    })),
-  });
   /** A gate: a point in the area's first or last layer that a crossing line passes. */
   const gate = (g: { id: string; exit: boolean }): ElkNode => ({
     id: g.id,
@@ -746,9 +648,6 @@ async function layoutWith(
   });
   const childrenOf = (container: string, orders: Map<string, Order> | undefined) => [
     ...graph.nodes.filter((n) => containerOf.get(n.id) === container).map((n) => leaf(n, orders)),
-    ...trunks
-      .filter((t) => containerOf.get(t.split) === container)
-      .map((t) => splitBox(t, orders !== undefined)),
     ...(gatesOf.get(container) ?? []).map(gate),
   ];
 
@@ -758,11 +657,12 @@ async function layoutWith(
     nodes: Map<string, ElkNode>;
     edges: Map<string, ElkExtendedEdge>;
     frames: Map<string, Box>;
-    /** Nodes in their areas' own coordinates. */
-    local: Map<string, ElkNode>;
   };
   const shift = (e: ElkExtendedEdge, dx: number, dy: number): ElkExtendedEdge => ({
     ...e,
+    ...(e.labels
+      ? { labels: e.labels.map((l) => ({ ...l, x: (l.x ?? 0) + dx, y: (l.y ?? 0) + dy })) }
+      : {}),
     sections: (e.sections ?? []).map((s) => {
       const at = (p: ElkPoint) => ({ x: p.x + dx, y: p.y + dy });
       return {
@@ -773,19 +673,15 @@ async function layoutWith(
       };
     }),
   });
+  /** The first pass leaves labels out: they don't change the port order it learns. */
+  const strip = (es: ElkExtendedEdge[], orders: unknown) =>
+    orders ? es : es.map(({ labels: _, ...e }) => e);
   /** One layout of the whole chart: each area, then the areas as blocks. */
-  const pass = async (
-    orders: Map<string, Order> | undefined,
-    seen?: Map<string, ElkNode>,
-  ): Promise<Drawn> => {
+  const pass = async (orders: Map<string, Order> | undefined): Promise<Drawn> => {
     const inner = new Map<string, ElkNode>();
     for (const id of blockIds) {
       const framed = open.has(id);
-      // The second pass starts each node where the first left it.
-      const children = childrenOf(id, orders).map((c) => {
-        const at = seen?.get(c.id);
-        return at ? { ...c, x: at.x ?? 0, y: at.y ?? 0 } : c;
-      });
+      const children = childrenOf(id, orders);
       inner.set(
         id,
         await engine.layout({
@@ -798,11 +694,10 @@ async function layoutWith(
             // spacing (A88).
             ...(framed ? { 'elk.layered.compaction.postCompaction.constraints': 'QUADRATIC' } : {}),
             ...(orders ? {} : ORDER_ONLY),
-            ...(seen ? KEEP_ORDER : {}),
             'elk.padding': `[top=${PAD + (framed ? AREA_TITLE : 0)},left=${PAD},bottom=${PAD},right=${PAD}]`,
           },
           children,
-          edges: edgesIn.get(id) ?? [],
+          edges: strip(edgesIn.get(id) ?? [], orders),
         }),
       );
     }
@@ -835,9 +730,12 @@ async function layoutWith(
         ? { id: 'root', children: blocks }
         : await engine.layout({
             id: 'root',
-            layoutOptions: blocks.length ? AREA_ROOT_OPTIONS : elkOptions(graph.nodes.length),
+            layoutOptions: {
+              ...(blocks.length ? AREA_ROOT_OPTIONS : elkOptions(graph.nodes.length)),
+              ...(orders ? {} : ORDER_ONLY),
+            },
             children: [...blocks, ...roots],
-            edges: edgesIn.get(ROOT)!,
+            edges: strip(edgesIn.get(ROOT)!, orders),
           });
     const drawn: Drawn = {
       width: top.width ?? 0,
@@ -845,7 +743,6 @@ async function layoutWith(
       nodes: new Map(),
       edges: new Map(),
       frames: new Map(),
-      local: new Map([...inner.values()].flatMap((b) => (b.children ?? []).map((k) => [k.id, k]))),
     };
     for (const e of (top.edges ?? []) as ElkExtendedEdge[]) drawn.edges.set(e.id, e);
     for (const c of top.children ?? []) {
@@ -867,7 +764,7 @@ async function layoutWith(
   };
 
   // Pass 1: ELK orders each node's ports. Pass 2: the ports keep that order,
-  // spaced for their labels and tray rows, the main product in the middle.
+  // evenly spaced, the main product in the middle.
   let drawn: Drawn | undefined;
   if (graph.nodes.length) {
     const first = await pass(undefined);
@@ -887,43 +784,30 @@ async function layoutWith(
         ),
       });
     }
-    drawn = await pass(orders, first.local);
+    drawn = await pass(orders);
   }
   const placed = drawn?.nodes ?? new Map<string, ElkNode>();
   const routed = drawn?.edges ?? new Map<string, ElkExtendedEdge>();
 
-  // The hexagon sits right of its label room; inputs meet its slanted side,
-  // outputs leave from the tray's right edge.
-  const hex = new Map<string, Box>();
   const nodePorts = new Map<string, NodePort[]>();
+  const box = new Map<string, Box>();
   for (const n of graph.nodes) {
     const s = sized.get(n.id)!;
     const c = placed.get(n.id);
-    hex.set(n.id, {
-      x: (c?.x ?? 0) + s.pad,
-      y: c?.y ?? 0,
-      width: s.width + s.tray,
-      height: s.height,
-    });
+    box.set(n.id, { x: c?.x ?? 0, y: c?.y ?? 0, width: s.width, height: s.height });
     const ports: NodePort[] = [];
     for (const p of c?.ports ?? []) {
       const [, kind = ''] = p.id.slice(n.id.length).split(/[#:]/);
       if (kind !== 'in' && kind !== 'out') continue;
       const item = p.id.slice(n.id.length + kind.length + 2);
-      const y = p.y ?? 0;
-      ports.push({
-        item,
-        dir: kind,
-        x: kind === 'in' ? reach(s.height, s.slant, y) : s.width + s.tray,
-        y,
-      });
+      ports.push({ item, dir: kind, x: kind === 'in' ? 0 : s.width, y: p.y ?? 0 });
     }
     nodePorts.set(n.id, ports);
   }
   const portAt = (node: string, dir: 'in' | 'out', item: string): ElkPoint[] => {
-    const h = hex.get(node);
+    const b = box.get(node);
     const p = nodePorts.get(node)?.find((q) => q.dir === dir && q.item === item);
-    return h && p ? [{ x: h.x + p.x, y: h.y + p.y }] : [];
+    return b && p ? [{ x: b.x + p.x, y: b.y + p.y }] : [];
   };
   const route = (segment: string) =>
     (parts.get(segment) ?? []).flatMap((part) => {
@@ -946,71 +830,35 @@ async function layoutWith(
     });
 
   const nodes = graph.nodes.map((n): PlacedNode => {
-    const s = sized.get(n.id)!;
-    const ports = nodePorts.get(n.id)!;
     const stagesFed = multi.get(n.id);
     return {
       ...n,
-      ...hex.get(n.id)!,
-      text: s.text,
-      slant: s.slant,
-      tray: s.tray,
-      rows: n.outputs.map((f) => ({
-        item: f.item,
-        rate: f.rate,
-        y: ports.find((p) => p.dir === 'out' && p.item === f.item)?.y ?? s.height / 2,
-      })),
-      ports,
+      ...box.get(n.id)!,
+      text: sized.get(n.id)!.text,
+      ports: nodePorts.get(n.id)!,
       ...(stagesFed !== undefined ? { stages: stagesFed } : {}),
     };
   });
-  // Labels of lines entering one port stack upwards from it.
-  const stacked = new Map<string, number>();
   const edges = graph.edges.map((e): PlacedEdge => {
     const l = labels.get(e.id)!;
-    const split = splitOf(e);
-    const points = [...(split ? route(split) : []), ...route(e.id)];
-    const end = portAt(e.target, 'in', e.item);
-    const key = inPort(e.target, e.item);
-    const row = stacked.get(key) ?? 0;
-    stacked.set(key, row + 1);
-    const h = hex.get(e.target)!;
-    const y = end[0]?.y ?? h.y;
+    const at = routed.get(labelled.get(e.id) ?? '')?.labels?.[0];
     return {
       ...e,
-      points: join(portAt(e.source, 'out', e.item), points, end),
+      points: join(portAt(e.source, 'out', e.item), route(e.id), portAt(e.target, 'in', e.item)),
       label: {
-        x: h.x - LABEL_CLEAR - l.width,
-        y: y - LABEL_LIFT - l.height - row * LABEL_ROW,
+        x: (at?.x ?? 0) + LABEL_CLEAR / 2,
+        y: (at?.y ?? 0) + LABEL_CLEAR / 2,
         width: l.width,
         height: l.height,
         text: l.text,
       },
     };
   });
-  const bundles = trunks.map((t): Bundle => {
-    const s = placed.get(t.split);
-    const x = (s?.x ?? 0) + t.width;
-    const y = (s?.y ?? 0) + t.height / 2;
-    return {
-      source: t.first.source,
-      item: t.first.item,
-      rate: t.rate,
-      split: { x, y },
-      label: {
-        x: x - LABEL_CLEAR / 2 - t.label.width,
-        y: y - LABEL_LIFT - t.label.height,
-        width: t.label.width,
-        height: t.label.height,
-        text: t.label.text,
-      },
-    };
-  });
   const areas = [...open.values()].flatMap((a): PlacedArea[] => {
-    const box = drawn?.frames.get(a.id);
-    return box ? [{ ...a, ...box }] : [];
+    const frame = drawn?.frames.get(a.id);
+    return frame ? [{ ...a, ...frame }] : [];
   });
-  return { width: drawn?.width ?? 0, height: drawn?.height ?? 0, nodes, edges, bundles, areas };
+  return { width: drawn?.width ?? 0, height: drawn?.height ?? 0, nodes, edges, areas };
 }
 
 const EPS = 1e-6;
@@ -1061,7 +909,6 @@ export function overlaps(layout: FactoryLayout): string[] {
   const boxes: [string, Box][] = [
     ...layout.nodes.map((n): [string, Box] => [`node ${n.id}`, n]),
     ...layout.edges.map((e): [string, Box] => [`label ${e.id}`, e.label]),
-    ...layout.bundles.map((b): [string, Box] => [`trunk ${b.source}:${b.item}`, b.label]),
   ];
   const found: string[] = [];
   for (let i = 0; i < boxes.length; i++)

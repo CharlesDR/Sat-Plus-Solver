@@ -8,7 +8,6 @@ import {
   areaStats,
   flowForm,
   nodeLines,
-  type Bundle,
   type FlowForm,
   type FactoryGraph,
   type FactoryLayout,
@@ -94,8 +93,7 @@ const TONES = 6;
 /**
  * `weight`: the line's rate on a log scale against the largest in the plan,
  * 0–1. `secondary`: not its source's main product (A48). `hot`: touches the
- * selected node or is hovered. `trunk`: the bundle this edge is the first
- * branch of, whose trunk label and split point it draws (A46).
+ * selected node or is hovered.
  */
 type FlowEdgeData = {
   edge: PlacedEdge;
@@ -105,7 +103,6 @@ type FlowEdgeData = {
   secondary: boolean;
   hot: boolean;
   dim: boolean;
-  trunk?: Bundle;
 };
 type FlowchartEdge = Edge<FlowEdgeData, 'routed'>;
 
@@ -119,9 +116,6 @@ const KIND_LABEL = {
   byproduct: 'Byproduct',
   area: 'Collapsed area',
 } as const;
-
-/** A tray row's height; rows sit at least this far apart (A48). */
-const TRAY_ROW = Math.max(17, LABEL_ICON_SIZE) + 2;
 
 /** An item's small icon, or its initial where it has none. */
 function ItemIcon({ src, name }: { src: string | undefined; name: string }) {
@@ -296,34 +290,19 @@ const AreaFrame = memo(function AreaFrame({ data }: NodeProps<FrameNode>) {
 });
 
 /**
- * A node is a hexagon with vertices left and right (A40), its inputs meeting
- * the slanted sides; right of it, the output tray lists what it makes, one
- * row per item that its line leaves from (A48). The left sides carry the
- * kind's colour; a raw input used at several stages is marked (A47).
+ * A node is a solid box in its kind's colour with white text (A93), its
+ * inputs on the left edge and its outputs on the right; a raw input used at
+ * several stages carries a badge (A47).
  */
 const FlowNodeView = memo(function FlowNodeView({ data }: NodeProps<FlowchartNode>) {
   const n = data.node;
   const { title, details } = n.text;
-  const { height: h, slant: s, tray } = n;
-  const w = n.width - tray;
-  const rate = useNumbers().graphRate;
-  const outline = `${s},0.5 ${w - s},0.5 ${w - 0.5},${h / 2} ${w - s},${h - 0.5} ${s},${h - 0.5} 0.5,${h / 2}`;
-  const ys = n.rows.map((r) => r.y);
-  const top = Math.min(...ys) - TRAY_ROW / 2;
   const classes = ['flow-node', n.kind];
   if (n.stages !== undefined) classes.push('multi-stage');
   if (data.dim) classes.push('dim');
   if (data.tip) classes.push('tip');
   return (
-    <div className={classes.join(' ')} style={{ paddingLeft: s + 7, paddingRight: tray + s + 7 }}>
-      <svg className="flow-hex" width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
-        <polygon className="flow-hex-shadow" points={outline} />
-        <polygon className="flow-hex-body" points={outline} />
-        <polyline
-          className="flow-hex-kind"
-          points={`${s + 1},1.5 1.5,${h / 2} ${s + 1},${h - 1.5}`}
-        />
-      </svg>
+    <div className={classes.join(' ')}>
       <Handle type="target" position={Position.Left} isConnectable={false} />
       {data.icon ? (
         <img className="flow-icon" src={data.icon} alt="" width={ICON_SIZE} height={ICON_SIZE} />
@@ -337,29 +316,7 @@ const FlowNodeView = memo(function FlowNodeView({ data }: NodeProps<FlowchartNod
         <div className="flow-title">{title.join('\n')}</div>
         {details.length > 0 && <div className="flow-detail">{details.join('\n')}</div>}
       </div>
-      {n.stages !== undefined && (
-        <span className="flow-stages" style={{ left: w / 2 }}>
-          {n.stages} stages
-        </span>
-      )}
-      {tray > 0 && (
-        <div
-          className="flow-tray"
-          style={{ left: w, width: tray, top, height: Math.max(...ys) - top + TRAY_ROW / 2 }}
-        >
-          {n.rows.map((r) => (
-            <div
-              key={r.item}
-              className={`flow-tray-row form-${data.form(r.item)}`}
-              style={{ top: r.y - top - TRAY_ROW / 2, height: TRAY_ROW }}
-              title={`${data.name(r.item)}: ${formatExact(r.rate)}/min`}
-            >
-              <ItemIcon src={itemIcon(r.item)} name={data.name(r.item)} />
-              <span className="num">{rate(r.rate)}</span>
-            </div>
-          ))}
-        </div>
-      )}
+      {n.stages !== undefined && <span className="flow-stages">{n.stages} stages</span>}
       <Handle type="source" position={Position.Right} isConnectable={false} />
     </div>
   );
@@ -367,32 +324,14 @@ const FlowNodeView = memo(function FlowNodeView({ data }: NodeProps<FlowchartNod
 
 /**
  * An edge drawn along ELK's orthogonal route, coloured by its item's form
- * and weighted by its rate (A48), with its icon and rate just before the
- * port it enters. The item's name shows on hover.
+ * and weighted by its rate (A48), with its icon and rate centred on the
+ * route where the layout placed them (A93). The item's name shows on hover.
  */
 const RoutedEdge = memo(function RoutedEdge({ id, data }: EdgeProps<FlowchartEdge>) {
   if (!data) return null;
   const { points, label, itemName, rate } = data.edge;
   const path = points.map((p, k) => `${k ? 'L' : 'M'}${p.x},${p.y}`).join(' ');
   const state = `form-${data.form}${data.secondary ? ' secondary' : ''}${data.hot ? ' active' : ''}${data.dim ? ' dim' : ''}`;
-  const tag = (
-    box: { x: number; y: number; width: number; height: number; text: string },
-    extra: string,
-    title: string,
-  ) => (
-    <div
-      className={`flow-edge-label ${state}${extra}`}
-      style={{
-        transform: `translate(${box.x}px, ${box.y}px)`,
-        width: box.width,
-        height: box.height,
-      }}
-      title={title}
-    >
-      <ItemIcon src={data.icon} name={itemName} />
-      <span className="num">{box.text}</span>
-    </div>
-  );
   return (
     <>
       <BaseEdge
@@ -404,22 +343,19 @@ const RoutedEdge = memo(function RoutedEdge({ id, data }: EdgeProps<FlowchartEdg
         style={{ strokeWidth: 1.5 + 3.5 * data.weight }}
       />
       <EdgeLabelRenderer>
-        {tag(label, '', `${itemName}: ${formatExact(rate)}/min`)}
-        {data.trunk &&
-          tag(
-            data.trunk.label,
-            ' trunk',
-            `${itemName}: ${formatExact(data.trunk.rate)}/min in all`,
-          )}
+        <div
+          className={`flow-edge-label ${state}`}
+          style={{
+            transform: `translate(${label.x}px, ${label.y}px)`,
+            width: label.width,
+            height: label.height,
+          }}
+          title={`${itemName}: ${formatExact(rate)}/min`}
+        >
+          <ItemIcon src={data.icon} name={itemName} />
+          <span className="num">{label.text}</span>
+        </div>
       </EdgeLabelRenderer>
-      {data.trunk && (
-        <circle
-          className={`flow-split ${state}`}
-          cx={data.trunk.split.x}
-          cy={data.trunk.split.y}
-          r={3}
-        />
-      )}
     </>
   );
 });
@@ -638,11 +574,7 @@ function Canvas(props: {
     [frames, layout, selected, recipes, focus, form, name, tip, props.rate],
   );
   const edges = useMemo<FlowchartEdge[]>(() => {
-    const trunks = new Map(layout.bundles.map((b) => [`${b.source}\n${b.item}`, b]));
     return layout.edges.map((e) => {
-      const key = `${e.source}\n${e.item}`;
-      const trunk = trunks.get(key);
-      trunks.delete(key);
       const hot = e.source === selected || e.target === selected || e.id === hoverEdge;
       const secondary = mains.get(e.source) !== e.item;
       return {
@@ -661,7 +593,6 @@ function Canvas(props: {
           secondary,
           hot,
           dim: focus !== undefined && !focus.edges.has(e.id),
-          ...(trunk ? { trunk } : {}),
         },
       };
     });

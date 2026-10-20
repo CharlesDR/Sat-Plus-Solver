@@ -49,6 +49,7 @@ export {
   parseTier,
   recipeExclusion,
 } from './factory/recipes';
+export { producible } from './factory/reachability';
 export { bestNodeRates, extractionOf, rawResources } from './factory/resources';
 export type { RawResource } from './factory/resources';
 export { compareAlternates } from './factory/alternates';

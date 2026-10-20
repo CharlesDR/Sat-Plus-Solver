@@ -14,6 +14,7 @@ import {
   bestNodeRates,
   compareTiers,
   costCacheEntries,
+  producible,
   rawResources,
   seedCostCache,
   sizeNetwork,
@@ -341,13 +342,25 @@ const byName =
 
 /** Items a target can name: every recipe output except power (MW). */
 export function targetCatalog(model: Model): CatalogItem[] {
-  // Each item's lowest recipe tier: the Targets picker hides items above max tier (UX-17).
+  // Each item's tier is the lowest max tier it can be made at from raw
+  // resources with standard recipes (T2): the Targets picker hides items
+  // above max tier (UX-17). An item no tier can make keeps its lowest recipe tier.
   const tier = new Map<string, string>();
   for (const r of model.recipes)
     for (const o of r.outputs) {
       const t = tier.get(o.item);
       if (t === undefined || compareTiers(r.tier, t) < 0) tier.set(o.item, r.tier);
     }
+  const standard = model.recipes.filter((r) => !r.alternate);
+  const made = new Set<string>();
+  for (const t of [...new Set(standard.map((r) => r.tier))].sort(compareTiers)) {
+    const upTo = standard.filter((r) => compareTiers(r.tier, t) <= 0);
+    for (const item of producible(upTo, made))
+      if (!made.has(item)) {
+        made.add(item);
+        if (tier.has(item)) tier.set(item, t);
+      }
+  }
   const name = new Map(model.items.map((i) => [i.id, i.name]));
   return model.items
     .filter((i) => tier.has(i.id) && i.id !== MW_ITEM_ID)

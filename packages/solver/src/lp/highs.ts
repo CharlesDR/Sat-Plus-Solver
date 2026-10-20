@@ -1,23 +1,16 @@
 import loadHighs from 'highs';
-import { toLpText } from './lpFormat';
+import { type LpArrays, toLpArrays } from './lpFormat';
 import type { LpBackend, LpModel, LpOptions, LpSolution, LpStatus } from './types';
 
 type Highs = Awaited<ReturnType<typeof loadHighs>>;
 type HighsLoaderOptions = Parameters<typeof loadHighs>[0];
 
-const STATUS: Record<string, LpStatus> = {
-  Optimal: 'optimal',
-  Infeasible: 'infeasible',
-  Unbounded: 'unbounded',
-  'Primal infeasible or unbounded': 'infeasible-or-unbounded',
-  'Time limit reached': 'time-limit',
-  'Iteration limit reached': 'iteration-limit',
-};
-
 /**
  * HiGHS (WASM) implementation of LpBackend. The WASM module is loaded lazily
  * on first solve and reloaded if a solve throws (a crashed instance is not reused).
  * `loaderOptions` lets the browser build pass `locateFile` for the .wasm asset.
+ * Models go in as arrays (`toLpArrays`), not LP text: parsing the text was
+ * most of a solve's time (T1).
  */
 export function createHighsBackend(loaderOptions?: HighsLoaderOptions): LpBackend {
   let instance: Promise<Highs> | undefined;
@@ -25,7 +18,7 @@ export function createHighsBackend(loaderOptions?: HighsLoaderOptions): LpBacken
 
   return {
     async solve(model: LpModel, options: LpOptions = {}): Promise<LpSolution> {
-      const { text, columns, rows } = toLpText(model);
+      const arrays = toLpArrays(model);
       const h = await highs();
       const { start } = options;
       const settings = {
@@ -47,7 +40,7 @@ export function createHighsBackend(loaderOptions?: HighsLoaderOptions): LpBacken
         let r: LpSolution = { status: 'error', rawStatus: 'not run' };
         for (const retry of attempts) {
           try {
-            r = solveMip(await highs(), text, columns, { ...settings, ...retry }, model, start);
+            r = solveMip(await highs(), arrays, { ...settings, ...retry }, model, start);
           } catch (e) {
             instance = undefined;
             r = { status: 'error', rawStatus: `HiGHS threw: ${(e as Error).message}` };
@@ -57,45 +50,18 @@ export function createHighsBackend(loaderOptions?: HighsLoaderOptions): LpBacken
         }
         return r;
       }
-      let result: ReturnType<Highs['solve']>;
       try {
-        result = h.solve(text, settings);
+        let r = solveLp(h, arrays, settings, model);
         // Presolve's postsolve can leave a column just outside its bounds
         // (−1.5e-9 on a 0 lower bound), past the solver's own 1e-9 check.
         // Solve it again without presolve before handing it on.
-        if (outOfBounds(result, columns, model))
-          result = h.solve(text, { ...settings, presolve: 'off' });
+        if (r.rawStatus === 'Optimal' && outOfBounds(r, arrays))
+          r = solveLp(h, arrays, { ...settings, presolve: 'off' }, model);
+        return r;
       } catch (e) {
         instance = undefined;
         return { status: 'error', rawStatus: `HiGHS threw: ${(e as Error).message}` };
       }
-      const rawStatus = String(result.Status);
-      if (rawStatus === 'Empty') {
-        // No rows/columns to optimize: every variable sits at its lower bound (0 by default).
-        return {
-          status: 'optimal',
-          rawStatus,
-          objective: 0,
-          values: new Map(model.variables.map((v) => [v.name, 0])),
-        };
-      }
-      const status = STATUS[rawStatus] ?? 'error';
-      const hasSolution =
-        status === 'optimal' || status === 'time-limit' || status === 'iteration-limit';
-      if (!hasSolution) return { status, rawStatus };
-
-      const values = new Map<string, number>();
-      for (const [col, name] of columns) {
-        const c = (result.Columns as Record<string, { Primal?: number } | undefined>)[col];
-        values.set(name, c?.Primal ?? 0);
-      }
-      const duals = new Map<string, number>();
-      for (const r of result.Rows as { Name?: string; Dual?: number }[]) {
-        const name = r.Name !== undefined ? rows.get(r.Name) : undefined;
-        if (name !== undefined && r.Dual !== undefined)
-          duals.set(name, (duals.get(name) ?? 0) + r.Dual);
-      }
-      return { status, rawStatus, objective: result.ObjectiveValue, values, duals };
     },
   };
 }
@@ -104,26 +70,75 @@ export function createHighsBackend(loaderOptions?: HighsLoaderOptions): LpBacken
 const BOUND_SLACK = 1e-9;
 
 /** Whether an optimal LP result has a column below its lower or above its upper bound. */
-function outOfBounds(
-  result: ReturnType<Highs['solve']>,
-  columns: Map<string, string>,
-  model: LpModel,
-): boolean {
-  if (String(result.Status) !== 'Optimal') return false;
-  const bounds = new Map(model.variables.map((v) => [v.name, v]));
-  for (const [col, name] of columns) {
-    const c = (result.Columns as Record<string, { Primal?: number } | undefined>)[col];
-    const x = c?.Primal ?? 0;
-    const v = bounds.get(name);
-    const lo = v?.lo ?? 0;
-    const hi = v?.hi ?? Infinity;
-    if (x < lo - BOUND_SLACK || x > hi + BOUND_SLACK) return true;
-  }
-  return false;
+function outOfBounds(r: LpSolution, arrays: LpArrays): boolean {
+  return arrays.columns.some((name, i) => {
+    const x = r.values!.get(name) ?? 0;
+    return x < arrays.colLower[i]! - BOUND_SLACK || x > arrays.colUpper[i]! + BOUND_SLACK;
+  });
 }
 
-/** HiGHS model status codes (`constants.modelStatus`) the MILP path maps. */
-const MIP_STATUS: Record<number, [LpStatus, string]> = {
+/** The model as HiGHS `passModel` data. */
+function modelData(h: Highs, a: LpArrays) {
+  return {
+    numCols: a.numCols,
+    numRows: a.numRows,
+    sense:
+      a.sense === 'min' ? h.constants.objectiveSense.minimize : h.constants.objectiveSense.maximize,
+    colCost: a.colCost,
+    colLower: a.colLower,
+    colUpper: a.colUpper,
+    rowLower: a.rowLower,
+    rowUpper: a.rowUpper,
+    matrix: {
+      format: 'csr' as const,
+      numRows: a.numRows,
+      numCols: a.numCols,
+      starts: a.starts,
+      indices: a.indices,
+      values: a.values,
+    },
+    integrality: a.integrality,
+  };
+}
+
+/** One LP solve, with its values and its duals summed per constraint (a ranged row is two). */
+function solveLp(
+  h: Highs,
+  arrays: LpArrays,
+  settings: Record<string, number | boolean | string>,
+  model: LpModel,
+): LpSolution {
+  return h.withModel(modelData(h, arrays), (m) => {
+    m.options.set(settings);
+    m.run();
+    const code = Number(m.getModelStatus());
+    const [status, rawStatus] = MODEL_STATUS[code] ?? ['error', `HiGHS model status ${code}`];
+    if (rawStatus === 'Empty') {
+      // No rows/columns to optimize: every variable sits at its lower bound (0 by default).
+      return {
+        status,
+        rawStatus,
+        objective: 0,
+        values: new Map(model.variables.map((v) => [v.name, 0])),
+      };
+    }
+    const hasSolution =
+      status === 'optimal' || status === 'time-limit' || status === 'iteration-limit';
+    if (!hasSolution) return { status, rawStatus };
+    const { colValue, rowDual } = m.getSolution();
+    const values = new Map<string, number>();
+    arrays.columns.forEach((name, i) => values.set(name, colValue[i] ?? 0));
+    const duals = new Map<string, number>();
+    arrays.rows.forEach((name, i) => {
+      const d = rowDual[i];
+      if (d !== undefined) duals.set(name, (duals.get(name) ?? 0) + d);
+    });
+    return { status, rawStatus, objective: m.getObjectiveValue(), values, duals };
+  });
+}
+
+/** HiGHS model status codes (`constants.modelStatus`) and the status text reported for each. */
+const MODEL_STATUS: Record<number, [LpStatus, string]> = {
   6: ['optimal', 'Empty'],
   7: ['optimal', 'Optimal'],
   8: ['infeasible', 'Infeasible'],
@@ -141,23 +156,18 @@ const SOLUTION_FEASIBLE = 2;
  */
 function solveMip(
   h: Highs,
-  text: string,
-  columns: Map<string, string>,
+  arrays: LpArrays,
   settings: Record<string, number | boolean | string>,
   model: LpModel,
   start: ReadonlyMap<string, number> | undefined,
 ): LpSolution {
-  return h.withModel({ format: 'lp', data: text }, (m) => {
+  return h.withModel(modelData(h, arrays), (m) => {
     m.options.set(settings);
-    if (start) {
-      const n = m.getDimensions().numCols;
-      const colValue = new Float64Array(n);
-      for (let i = 0; i < n; i++) colValue[i] = start.get(columns.get(m.getColName(i)) ?? '') ?? 0;
-      m.setSolution({ colValue });
-    }
+    if (start)
+      m.setSolution({ colValue: Float64Array.from(arrays.columns, (c) => start.get(c) ?? 0) });
     m.run();
     const code = Number(m.getModelStatus());
-    const [status, rawStatus] = MIP_STATUS[code] ?? ['error', `HiGHS model status ${code}`];
+    const [status, rawStatus] = MODEL_STATUS[code] ?? ['error', `HiGHS model status ${code}`];
     if (rawStatus === 'Empty') {
       return {
         status,
@@ -173,11 +183,7 @@ function solveMip(
     if (!hasSolution) return { status, rawStatus };
     const colValue = m.getSolution().colValue;
     const values = new Map<string, number>();
-    for (let i = 0; i < colValue.length; i++) {
-      const name = columns.get(m.getColName(i));
-      if (name !== undefined) values.set(name, colValue[i]!);
-    }
-    for (const v of model.variables) if (!values.has(v.name)) values.set(v.name, 0);
+    arrays.columns.forEach((name, i) => values.set(name, colValue[i] ?? 0));
     const gap = status === 'optimal' ? 0 : Number(m.info.get('mip_gap'));
     return { status, rawStatus, objective: m.getObjectiveValue(), values, gap };
   });

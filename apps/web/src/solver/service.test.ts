@@ -56,14 +56,28 @@ describe('solver service', () => {
     expect(c.nodes.map((n) => n.id).sort()).toEqual(mini.nodes.map((n) => n.id).sort());
     expect(c.nodes.find((n) => n.id === 'node:iron-ore:normal')?.label).toBe('Iron Ore (normal)');
     expect(c.tiers).toEqual(['1-3', '2-1', '10-0']);
-    // Each target carries its lowest recipe tier (UX-17).
+    // Each target carries the lowest tier its standard recipes make it at
+    // from raw resources (T2): never below its lowest recipe tier.
     const lowest = (item: string) =>
       tiered.recipes
         .filter((r) => r.outputs.some((o) => o.item === item))
         .map((r) => r.tier)
-        .sort(compareTiers)[0];
-    for (const t of c.targets) expect(t.tier).toBe(lowest(t.id));
+        .sort(compareTiers)[0]!;
+    for (const t of c.targets)
+      expect(compareTiers(t.tier!, lowest(t.id))).toBeGreaterThanOrEqual(0);
     expect(structuredClone(c)).toEqual(c);
+  });
+
+  test('a target made from a higher-tier input takes that tier (T2)', () => {
+    const tiered = {
+      ...mini,
+      recipes: mini.recipes.map((r) => ({
+        ...r,
+        tier: r.outputs.some((o) => o.item === 'iron-ingot') ? '5-1' : '1-1',
+      })),
+    };
+    const plate = targetCatalog(tiered).find((c) => c.id === 'iron-plate')!;
+    expect(plate.tier).toBe('5-1');
   });
 
   test("solves the world's factory and returns the same summary as the CLI path", async () => {

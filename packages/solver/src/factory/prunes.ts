@@ -1,5 +1,5 @@
 /** Plan prunes: tiny branches (A34), tiny flows (A68), simplicity and byproduct farms (A73, A86). Split from solve.ts (F1); behavior unchanged. */
-import type { LpBackend, LpOptions, LpSolution } from '../lp/types';
+import type { LpBackend, LpModel, LpOptions, LpSolution } from '../lp/types';
 import {
   LEX_EPSILON,
   MAX_FARM_SOLVES,
@@ -42,7 +42,8 @@ import { MW_ITEM_ID, type Recipe } from '@sps/data';
  * plan doesn't run yet), then each alone in id order;
  * a drop that makes the plan infeasible is undone, so a branch the plan needs
  * stays. Integer variables are fixed at the plan's values (a dropped recipe's
- * count at 0), so every re-solve is an LP. Deterministic: candidates go in id
+ * count at 0), so every re-solve is an LP. The plan kept is tidied once at
+ * the end, not after every attempt (T1). Deterministic: candidates go in id
  * order.
  */
 export async function pruneBranches(
@@ -60,6 +61,8 @@ export async function pruneBranches(
   const banned = new Set<string>();
   const needed = new Set<string>();
   let attempts = 0;
+  /** The LP of the last drop kept, which the kept plan is tidied on. */
+  let kept: LpModel | undefined;
   const run = (plan: LpSolution, id: string) => plan.values!.get(recipeVar(id)) ?? 0;
   /** Re-solves with only `keep` allowed to run, or undefined when it fails. */
   const attempt = async (plan: LpSolution, keep: ReadonlySet<string>) => {
@@ -77,8 +80,8 @@ export async function pruneBranches(
     const fixed = { ...lp, variables };
     const s = await backend.solve(fixed, options);
     if (s.status !== 'optimal' || !s.values) return undefined;
-    const tidied = await tidy(fixed, s, terms, 0, backend, options, p.conversion);
-    return { ...sol, values: tidied.values! };
+    kept = fixed;
+    return { ...sol, values: s.values };
   };
   while (attempts < MAX_PRUNE_ATTEMPTS) {
     const support = p.recipes.map((r) => r.id).filter((id) => run(sol, id) > 0);
@@ -113,6 +116,12 @@ export async function pruneBranches(
       break;
     }
   }
+  // Tidied once, on the plan kept (T1): an attempt only tests feasibility.
+  if (kept)
+    sol = {
+      ...sol,
+      values: (await tidy(kept, sol, terms, 0, backend, options, p.conversion)).values!,
+    };
   return { sol, banned: [...banned].sort() };
 }
 

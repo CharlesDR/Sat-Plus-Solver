@@ -137,7 +137,7 @@ describe('factory flowchart on the SF+ model', () => {
     expect(layout.areas?.map((a) => a.id)).toEqual(g.areas!.map((a) => a.id));
   }, 60_000);
 
-  test('a collapsed area is one box in a block of its own, its lines splitting beside it (B2)', async () => {
+  test('a collapsed area is one box in a block of its own, its lines parting beside it (B2)', async () => {
     // Before B2 the box and its split points were laid out as loose nodes among
     // the frames, wrapped into rows apart: a split could land a frame away.
     for (const [item, rate] of [
@@ -161,12 +161,14 @@ describe('factory flowchart on the SF+ model', () => {
         expect(overlaps(layout)).toEqual([]);
         expect(layout.areas?.map((f) => f.id)).not.toContain(a.id);
         const box = layout.nodes.find((n) => n.id === areaNodeId(a.id))!;
-        for (const b of layout.bundles.filter((x) => x.source === box.id)) {
+        // A fan-out from the box: each of its lines turns away soon after leaving it (A93).
+        const out = layout.edges.filter((e) => e.source === box.id);
+        for (const e of out.filter((x) => out.some((y) => y !== x && y.item === x.item))) {
           splits++;
-          const right = b.split.x - (box.x + box.width);
-          expect(right, `${item} ${a.id} ${b.item}`).toBeGreaterThan(0);
-          expect(right, `${item} ${a.id} ${b.item}`).toBeLessThan(150);
-          expect(Math.abs(b.split.y - (box.y + box.height / 2))).toBeLessThan(box.height);
+          const turn = e.points.find((p) => Math.abs(p.y - e.points[0]!.y) > 1e-6);
+          const right = (turn?.x ?? e.points.at(-1)!.x) - (box.x + box.width);
+          expect(right, `${item} ${a.id} ${e.item}`).toBeGreaterThanOrEqual(0);
+          expect(right, `${item} ${a.id} ${e.item}`).toBeLessThan(150);
         }
       }
       expect(splits, item).toBeGreaterThan(0);

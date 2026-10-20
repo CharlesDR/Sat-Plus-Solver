@@ -48,7 +48,7 @@ test('Iron Plate 60/min: flowchart nodes, edge rates and two-way selection', asy
   await expect(node(page, 'target:iron-plate')).not.toHaveClass(/selected/);
 });
 
-test('Reinforced Iron Plate 5/min: multi-stage Water, a fan-out drawn as one trunk (A46–A48)', async ({
+test('Reinforced Iron Plate 5/min: multi-stage Water, a fan-out labelled per line, solid boxes (A47, A93)', async ({
   page,
 }) => {
   await openFactory(page);
@@ -62,14 +62,19 @@ test('Reinforced Iron Plate 5/min: multi-stage Water, a fan-out drawn as one tru
   await expect(node(page, 'recipe:water').locator('.flow-node')).toHaveClass(/multi-stage/);
   await expect(node(page, 'recipe:water')).toContainText('3 stages');
 
-  // Iron Ingot feeds Iron Plate and Iron Rod: one trunk with the total,
-  // each branch with its rate.
-  const trunk = chart.locator('.flow-edge-label.trunk[title="Iron Ingot: 30.0/min in all"]');
-  await expect(trunk).toHaveText('30.0');
+  // Iron Ingot feeds Iron Plate and Iron Rod: each line carries its own
+  // rate, with no total on the shared stretch.
   await expect(chart.locator('.flow-edge-label[title="Iron Ingot: 15.0/min"]')).toHaveCount(2);
+  await expect(chart.locator('.flow-edge-label[title*="in all"]')).toHaveCount(0);
 
-  // The output tray lists what a recipe makes.
-  await expect(node(page, 'recipe:iron-plate').locator('.flow-tray-row')).toHaveText(['10.0']);
+  // Boxes are filled in their kind's colour, with no output tray.
+  const fill = (id: string) =>
+    node(page, id)
+      .locator('.flow-node')
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(await fill('recipe:iron-plate')).not.toBe(await fill('target:reinforced-iron-plate'));
+  expect(await fill('recipe:iron-plate')).not.toBe('rgba(0, 0, 0, 0)');
+  await expect(chart.locator('.flow-tray-row')).toHaveCount(0);
 });
 
 test('hover focus, and the click tooltip with exact values closes on Esc first (A48)', async ({

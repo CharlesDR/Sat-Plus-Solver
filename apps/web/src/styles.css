@@ -27,17 +27,16 @@
   --manual: #b45309;
   --manual-bg: #fff7ed;
   --manual-fg: #ffffff;
-  --flow-recipe: #ffffff;
-  --flow-resource: #ffffff;
-  --flow-import: #ffffff;
-  --flow-target: #ffffff;
-  --flow-byproduct: #ffffff;
-  --flow-missing: #fee2e2;
-  --kind-recipe: #2459d6;
-  --kind-resource: #1a7f45;
-  --kind-import: #6b7280;
-  --kind-target: #b7791f;
-  --kind-byproduct: #b42318;
+  /* Flowchart box fills by kind, under white text (A93). */
+  --flow-recipe: #df691a;
+  --flow-resource: #4e5d6c;
+  --flow-import: #3f51b5;
+  --flow-target: #2e7d32;
+  --flow-byproduct: #6d4c41;
+  --flow-sub-factory: #00838f;
+  --flow-missing: #c62828;
+  --flow-area: #5b6b8c;
+  --flow-node-fg: #ffffff;
   /* Flowchart line colours by form, and the multi-stage input mark (A47, A48). */
   --form-solid: #6b7280;
   --form-fluid: #0e8aa0;
@@ -93,17 +92,16 @@
     --manual: #f59e0b;
     --manual-bg: #2b1d0e;
     --manual-fg: #0e1014;
-    --flow-recipe: #1b1f27;
-    --flow-resource: #1b1f27;
-    --flow-import: #1b1f27;
-    --flow-target: #1b1f27;
-    --flow-byproduct: #1b1f27;
-    --flow-missing: #4a1d1d;
-    --kind-recipe: #7ea6ff;
-    --kind-resource: #6fd39a;
-    --kind-import: #9aa3b0;
-    --kind-target: #f0c060;
-    --kind-byproduct: #ff8a80;
+    /* Flowchart box fills by kind, under white text (A93). */
+    --flow-recipe: #c25a14;
+    --flow-resource: #46525f;
+    --flow-import: #3949a0;
+    --flow-target: #2a6e2e;
+    --flow-byproduct: #5d4037;
+    --flow-sub-factory: #00727d;
+    --flow-missing: #b02525;
+    --flow-area: #4f5d7a;
+    --flow-node-fg: #ffffff;
     --form-solid: #9aa3b0;
     --form-fluid: #4cc9dc;
     --form-gas: #b79cff;
@@ -143,17 +141,16 @@
   --manual: #f59e0b;
   --manual-bg: #2b1d0e;
   --manual-fg: #0e1014;
-  --flow-recipe: #1b1f27;
-  --flow-resource: #1b1f27;
-  --flow-import: #1b1f27;
-  --flow-target: #1b1f27;
-  --flow-byproduct: #1b1f27;
-  --flow-missing: #4a1d1d;
-  --kind-recipe: #7ea6ff;
-  --kind-resource: #6fd39a;
-  --kind-import: #9aa3b0;
-  --kind-target: #f0c060;
-  --kind-byproduct: #ff8a80;
+  /* Flowchart box fills by kind, under white text (A93). */
+  --flow-recipe: #c25a14;
+  --flow-resource: #46525f;
+  --flow-import: #3949a0;
+  --flow-target: #2a6e2e;
+  --flow-byproduct: #5d4037;
+  --flow-sub-factory: #00727d;
+  --flow-missing: #b02525;
+  --flow-area: #4f5d7a;
+  --flow-node-fg: #ffffff;
   --form-solid: #9aa3b0;
   --form-fluid: #4cc9dc;
   --form-gas: #b79cff;
@@ -814,9 +811,10 @@ label.inline {
   padding: 2px 7px;
   box-shadow: none;
 }
+/* For links and Kept share one width; the item field takes the rest (T2). */
 .targets .row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 90px auto;
+  grid-template-columns: minmax(0, 1fr) 90px 90px auto;
   align-items: end;
   gap: 8px;
 }
@@ -1460,87 +1458,48 @@ section.diagnostics li p {
   white-space: pre;
 }
 .flow-node {
-  --kind: var(--kind-recipe);
   --fill: var(--flow-recipe);
-  --edge: var(--line-strong);
   position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
   width: 100%;
   height: 100%;
-  padding-block: 4px;
-  color: var(--fg);
+  padding: 4px 7px;
+  /* A solid box in its kind's colour, white text, no border or shadow (A93). */
+  background: var(--fill);
+  border-radius: 6px;
+  color: var(--flow-node-fg);
   font-size: 14px;
   line-height: 17px;
   cursor: pointer;
 }
-/* The hexagon (A40) is drawn behind the content; the box itself has no frame. */
-.flow-hex {
-  position: absolute;
-  inset: 0;
-  overflow: visible;
-  pointer-events: none;
-}
-/* A flat offset copy instead of a blurred drop-shadow: filters are costly to paint. */
-.flow-hex-shadow {
-  fill: rgb(0 0 0 / 0.1);
-  transform: translateY(1.5px);
-}
-.flow-hex-body {
-  fill: var(--fill);
-  stroke: var(--edge);
-  stroke-width: 1;
-  stroke-linejoin: round;
-}
-.flow-hex-kind {
-  fill: none;
-  stroke: var(--kind);
-  stroke-width: 3;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-}
-/* Above the hexagon; the handles stay absolutely placed by React Flow. */
-.flow-node > .flow-icon,
-.flow-node > .flow-text {
-  position: relative;
-}
-.flow-node:hover .flow-hex-shadow {
-  fill: rgb(0 0 0 / 0.18);
-  transform: translateY(3px);
+.flow-node:hover {
+  filter: brightness(1.08);
 }
 .flow-node.resource {
-  --kind: var(--kind-resource);
   --fill: var(--flow-resource);
 }
 .flow-node.import {
-  --kind: var(--kind-import);
   --fill: var(--flow-import);
 }
 .flow-node.target {
-  --kind: var(--kind-target);
-  --fill: color-mix(in srgb, var(--kind-target) 9%, var(--flow-target));
+  --fill: var(--flow-target);
 }
 .flow-node.byproduct {
-  --kind: var(--kind-byproduct);
   --fill: var(--flow-byproduct);
 }
 .flow-node.sub-factory {
-  /* A sub-factory box (A53): the accent, so it reads as a place to open. */
-  --kind: var(--accent);
-  --fill: color-mix(in srgb, var(--accent) 7%, var(--flow-import));
+  /* A sub-factory box (A53): opens on double-click. */
+  --fill: var(--flow-sub-factory);
   cursor: zoom-in;
 }
 .flow-node.missing {
-  --kind: var(--error);
   --fill: var(--flow-missing);
-  --edge: var(--error);
 }
 .react-flow__node.selected .flow-node {
-  --edge: var(--accent);
-}
-.react-flow__node.selected .flow-hex-body {
-  stroke-width: 2.5;
+  outline: 2.5px solid var(--accent);
+  outline-offset: 2px;
 }
 .flow-node .react-flow__handle {
   opacity: 0;
@@ -1555,8 +1514,8 @@ section.diagnostics li p {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--kind) 14%, transparent);
-  color: var(--kind);
+  background: rgb(255 255 255 / 0.2);
+  color: var(--flow-node-fg);
   font-weight: 700;
   font-size: 15px;
 }
@@ -1570,7 +1529,7 @@ section.diagnostics li p {
   text-overflow: ellipsis;
 }
 .flow-detail {
-  color: var(--muted);
+  color: color-mix(in srgb, var(--flow-node-fg) 85%, transparent);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
@@ -1586,9 +1545,8 @@ section.diagnostics li p {
 .form-gas {
   --form: var(--form-gas);
 }
-/* Byproducts and other secondary outputs: dashed and lighter, drawn behind. */
+/* Byproducts and other secondary outputs: solid but lighter, drawn behind (A93). */
 .flow-edge.secondary {
-  stroke-dasharray: 6 4;
   opacity: 0.75;
 }
 .flow-edge.active {
@@ -1597,9 +1555,12 @@ section.diagnostics li p {
 }
 .flow-edge.dim,
 .flow-edge-label.dim,
-.flow-split.dim,
 .flow-node.dim {
   opacity: 0.18;
+}
+/* Labels sit on their lines (A93), so they go over every line, the raised ones too. */
+.flow-canvas .react-flow__edgelabel-renderer {
+  z-index: 3;
 }
 .flow-edge-label {
   position: absolute;
@@ -1608,25 +1569,18 @@ section.diagnostics li p {
   gap: 3px;
   font-size: 14px;
   line-height: 17px;
+  padding-inline: 3px;
   white-space: pre;
   color: var(--muted);
   background: var(--surface);
+  /* On its line (A93): a thin frame keeps it apart from the line it sits on. */
+  border: 1px solid var(--line);
   border-radius: 4px;
   transition: opacity 120ms;
 }
 .flow-edge-label.active {
   color: var(--accent);
   font-weight: 600;
-}
-/* A bundle's trunk carries the total (A46). */
-.flow-edge-label.trunk {
-  font-weight: 600;
-}
-.flow-split {
-  fill: var(--form);
-}
-.flow-split.active {
-  fill: var(--accent);
 }
 .flow-item-icon {
   flex: none;
@@ -1643,55 +1597,16 @@ section.diagnostics li p {
   font-size: 10px;
   font-weight: 700;
 }
-/* The output tray (A48): one row per item made, its line leaving from the dot. */
-.flow-tray {
-  position: absolute;
-  background: var(--fill);
-  border: 1px solid var(--edge);
-  border-left: none;
-  border-radius: 0 6px 6px 0;
-  box-shadow: 0 1.5px 0 rgb(0 0 0 / 0.1);
-}
 .flow-node .num,
 .flow-edge-label .num,
 .flow-tooltip .num {
   font-variant-numeric: tabular-nums;
 }
-.flow-tray-row {
-  position: absolute;
-  inset-inline: 0;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  padding-inline: 4px;
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 17px;
-  white-space: nowrap;
-}
-.flow-tray-row::after {
-  content: '';
-  position: absolute;
-  right: -4px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--form);
-}
-.flow-tray-row.form-solid {
-  --form: var(--form-solid);
-}
-/* A raw input used at several stages of the plan (A47). */
-.flow-node.multi-stage {
-  --edge: var(--flow-multi);
-  --fill: color-mix(in srgb, var(--flow-multi) 9%, var(--flow-resource));
-}
-.flow-node.multi-stage .flow-hex-body {
-  stroke-width: 2;
-}
+/* A raw input used at several stages of the plan (A47): a badge on its box's top edge. */
 .flow-stages {
   position: absolute;
   top: 0;
+  left: 50%;
   transform: translate(-50%, -50%);
   padding: 0 6px;
   border-radius: 999px;
@@ -1839,8 +1754,7 @@ input.flow-area-name {
 }
 /* A collapsed area: one box with what crosses its border. */
 .flow-node.area {
-  --kind: var(--muted);
-  --fill: color-mix(in srgb, var(--area-0) 6%, var(--flow-recipe));
+  --fill: var(--flow-area);
   cursor: zoom-in;
 }
 /* Shown while the pointer is over the canvas, or it has the focus. */
@@ -1878,11 +1792,10 @@ input.flow-area-name {
   stroke-width: 3;
 }
 .flow-legend-multi {
-  width: 12px;
-  height: 12px;
-  border: 2px solid var(--flow-multi);
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--flow-multi) 12%, transparent);
+  width: 14px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--flow-multi);
 }
 
 /* ---------- World view ---------- */
