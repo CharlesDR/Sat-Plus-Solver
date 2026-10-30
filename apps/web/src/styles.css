@@ -2311,6 +2311,33 @@ details[open] > :not(summary) {
     animation: none;
   }
 }
+/* Sections close as they open (R5): their content grows and fades in, then
+   shrinks and fades out, where the browser can animate <details>; elsewhere
+   they keep the fade on open. Menus are <details> too, but their panels hang
+   outside the box, so they keep their own pane-in and close at once. */
+@supports selector(::details-content) {
+  @media (prefers-reduced-motion: no-preference) {
+    :root {
+      interpolate-size: allow-keywords;
+    }
+    details:not(.menu)::details-content {
+      block-size: 0;
+      opacity: 0;
+      overflow: clip;
+      transition:
+        block-size 0.18s ease-out,
+        opacity 0.18s ease-out,
+        content-visibility 0.18s allow-discrete;
+    }
+    details:not(.menu)[open]::details-content {
+      block-size: auto;
+      opacity: 1;
+    }
+    details:not(.menu)[open] > :not(summary) {
+      animation: none;
+    }
+  }
+}
 
 /* ---------- Quick search ---------- */
 /* Ctrl+K works over a fullscreen flowchart (z-index 1000) too (DF-6). */

@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 /** Loads the app (the world view is home) and drills into a factory by name. */
 export async function openFactory(page: Page, name = 'Factory') {
@@ -49,4 +49,26 @@ export async function clickFlowNode(page: Page, id: string) {
   const chart = page.getByTestId('flowchart');
   await chart.getByRole('button', { name: 'Fit the whole plan' }).click();
   await chart.locator(`.react-flow__node[data-id="${id}"]`).click();
+}
+
+/**
+ * Opens or closes a section by its header and waits for its transition to end
+ * (R5): the browser lists no animation for it, so this waits until its height
+ * holds still from one frame to the next.
+ */
+export async function toggleSection(summary: Locator) {
+  await summary.click();
+  await expect
+    .poll(() =>
+      summary.locator('xpath=..').evaluate(
+        (el) =>
+          new Promise<boolean>((done) => {
+            const h = el.getBoundingClientRect().height;
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => done(el.getBoundingClientRect().height === h)),
+            );
+          }),
+      ),
+    )
+    .toBe(true);
 }

@@ -3,7 +3,7 @@
  * tables, the summary strip and item icons; number format (A41) and Esc (A42).
  */
 import { expect, test } from './fixtures';
-import { addFactory, openFactory } from './helpers';
+import { addFactory, openFactory, toggleSection } from './helpers';
 
 test('the theme switch forces light or dark and is remembered', async ({ page }) => {
   await page.goto('/');
@@ -204,4 +204,43 @@ test('hover help fades in after a pause, also on focus, and leaves with the poin
   await page.locator('.search-button').focus();
   await expect(tip).toHaveText(/Search parts, factories and actions/);
   await expect(tip).toHaveClass(/shown/);
+});
+
+test('sections close as they open, and at once with reduced motion (R5)', async ({ page }) => {
+  await openFactory(page);
+  const summary = page.locator('summary', { hasText: 'Resources' });
+  const section = summary.locator('xpath=..');
+  const shut = (await section.boundingBox())?.height ?? 0;
+  await toggleSection(summary);
+  const full = (await section.boundingBox())?.height ?? 0;
+  await expect(page.getByRole('table', { name: 'Resource limits' })).toBeVisible();
+  expect(full).toBeGreaterThan(shut + 50);
+
+  // The section's heights over the frames after a click on its header.
+  const heights = () =>
+    section.evaluate(
+      (el) =>
+        new Promise<number[]>((done) => {
+          const out: number[] = [];
+          const t0 = performance.now();
+          el.querySelector('summary')?.click();
+          const frame = () => {
+            out.push(el.getBoundingClientRect().height);
+            if (performance.now() - t0 < 500) requestAnimationFrame(frame);
+            else done(out);
+          };
+          requestAnimationFrame(frame);
+        }),
+    );
+  // Closing passes through the heights between open and shut, then ends shut.
+  const closing = await heights();
+  expect(closing.some((h) => h > shut + 1 && h < full - 1)).toBe(true);
+  expect(closing.at(-1)).toBe(shut);
+  await expect(page.getByRole('table', { name: 'Resource limits' })).toBeHidden();
+
+  // With reduced motion the section is at its full height from the first frame.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const opening = await heights();
+  expect(opening[0]).toBe(full);
+  expect(opening.at(-1)).toBe(full);
 });
