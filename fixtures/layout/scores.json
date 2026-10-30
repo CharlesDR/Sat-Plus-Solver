@@ -5,71 +5,71 @@
       "nodes": 40,
       "crossings": 44,
       "bends": 118,
-      "edgeLength": 40046,
-      "area": 6226055,
+      "edgeLength": 44141.4,
+      "area": 7065795,
       "minGap": 10.4,
       "backEdges": 1,
-      "cost": 602
+      "cost": 606.1
     },
     "reinforced-iron-plate-5": {
       "nodes": 20,
       "crossings": 10,
       "bends": 54,
-      "edgeLength": 11696,
-      "area": 1444668,
+      "edgeLength": 12736.7,
+      "area": 1634901,
       "minGap": 11,
       "backEdges": 3,
-      "cost": 177.7
+      "cost": 178.7
     },
     "ballistic-warp-drive-1": {
       "nodes": 151,
       "crossings": 2976,
       "bends": 930,
-      "edgeLength": 701531.4,
-      "area": 44763230,
+      "edgeLength": 745485.1,
+      "area": 50194335,
       "minGap": 11,
       "backEdges": 37,
-      "cost": 31539.5
+      "cost": 31583.5
     },
     "plastic-20-areas": {
       "nodes": 40,
       "crossings": 52,
       "bends": 171,
-      "edgeLength": 53504,
-      "area": 5547294,
+      "edgeLength": 58725.8,
+      "area": 6244686,
       "minGap": 10.4,
       "backEdges": 3,
-      "cost": 756.5
+      "cost": 761.7
     },
     "ballistic-warp-drive-1-areas": {
       "nodes": 151,
-      "crossings": 3304,
+      "crossings": 3362,
       "bends": 1351,
-      "edgeLength": 1230643.8,
-      "area": 59453949,
+      "edgeLength": 1312543.7,
+      "area": 65842817,
       "minGap": 10.2,
       "backEdges": 38,
-      "cost": 35773.6
+      "cost": 36435.5
     },
     "plastic-20-pinch": {
       "nodes": 40,
       "crossings": 31,
       "bends": 143,
-      "edgeLength": 57623.5,
-      "area": 5896912.5,
+      "edgeLength": 63841.3,
+      "area": 6664882.5,
       "minGap": 10.2,
       "backEdges": 2,
-      "cost": 518.6
+      "cost": 524.8
     },
     "ballistic-warp-drive-1-pinch": {
       "nodes": 151,
       "crossings": 2244,
       "bends": 1196,
-      "edgeLength": 1432202.5,
-      "area": 115659180,
+      "edgeLength": 1551325.1,
+      "area": 128516180,
       "minGap": 10.2,
       "backEdges": 42,
-      "cost": 25236.2
+      "cost": 25355.3
     }
   }
 }
