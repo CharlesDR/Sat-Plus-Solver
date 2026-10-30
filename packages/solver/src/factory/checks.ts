@@ -72,6 +72,7 @@ export function finish(
   const add = (m: Map<string, number>, k: string, v: number) => m.set(k, (m.get(k) ?? 0) + v);
   const recipes: RecipeUsage[] = [];
   const nodeUse = new Map<string, number>();
+  const occupied = new Map<string, number>();
   const extracted = new Map<string, number>();
   let consumptionMW = 0;
   let generationMW = 0;
@@ -94,7 +95,11 @@ export function finish(
     const outputs = r.outputs.map((f) => ({ item: f.item, rate: rate(f) }));
     for (const f of outputs) add(produced, f.item, f.rate);
     for (const f of inputs) add(consumed, f.item, f.rate);
-    if (r.node) add(nodeUse, r.node, p.whole ? whole : n);
+    if (r.node) {
+      const miners = p.whole ? whole : n;
+      add(occupied, r.node, miners);
+      add(nodeUse, r.node, miners * (r.nodeShare ?? 1));
+    }
     const e = p.extracts.get(r.id);
     if (e) add(extracted, e.item, e.rate * n);
     const power = r.powerMW * (r.heater ? whole : n);
@@ -144,7 +149,13 @@ export function finish(
     const budget = p.nodeCaps.get(node) ?? 0;
     if (used > budget + BALANCE_TOL * Math.max(1, budget))
       failures.push(`node ${node} usage ${used} exceeds budget ${budget}`);
-    nodes.push({ node, used, budget, nne: used * (p.nodes.get(node)?.nne ?? 0) });
+    nodes.push({
+      node,
+      used,
+      occupied: occupied.get(node) ?? 0,
+      budget,
+      nne: used * (p.nodes.get(node)?.nne ?? 0),
+    });
   }
   const extraction: ResourceExtraction[] = [];
   for (const [item, rate] of [...extracted].sort(([a], [b]) => (a < b ? -1 : 1))) {

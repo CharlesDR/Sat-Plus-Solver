@@ -160,6 +160,7 @@ export function manualOutcome(
   const add = (m: Map<string, number>, k: string, v: number) => m.set(k, (m.get(k) ?? 0) + v);
   const usage: RecipeUsage[] = [];
   const nodeUse = new Map<string, number>();
+  const occupied = new Map<string, number>();
   const extracted = new Map<string, number>();
   let consumptionMW = 0;
   let generationMW = 0;
@@ -176,7 +177,10 @@ export function manualOutcome(
     for (const f of inputs) add(consumed, f.item, f.rate);
     if (outside && r.route?.fluid)
       for (const f of inputs) if (f.item === r.route.fluid) add(minerDraw, f.item, f.rate);
-    if (r.node) add(nodeUse, r.node, n);
+    if (r.node) {
+      add(occupied, r.node, n);
+      add(nodeUse, r.node, n * (r.nodeShare ?? 1));
+    }
     if (r.extracts) add(extracted, r.extracts.item, r.extracts.rate * n);
     const power = r.powerMW * (r.heater ? whole : n);
     if (power >= 0) consumptionMW += power;
@@ -254,7 +258,13 @@ export function manualOutcome(
 
   const nodes: NodeUsage[] = [...nodeUse]
     .sort(([a], [b]) => (a < b ? -1 : 1))
-    .map(([node, used]) => ({ node, used, budget: used, nne: used * (nne.get(node) ?? 0) }));
+    .map(([node, used]) => ({
+      node,
+      used,
+      occupied: occupied.get(node) ?? 0,
+      budget: used,
+      nne: used * (nne.get(node) ?? 0),
+    }));
   const extraction: ResourceExtraction[] = [...extracted]
     .sort(([a], [b]) => (a < b ? -1 : 1))
     .map(([item, rate]) => ({ item, rate }));

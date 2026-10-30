@@ -43,6 +43,7 @@ export { filterMinerRoutes, minerFluidOptions, minerSupplyItem } from './factory
 export type { MinerFluidOptions, MinerFluids, MinerFluidSupply } from './factory/minerFluids';
 export {
   aboveTier,
+  isSuperseded,
   compareTiers,
   DEFAULT_ALTERNATES,
   filterRecipes,

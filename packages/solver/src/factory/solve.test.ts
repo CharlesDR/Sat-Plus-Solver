@@ -41,6 +41,7 @@ describe('solve: plans', () => {
       {
         node: 'node:iron-ore:normal',
         used: expect.closeTo(1.5, 9),
+        occupied: expect.closeTo(1.5, 9),
         budget: 40,
         nne: expect.closeTo(1.5, 9),
       },

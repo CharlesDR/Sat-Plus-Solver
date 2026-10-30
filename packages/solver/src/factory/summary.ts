@@ -48,7 +48,10 @@ export interface SummaryNode {
   node: string;
   /** "Resource (purity)". */
   label: string;
+  /** Share of the node pool (DF-1, A98), checked against `budget`. */
   used: number;
+  /** Nodes the miners sit on, one per machine (DF-1). */
+  occupied: number;
   budget: number;
   nne: number;
 }
@@ -127,6 +130,7 @@ export function summarizePlan(model: Model, result: SolveResult): PlanSummary {
         node: n.node,
         label: meta ? `${name(meta.resource)} (${meta.purity})` : n.node,
         used: n.used,
+        occupied: n.occupied,
         budget: n.budget,
         nne: n.nne,
       };

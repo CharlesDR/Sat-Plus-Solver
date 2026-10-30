@@ -355,22 +355,45 @@ export function buildExtraction(ctx: Ctx): ExtractionResult {
       check(row.raw, compute(ore(row.resource), 'normal', row.processing, null, 1, ZERO), mk1);
   }
 
-  // ---- 6. Generate max-output routes at the configured Mk. ----
+  // ---- 6. Generate routes per drill level (DF-1, A98). ----
+  // Each route comes at every drill a factory can have: the best drill
+  // unlocked at its Max tier, with full boosters. A lower drill's route is
+  // left out once a better drill unlocks, so a factory sees one per route.
   const drafts: DraftRecipe[] = [];
   const booster = req(ctx, mm.boosterBonus, 'modularMiner.boosterBonus');
   const boosterPower =
     toNumber(req(ctx, mm.boosterPowerMW, 'modularMiner.boosterPowerMW')) * mm.boosterSlots;
-  const machineFor = (processing: Processing | undefined, fluid: boolean) => {
+  const machineFor = (processing: Processing | undefined, fluid: boolean, mk: number) => {
     const key = (
       fluid ? (processing ? `fluid+${processing.kind}` : 'fluid') : (processing?.kind ?? 'none')
     ) as keyof typeof mm.machines;
-    const name = mm.machines[key].replace('{mk}', String(mm.mk));
+    const name = mm.machines[key].replace('{mk}', String(mk));
     const machine = ctx.machines.get(name);
     if (!machine)
       issues.error('miner.machine', `miner-model machine "${name}" is not in the dataset`);
     return machine;
   };
-  if (!mkRatio(mm.mk)) issues.error('miner.mk', `No "${mm.machines.none}" entry for Mk.${mm.mk}`);
+  const best = mkRatio(mm.mk);
+  if (!best) issues.error('miner.mk', `No "${mm.machines.none}" entry for Mk.${mm.mk}`);
+  const drills = Object.entries(mm.unlocks.drills)
+    .map(([mk, tier]) => ({ mk: Number(mk), tier }))
+    .sort((a, b) => a.mk - b.mk);
+  if (drills.at(-1)?.mk !== mm.mk)
+    issues.error('miner.unlocks', `unlocks.drills must end at the best drill, Mk.${mm.mk}`);
+  drills.forEach((d, k) => {
+    if (k > 0 && maxTier(d.tier, drills[k - 1]!.tier) !== d.tier)
+      issues.error('miner.unlocks', `Drill Mk.${d.mk} unlocks before Mk.${drills[k - 1]!.mk}`);
+  });
+  for (const resource of Object.keys(mm.unlocks.minDrill))
+    if (!ores.has(resource))
+      issues.error('miner.unlocks', `unlocks.minDrill names "${resource}", which no miner mines`);
+  const moduleTier = (processing: Processing | undefined, fluid: boolean) =>
+    maxTier(
+      processing ? mm.unlocks.modules[processing.kind] : '0-0',
+      fluid ? mm.unlocks.modules.fluid : '0-0',
+    );
+  /** `a` is at or past `b`. */
+  const reached = (a: string, b: string) => maxTier(a, b) === a;
 
   for (const o of [...ores.values()].sort((a, b) => a.resource.localeCompare(b.resource))) {
     const counts = nodeRows.get(o.resource)!;
@@ -381,6 +404,7 @@ export function buildExtraction(ctx: Ctx): ExtractionResult {
     const processingChoices: (string | null)[] = [null, ...[...o.processing.keys()].sort()];
     if (fluidChoices.length === 0)
       issues.error('miner.routes', `${o.resource}: no plain or fluid route`);
+    const minDrill = mm.unlocks.minDrill[o.resource] ?? 1;
     for (const p of PURITIES) {
       if (counts[p] === 0) continue;
       for (const processing of processingChoices) {
@@ -388,38 +412,51 @@ export function buildExtraction(ctx: Ctx): ExtractionResult {
         for (const fluid of fluidChoices) {
           if (proc && fluid && !mm.allowProcessingWithFluid && !proc.withFluidOnly) continue;
           if (proc?.withFluidOnly && !fluid) continue;
-          const computed = compute(o, p, processing, fluid, mm.mk, booster);
-          const machine = machineFor(proc, fluid !== null);
-          if (!computed || !machine) continue;
-          const { baseRate, ...flows } = computed;
-          const tier = maxTier(
-            o.plain ? o.plainTier : '0-0',
-            proc?.tier ?? '0-0',
-            fluid ? o.fluids.get(fluid)!.tier : '0-0',
-          );
-          const label = `${processing ?? o.resource}${fluid ? ` with ${fluid}` : ''}`;
-          drafts.push({
-            id: [
-              'mine',
-              slug(o.resource),
-              p,
-              processing ? slug(processing) : 'raw',
-              fluid ? slug(fluid) : 'dry',
-            ].join(':'),
-            name: `${o.resource} (${p}) → ${label}`,
-            machine: machine.Name,
-            kind: 'extraction',
-            alternate: false,
-            tier,
-            ...flows,
-            powerMW:
-              -toNumber(req(ctx, machine.AveragePower, `machine ${machine.Name} power`)) +
-              boosterPower,
-            clock: 1,
-            node: nodeKey(o.resource, p),
-            source: 'generated',
-            route: { resource: o.resource, purity: p, processing, fluid },
-            baseRate,
+          const id = [
+            'mine',
+            slug(o.resource),
+            p,
+            processing ? slug(processing) : 'raw',
+            fluid ? slug(fluid) : 'dry',
+          ].join(':');
+          drills.forEach((d, k) => {
+            if (d.mk < minDrill) return;
+            const next = drills[k + 1]?.tier;
+            const tier = maxTier(
+              o.plain ? o.plainTier : '0-0',
+              proc?.tier ?? '0-0',
+              fluid ? o.fluids.get(fluid)!.tier : '0-0',
+              d.tier,
+              moduleTier(proc, fluid !== null),
+            );
+            // A route that a better drill replaces before it unlocks never runs.
+            if (next !== undefined && reached(tier, next)) return;
+            const computed = compute(o, p, processing, fluid, d.mk, booster);
+            const machine = machineFor(proc, fluid !== null, d.mk);
+            const ratio = mkRatio(d.mk);
+            if (!computed || !machine || !ratio || !best) return;
+            const { baseRate, ...flows } = computed;
+            const label = `${processing ?? o.resource}${fluid ? ` with ${fluid}` : ''}`;
+            const top = d.mk === mm.mk;
+            drafts.push({
+              // The best drill keeps the route's id, so saves made before DF-1 still name it.
+              id: top ? id : `${id}:mk${d.mk}`,
+              name: `${o.resource} (${p}) → ${label}`,
+              machine: machine.Name,
+              kind: 'extraction',
+              alternate: false,
+              tier,
+              ...flows,
+              powerMW:
+                -toNumber(req(ctx, machine.AveragePower, `machine ${machine.Name} power`)) +
+                boosterPower,
+              clock: 1,
+              node: nodeKey(o.resource, p),
+              source: 'generated',
+              route: { resource: o.resource, purity: p, processing, fluid, mk: d.mk },
+              baseRate,
+              ...(top ? {} : { nodeShare: div(ratio, best), supersededAt: next!, family: id }),
+            });
           });
         }
       }

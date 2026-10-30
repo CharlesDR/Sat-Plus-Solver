@@ -34,17 +34,35 @@ export function aboveTier(tier: string, maxTier: string | undefined): boolean {
   return compareTiers(tier, maxTier) > 0;
 }
 
+/**
+ * Whether a better drill has replaced this miner route at `maxTier` (DF-1,
+ * A98): at its `supersededAt` tier and above, and with no max tier.
+ */
+export function isSuperseded(
+  recipe: Pick<Recipe, 'supersededAt'>,
+  maxTier: string | undefined,
+): boolean {
+  if (recipe.supersededAt === undefined) return false;
+  return maxTier === undefined || compareTiers(maxTier, recipe.supersededAt) >= 0;
+}
+
+/** A toggle or tweak on a miner route's best-drill id applies at every drill (DF-1). */
+const names = (recipe: Pick<Recipe, 'id' | 'family'>, ids: readonly string[] | undefined) =>
+  !!ids &&
+  (ids.includes(recipe.id) || (recipe.family !== undefined && ids.includes(recipe.family)));
+
 /** Why a recipe is left out, or `undefined` when it is eligible. Exclusion wins over inclusion. */
 export function recipeExclusion(
-  recipe: Pick<Recipe, 'id' | 'alternate' | 'tier'>,
+  recipe: Pick<Recipe, 'id' | 'alternate' | 'tier' | 'supersededAt' | 'family'>,
   filter: RecipeFilter | undefined,
-): 'excluded' | 'alternate' | 'tier' | undefined {
-  if (filter?.exclude?.includes(recipe.id)) return 'excluded';
+): 'excluded' | 'alternate' | 'tier' | 'superseded' | undefined {
+  if (names(recipe, filter?.exclude)) return 'excluded';
   if (aboveTier(recipe.tier, filter?.maxTier)) return 'tier';
+  if (isSuperseded(recipe, filter?.maxTier)) return 'superseded';
   if (
     recipe.alternate &&
     !(filter?.alternates ?? DEFAULT_ALTERNATES) &&
-    !filter?.include?.includes(recipe.id)
+    !names(recipe, filter?.include)
   )
     return 'alternate';
   return undefined;
@@ -60,11 +78,14 @@ export function filterRecipes(
   const alternates = filter?.alternates ?? DEFAULT_ALTERNATES;
   const enabled: Recipe[] = [];
   const disabled: Recipe[] = [];
+  const has = (set: Set<string>, r: Recipe) =>
+    set.has(r.id) || (r.family !== undefined && set.has(r.family));
   for (const r of recipes) {
     const out =
-      exclude.has(r.id) ||
+      has(exclude, r) ||
       aboveTier(r.tier, filter?.maxTier) ||
-      (r.alternate && !alternates && !include.has(r.id));
+      isSuperseded(r, filter?.maxTier) ||
+      (r.alternate && !alternates && !has(include, r));
     (out ? disabled : enabled).push(r);
   }
   return { enabled, disabled };

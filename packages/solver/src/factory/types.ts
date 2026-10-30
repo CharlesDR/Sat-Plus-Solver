@@ -196,7 +196,10 @@ export interface ItemFlow {
 
 export interface NodeUsage {
   node: string;
+  /** Share of the node pool used (DF-1, A98): machines × `nodeShare`, checked against `budget`. */
   used: number;
+  /** Nodes the factory's miners sit on, one per machine (DF-1). */
+  occupied: number;
   budget: number;
   /** used × NNE. */
   nne: number;

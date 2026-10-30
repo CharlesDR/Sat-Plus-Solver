@@ -82,6 +82,16 @@ export const MinerModelConfig = z.object({
       'fluid+crusher': z.string(),
       'fluid+smelter': z.string(),
     }),
+    /** DF-1 (A98): unlock tier per drill Mk and per module; ores that need a better drill. */
+    unlocks: z.object({
+      drills: z.record(z.string().regex(/^\d+$/), z.string().regex(/^\d+-\d+$/)),
+      modules: z.object({
+        smelter: z.string().regex(/^\d+-\d+$/),
+        crusher: z.string().regex(/^\d+-\d+$/),
+        fluid: z.string().regex(/^\d+-\d+$/),
+      }),
+      minDrill: z.record(z.string(), z.number().int().min(1)),
+    }),
   }),
   nodeExtractors: z.object({ clock: RationalString, defaultPowerExponent: RationalString }),
   fracking: z.object({

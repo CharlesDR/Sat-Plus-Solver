@@ -201,8 +201,13 @@ export function buildLp(
     for (const f of r.outputs) balance.get(f.item)!.push({ var: scaleOf(f), coef: f.rate });
     for (const f of r.inputs) balance.get(f.item)!.push({ var: scaleOf(f), coef: -f.rate });
     // In whole-machines mode a node is used by a whole machine, even underclocked (R3).
+    // A miner below the best drill takes its share of the node pool (DF-1, A98).
     const user = whole ? machinesVar(r.id) : v;
-    if (r.node) nodeTerms.set(r.node, [...(nodeTerms.get(r.node) ?? []), { var: user, coef: 1 }]);
+    if (r.node)
+      nodeTerms.set(r.node, [
+        ...(nodeTerms.get(r.node) ?? []),
+        { var: user, coef: r.nodeShare ?? 1 },
+      ]);
     // A resource limit counts what runs (A33): an underclocked miner extracts less.
     const e = p.extracts.get(r.id);
     if (e && p.resourceLimits.has(e.item))
@@ -385,11 +390,13 @@ export function objectiveCosts(
   for (const r of recipes) {
     const n = r.node ? nodes.get(r.node) : undefined;
     if (!n) continue;
-    if (objective === 'resources') cost.set(r.id, n.nne);
+    // Per machine, its share of a node at the best drill (DF-1): ore costs the same at every tier.
+    const share = n.nne * (r.nodeShare ?? 1);
+    if (objective === 'resources') cost.set(r.id, share);
     else {
       const total = mapTotal.get(n.resource) ?? 0;
       const w = weights?.[n.resource] ?? (total > 0 ? 1 / total : 1);
-      cost.set(r.id, n.nne * w);
+      cost.set(r.id, share * w);
     }
   }
   return cost;

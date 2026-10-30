@@ -398,6 +398,10 @@ export function modelCatalog(model: Model): Catalog {
   const item = new Map(model.items.map((i) => [i.id, i.name]));
   const machine = new Map(model.machines.map((m) => [m.id, m.name]));
   const name = (id: string) => item.get(id) ?? id;
+  const fluidTier = model.recipes
+    .filter((r) => r.route?.fluid)
+    .map((r) => r.tier)
+    .sort(compareTiers)[0];
   const tiers = [...new Set(model.recipes.map((r) => r.tier))]
     .filter((t) => /^\d+-\d+$/.test(t) && t !== '0-0')
     .sort(compareTiers);
@@ -415,6 +419,8 @@ export function modelCatalog(model: Model): Catalog {
         alternate: r.alternate,
         tier: r.tier,
         ...(r.unlock ? { unlock: r.unlock } : {}),
+        ...(r.supersededAt !== undefined ? { supersededAt: r.supersededAt } : {}),
+        ...(r.family !== undefined ? { family: r.family } : {}),
         products: r.outputs.filter((o) => o.item !== MW_ITEM_ID).map((o) => name(o.item)),
         outputs: r.outputs.filter((o) => o.item !== MW_ITEM_ID).map((o) => o.item),
       }))
@@ -429,6 +435,7 @@ export function modelCatalog(model: Model): Catalog {
       .sort(byName((n) => n.label)),
     resources: resourceCatalog(model),
     tiers,
+    ...(fluidTier !== undefined ? { minerFluidTier: fluidTier } : {}),
     fluids: model.items
       .filter((i) => i.form === 'fluid')
       .map((i) => i.id)

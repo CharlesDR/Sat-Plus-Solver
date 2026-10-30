@@ -44,7 +44,7 @@ export function RecipeToggles({ store, scope, recipes }: Props) {
     [world, scope, recipes, search, view],
   );
   const shown = rows.slice(0, RECIPE_PAGE);
-  const ids = rows.map((r) => r.recipe.id);
+  const ids = rows.map((r) => r.key);
   const where = scope.kind === 'world' ? 'all factories' : 'this factory';
 
   return (
@@ -99,7 +99,7 @@ export function RecipeToggles({ store, scope, recipes }: Props) {
                 type="checkbox"
                 checked={r.on}
                 disabled={r.reason === 'tier' || r.tweaked}
-                onChange={(e) => setRecipes(scope, [r.recipe.id], e.target.checked)}
+                onChange={(e) => setRecipes(scope, [r.key], e.target.checked)}
               />
               <span className="name">{r.recipe.name}</span>
             </label>
@@ -113,7 +113,7 @@ export function RecipeToggles({ store, scope, recipes }: Props) {
                   type="button"
                   className="link"
                   aria-label={`Reset ${r.recipe.name}`}
-                  onClick={() => setRecipes(scope, [r.recipe.id], undefined)}
+                  onClick={() => setRecipes(scope, [r.key], undefined)}
                 >
                   reset
                 </button>

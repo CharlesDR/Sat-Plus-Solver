@@ -13,6 +13,11 @@ export type RecipeView = 'all' | 'standard' | 'alternates' | 'on' | 'off' | 'cha
 
 export interface RecipeRow {
   recipe: CatalogRecipe;
+  /**
+   * The id its toggle is stored under: a miner route's best-drill id, so a
+   * toggle applies at every drill (DF-1, A98).
+   */
+  key: string;
   /** Eligible in this scope. */
   on: boolean;
   /** Why it is off, when it is. */
@@ -62,13 +67,16 @@ export function recipeRows(
       if (!words.every((w) => text.includes(w))) continue;
     }
     const reason = recipeExclusion(recipe, filter);
-    const row: RecipeRow = { recipe, on: reason === undefined };
+    // A miner route a better drill has replaced is listed at that drill instead (DF-1).
+    if (reason === 'superseded') continue;
+    const key = recipe.family ?? recipe.id;
+    const row: RecipeRow = { recipe, key, on: reason === undefined };
     if (reason) row.reason = reason;
     if ((reason === undefined) !== (recipeExclusion(recipe, untweaked) === undefined))
       row.tweaked = true;
-    const toggle = own[recipe.id];
+    const toggle = own[key];
     if (toggle !== undefined) row.toggle = toggle;
-    const inherited = factory ? world.defaults.recipes[recipe.id] : undefined;
+    const inherited = factory ? world.defaults.recipes[key] : undefined;
     if (inherited !== undefined) row.inherited = inherited;
     if (view === 'on' && !row.on) continue;
     if (view === 'off' && row.on) continue;

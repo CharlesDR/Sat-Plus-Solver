@@ -22,7 +22,16 @@
       "fluid+crusher": "Modular Miner Mk.{mk} (Fluid-Crusher Module)",
       "fluid+smelter": "Modular Miner Mk.{mk} (Fluid-Crusher Module)"
     },
-    "$machines": "A11: no Fluid-Smelter machine exists in the dataset; its power is taken from the Fluid-Crusher machine."
+    "$machines": "A11: no Fluid-Smelter machine exists in the dataset; its power is taken from the Fluid-Crusher machine.",
+    "unlocks": {
+      "$comment": "DF-1 (A98, Charles 2026-10-28): the tier each drill and module unlocks at. A factory's miners use the best drill unlocked at its Max tier (with no Max tier, Mk.{mk}); a route that needs a module starts at the module's tier. Sources: SF+ wiki schematics (project files sfplus-wiki/SchematicManager/).",
+      "drills": { "1": "0-5", "2": "4-3", "3": "8-2" },
+      "$drills": "Modular Miner and Drill Mk.1: tutorial 0-5. Drill Mk.2: milestone T4-3. Drill Mk.3: milestone T8-2.",
+      "modules": { "smelter": "2-3", "crusher": "3-0", "fluid": "5-0" },
+      "$modules": "Smelter Module: milestone T2-3. Crusher Module: MAM Cryolite 'Miner Module: Crusher' (Diamonds and Steel Rod), set by hand to T3, because the A82 cost rule gives T9 from Diamonds while Diamond Synthesis sits in the same tree. Fluid Module: MAM Sulfur 'Sulfur Extraction' (100 Sulfur, a T5 item).",
+      "minDrill": { "Montanion Ore": 2 },
+      "$minDrill": "The dataset's Modular Miner capacities say: 'For Montanion Ore at least the Mk2 drill (hardened) is required.'"
+    }
   },
   "nodeExtractors": {
     "$comment": "Non-miner extractors on limited nodes run fully overclocked. Power scales as clock^exponent (machine OverclockPowerExponent, else defaultPowerExponent).",

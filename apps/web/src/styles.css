@@ -1168,6 +1168,11 @@ label.inline {
 }
 
 /* ---------- Tables ---------- */
+/* More miners than nodes of the kind (DF-1). */
+.over-nodes {
+  color: var(--warn);
+  font-weight: 600;
+}
 .summary {
   overflow-x: auto;
 }

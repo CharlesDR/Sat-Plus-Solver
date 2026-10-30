@@ -23,6 +23,10 @@ import { useNumbers } from './ui/numbers';
 import { useOpenPref, usePlanTab, type PlanTab } from './ui/prefs';
 import { OBJECTIVE_CODES, OBJECTIVE_LABELS } from './controls/ObjectiveStack';
 
+const MINERS_TIP =
+  'Nodes the miners sit on, one per miner, at the drill this factory’s Max tier unlocks.';
+const POOL_USE_TIP =
+  'What the miners take from the world’s node pool: their output as a share of a node at the best drill. World totals and scarcity count this.';
 const NNE_TIP =
   'NNE: normal-node equivalents. An impure node counts ½, a normal node 1, a pure node 2.';
 
@@ -134,10 +138,11 @@ export function SummaryTable({
               <Fold section="nodes" title="Nodes" count={plan.nodes.length}>
                 <Table
                   title="Nodes"
-                  head={['Node', 'Used', 'Budget', 'NNE']}
-                  headTips={{ NNE: NNE_TIP }}
+                  head={['Node', 'Miners', 'Pool use', 'Pool', 'NNE']}
+                  headTips={{ Miners: MINERS_TIP, 'Pool use': POOL_USE_TIP, NNE: NNE_TIP }}
                   rows={plan.nodes.map((n) => [
                     n.label,
+                    num.rate(n.occupied),
                     num.rate(n.used),
                     num.rate(n.budget),
                     num.rate(n.nne),
@@ -147,11 +152,21 @@ export function SummaryTable({
                     : {
                         titles: plan.nodes.map((n) => [
                           '',
+                          formatExact(n.occupied),
                           formatExact(n.used),
                           formatExact(n.budget),
                           formatExact(n.nne),
                         ]),
                       })}
+                  // More miners than the pool has nodes of the kind (DF-1): flagged, not refused.
+                  render={(row, col) => {
+                    const n = plan.nodes[row]!;
+                    return col === 1 && n.occupied > n.budget + 1e-6 ? (
+                      <span className="over-nodes" title="More miners than nodes of this kind">
+                        {num.rate(n.occupied)} ⚠
+                      </span>
+                    ) : undefined;
+                  }}
                 />
               </Fold>
               <p data-testid="power">

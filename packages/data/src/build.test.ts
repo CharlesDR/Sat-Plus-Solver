@@ -131,6 +131,47 @@ describe('real dataset', () => {
     expect(r.node).toBe('node:montanion-ore:pure');
   });
 
+  test('miner routes come at each drill, with their tier range and node share (DF-1)', () => {
+    const top = 'mine:siterite-ore:normal:raw:dry';
+    expect(recipe(`${top}:mk1`)).toMatchObject({
+      machine: 'modular-miner-mk-1',
+      tier: '0-5',
+      supersededAt: '4-3',
+      nodeShare: 0.25,
+      family: top,
+      outputs: [{ item: 'siterite-ore', rate: 240 }],
+      route: { mk: 1 },
+    });
+    expect(recipe(`${top}:mk2`)).toMatchObject({
+      machine: 'modular-miner-mk-2',
+      tier: '4-3',
+      supersededAt: '8-2',
+      nodeShare: 0.5,
+      family: top,
+      outputs: [{ item: 'siterite-ore', rate: 480 }],
+    });
+    // The best drill keeps the route's id and its max output, and nothing replaces it.
+    const best = recipe(top);
+    expect(best).toMatchObject({ machine: 'modular-miner-mk-3', tier: '8-2', route: { mk: 3 } });
+    expect(best.outputs).toEqual([{ item: 'siterite-ore', rate: 960 }]);
+    expect(best.supersededAt ?? best.nodeShare ?? best.family).toBeUndefined();
+    // Modules start at their own tier: Smelter T2-3, Crusher T3, Fluid T5.
+    expect(recipe('mine:siterite-ore:normal:iron-ingot:dry:mk1').tier).toBe('2-6');
+    expect(recipe('mine:siterite-ore:normal:crushed-siterite:dry:mk1').tier).toBe('3-0');
+    expect(recipe('mine:siterite-ore:normal:raw:water:mk2').tier).toBe('5-0');
+    const routes = model.recipes.filter((r) => r.route);
+    // The Fluid Module unlocks after the Drill Mk.2, so no Mk.1 route takes a fluid.
+    expect(routes.filter((r) => r.route!.mk === 1 && r.route!.fluid)).toEqual([]);
+    for (const r of routes.filter((x) => x.route!.fluid))
+      expect(Number(r.tier.split('-')[0])).toBeGreaterThanOrEqual(5);
+    // Montanion Ore needs at least the Drill Mk.2.
+    expect(
+      routes.filter((r) => r.route!.resource === 'montanion-ore' && r.route!.mk === 1),
+    ).toEqual([]);
+    // Every lower-drill route names a best-drill route that exists.
+    for (const r of routes.filter((x) => x.family)) expect(recipe(r.family!).route!.mk).toBe(3);
+  });
+
   test('fracking sites use the Nitrogen benchmark (40/3 NNE × 45 × 2.5 = 1500 m³/min)', () => {
     for (const id of [
       'extract:nitrogen-gas:site',

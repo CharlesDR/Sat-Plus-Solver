@@ -35,7 +35,10 @@ export function PlanStats(props: {
   const p = totals?.power ?? plan.power;
   const built = totals?.machines ?? plan.recipes.reduce((s, r) => s + r.machinesCeil, 0);
   const running = totals?.running ?? plan.recipes.reduce((s, r) => s + r.machines, 0);
-  const nodes = (totals?.nodes ?? plan.nodes).reduce((s, n) => s + n.used, 0);
+  // A factory counts the nodes its miners sit on; a scope, its share of the node pool (DF-1).
+  const nodes = totals
+    ? totals.nodes.reduce((s, n) => s + n.used, 0)
+    : plan.nodes.reduce((s, n) => s + n.occupied, 0);
   const pick = scope?.kind === 'pick';
   const objective =
     !manual && plan.objectiveValue !== undefined

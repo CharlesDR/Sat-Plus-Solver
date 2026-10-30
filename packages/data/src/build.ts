@@ -299,8 +299,12 @@ export function buildModel(inputs: BuildInputs): BuildResult {
         purity: d.route.purity,
         processing: d.route.processing === null ? null : itemId.get(d.route.processing)!,
         fluid: d.route.fluid === null ? null : itemId.get(d.route.fluid)!,
+        mk: d.route.mk,
       };
     }
+    if (d.nodeShare !== undefined) recipe.nodeShare = toNumber(d.nodeShare);
+    if (d.supersededAt !== undefined) recipe.supersededAt = d.supersededAt;
+    if (d.family !== undefined) recipe.family = d.family;
     recipes.push(recipe);
   }
   recipes.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));

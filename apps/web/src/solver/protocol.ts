@@ -25,6 +25,9 @@ export interface CatalogRecipe {
   tier: string;
   /** Alternates: how and from which tier it can be researched (A82). */
   unlock?: RecipeUnlock;
+  /** Miner routes below the best drill (DF-1, A98): see the model's `Recipe`. */
+  supersededAt?: string;
+  family?: string;
   /** Output item names, for search. */
   products: string[];
   /** Output item ids (no MW), for the swap list (A35). */
@@ -69,6 +72,8 @@ export interface Catalog {
   resources: CatalogResource[];
   /** Distinct recipe tiers above `0-0`, in tier order. */
   tiers: string[];
+  /** The first tier with a miner fluid route: the Fluid Module's unlock (DF-1, A98). */
+  minerFluidTier?: string;
   /** Fluid item ids (a link carrying one defaults to pipes), sorted. */
   fluids: string[];
   /** Belt capacity per tier, items/min, from the dataset. */
