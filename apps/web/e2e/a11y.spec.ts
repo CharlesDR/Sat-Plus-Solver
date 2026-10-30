@@ -5,25 +5,11 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
-import { addFactory, drawLink, toggleSection, worldSettled } from './helpers';
+import { addFactory, animationsDone, drawLink, toggleSection, worldSettled } from './helpers';
 
 async function axe(page: Page, what: string) {
-  // A panel fades in (pane-in), and mid-fade its text has less contrast than
-  // at rest, so let every finite animation end before measuring. (Polled: an
-  // animation inside a closed section never settles its `finished` promise.)
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () =>
-          document
-            .getAnimations()
-            .filter(
-              (a) =>
-                a.playState === 'running' && a.effect?.getComputedTiming().endTime !== Infinity,
-            ).length,
-      ),
-    )
-    .toBe(0);
+  // Mid-fade, a panel's text has less contrast than at rest.
+  await animationsDone(page);
   const { violations } = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .analyze();

@@ -72,3 +72,24 @@ export async function toggleSection(summary: Locator) {
     )
     .toBe(true);
 }
+
+/**
+ * Waits until no finite animation is running, such as a panel's fade-in
+ * (pane-in), which shifts and fades the panel while it runs. Polled: an
+ * animation inside a closed section never settles its `finished` promise.
+ */
+export async function animationsDone(page: Page) {
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          document
+            .getAnimations()
+            .filter(
+              (a) =>
+                a.playState === 'running' && a.effect?.getComputedTiming().endTime !== Infinity,
+            ).length,
+      ),
+    )
+    .toBe(0);
+}

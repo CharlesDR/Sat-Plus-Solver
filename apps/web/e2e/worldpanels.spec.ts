@@ -7,7 +7,7 @@
 import { readFile } from 'node:fs/promises';
 import type { Locator } from '@playwright/test';
 import { expect, test } from './fixtures';
-import { addFactory, worldSettled } from './helpers';
+import { addFactory, animationsDone, worldSettled } from './helpers';
 
 const README = new URL('../../../README.md', import.meta.url);
 
@@ -102,6 +102,8 @@ test('table headers stay below the top bar while the table scrolls by (DF-7)', a
 
   /** Scrolls the page so the table's top is `by` px above the top bar; returns its header's top. */
   const headerTopAfterScroll = async (table: Locator, by: number) => {
+    // A panel slides in as it opens (pane-in); measure it at rest.
+    await animationsDone(page);
     const top = await table.evaluate((e) => e.getBoundingClientRect().top + window.scrollY);
     await page.evaluate((y) => window.scrollTo(0, y), top - bar + by);
     return table
