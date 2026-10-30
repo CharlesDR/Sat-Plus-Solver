@@ -11,6 +11,6 @@
   },
   "dependencies": {
     "@sps/data": "workspace:*",
-    "highs": "^1.15.3"
+    "highs": "^1.15.4"
   }
 }
