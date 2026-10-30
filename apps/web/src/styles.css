@@ -867,9 +867,17 @@ label.inline {
   align-items: center;
 }
 .nodes table {
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   margin-top: 8px;
   width: 100%;
+}
+/* The sidebar scrolls on its own: the headers stick to its top (DF-7). */
+.nodes thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
 }
 .nodes td,
 .nodes th {
@@ -1173,9 +1181,6 @@ label.inline {
   color: var(--warn);
   font-weight: 600;
 }
-.summary {
-  overflow-x: auto;
-}
 .summary-head {
   display: flex;
   flex-wrap: wrap;
@@ -1271,7 +1276,7 @@ label.inline {
 }
 .summary thead th {
   position: sticky;
-  top: 0;
+  top: var(--topbar-h);
   z-index: 1;
   background: var(--surface-2);
   font-size: 12.5px;
@@ -1285,6 +1290,16 @@ label.inline {
 }
 .summary thead th:last-child {
   border-top-right-radius: var(--radius);
+}
+/* No scroll container between a table and the page, so its headers stick
+   below the top bar (DF-7). Narrow screens scroll wide tables sideways instead. */
+@media (max-width: 720px) {
+  .summary {
+    overflow-x: auto;
+  }
+  .summary thead th {
+    position: static;
+  }
 }
 .summary tbody tr:nth-child(even) td {
   background: color-mix(in srgb, var(--surface-2) 55%, transparent);

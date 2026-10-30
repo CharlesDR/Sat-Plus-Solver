@@ -5,6 +5,7 @@
  * settings drawer (UX-14).
  */
 import { readFile } from 'node:fs/promises';
+import type { Locator } from '@playwright/test';
 import { expect, test } from './fixtures';
 import { addFactory, worldSettled } from './helpers';
 
@@ -89,4 +90,38 @@ test('under 1100 px the settings are a drawer over the plan (UX-14)', async ({ p
   await page.getByRole('button', { name: 'Show settings' }).click();
   await page.getByRole('button', { name: 'Close settings' }).click();
   await expect(target).toBeHidden();
+});
+
+test('table headers stay below the top bar while the table scrolls by (DF-7)', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  const readme = await readFile(README, 'utf8');
+  const hash = /https:\/\/charlesdr\.github\.io\/Sat-Plus-Solver\/(#w=[\w$+\-.]+)/.exec(readme)![1];
+  await page.goto(`/${hash}`);
+  await worldSettled(page);
+  const bar = await page.locator('.topbar').evaluate((e) => e.getBoundingClientRect().bottom);
+
+  /** Scrolls the page so the table's top is `by` px above the top bar; returns its header's top. */
+  const headerTopAfterScroll = async (table: Locator, by: number) => {
+    const top = await table.evaluate((e) => e.getBoundingClientRect().top + window.scrollY);
+    await page.evaluate((y) => window.scrollTo(0, y), top - bar + by);
+    return table
+      .locator('thead th')
+      .first()
+      .evaluate((e) => e.getBoundingClientRect().top);
+  };
+
+  await page.getByRole('tab', { name: 'Ledger' }).click();
+  const ledger = page.getByRole('table', { name: 'Item ledger' });
+  const height = await ledger.evaluate((e) => e.getBoundingClientRect().height);
+  expect(height).toBeGreaterThan(600);
+  // Halfway down the ledger, its header sits right under the top bar.
+  expect(await headerTopAfterScroll(ledger, height / 2)).toBeCloseTo(bar, 0);
+  expect(await headerTopAfterScroll(ledger, height / 4)).toBeCloseTo(bar, 0);
+
+  // The factory plan's Recipes table does the same.
+  await page.getByRole('button', { name: 'Open Frame Factory', exact: true }).click();
+  await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
+  const recipes = page.getByRole('table', { name: 'Recipes' });
+  const rows = await recipes.evaluate((e) => e.getBoundingClientRect().height);
+  expect(await headerTopAfterScroll(recipes, rows / 2)).toBeCloseTo(bar, 0);
 });
