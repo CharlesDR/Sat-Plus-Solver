@@ -103,7 +103,9 @@ describe('factory flowchart on the SF+ model', () => {
     expectConserved(g);
     const elk = new ELK();
     // Warm the engine up (the app keeps one alive) so the timing is the layout itself.
-    await layoutFactoryGraph({ nodes: g.nodes.slice(0, 1), edges: [] }, elk);
+    // A one-node warm-up leaves the big-graph code cold, and the timed run then pays
+    // for its compilation too (about a quarter of the time).
+    await layoutFactoryGraph(g, elk);
     const t0 = performance.now();
     const layout = await layoutFactoryGraph(g, elk);
     expect(performance.now() - t0).toBeLessThan(2000);
@@ -129,7 +131,8 @@ describe('factory flowchart on the SF+ model', () => {
     expect(g.nodes.length).toBeGreaterThanOrEqual(150);
     expect(g.areas?.length).toBeGreaterThan(1);
     const elk = new ELK();
-    await layoutFactoryGraph({ nodes: g.nodes.slice(0, 1), edges: [] }, elk);
+    // Warmed up on the whole plan, as above.
+    await layoutFactoryGraph(g, elk);
     const t0 = performance.now();
     const layout = await layoutFactoryGraph(g, elk);
     expect(performance.now() - t0).toBeLessThan(2000);
