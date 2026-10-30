@@ -9,6 +9,42 @@ Items marked **[A#]** are assumptions, collected in §10.
 
 ---
 
+## Current state (read this first)
+
+This page says what the code does today. Read it, then only the sections your task touches (table below). The app is live at https://charlesdr.github.io/Sat-Plus-Solver/ and redeploys on every merge to `main`.
+
+**What each package does today**
+
+- `packages/data`: the build pipeline (`pnpm build:data`). It reads `game_data.json` (read-only) plus the fixes in `data/overrides.json`, `data/miner-model.json` and `data/nodes.csv`, parses every amount as an exact rational, and writes `data/generated/model.json` (items, machines with build costs, recipes, nodes, belts) and `report.md`. Validation errors fail the build. Any model change moves `dataHash`, so saved worlds warn once.
+- `packages/solver`: one factory's LP/MILP (§3), reached through `LpBackend` (HiGHS). It runs the objective stack lexicographically, prunes slivers, checks every result (balance, signs, node budget) and turns each HiGHS status into a diagnostic (§3.5). `summarizePlan` builds the plan tables and the bill of buildings and materials, shared by the web app and `pnpm solve`.
+- `packages/world`: the `World` document and its solve (§4): fixed and pull links, consumers first, the shared node pool, ledgers, groups, nested and manual factories, build marks and Modeler import.
+- `packages/graph`: the factory flowchart (hexagon nodes, areas) and the world graph, laid out with ELK. Layout quality is pinned by `fixtures/layout/scores.json`.
+- `apps/web`: React and Zustand. The store holds the `World`, which is also the save and share format; solving runs in a Web Worker. The world canvas is home; a factory opens to its flowchart and plan tables (Recipes, Items, Machines); the stats scope sums any set of factories. E2E tests are in `apps/web/e2e/`.
+- `tooling`: the CLIs (`pnpm solve`, `pnpm world`, `pnpm layout-score`) and the golden, all-parts and lint-boundary tests.
+
+**Rules that bite most often**
+
+- Never weaken a test. Golden fixtures (`fixtures/golden/`) and the layout-score baseline change only with Charles's explicit OK, in their own commit that says why.
+- A change to the `World` shape bumps `World.v` and adds a migration and its test. A change that moves `dataHash` is called out in the PR.
+- Units and signs: per minute, m³ per minute for fluids, MW with consumption positive. Recipe rates are positive; raw signs never leave `packages/data`.
+- Only `solver` builds LP rows; `solver`, `world` and `graph` stay pure (no DOM, storage or network); results are deterministic. ESLint enforces the dependency direction.
+- Design changes go into this file first, with the next free A# in §10 (the A list is in order, so the next id follows the last one).
+- Run `pnpm build` before Playwright: the e2e server serves the built `dist`, so a stale build tests old code. Timing-sensitive tests (flowchart timings, the A89 areas test) can fail in a slow container; CI is the reference.
+
+**Where to read for a task**
+
+| Task                                         | Read                                                                         |
+| -------------------------------------------- | ---------------------------------------------------------------------------- |
+| Game data, recipes, miners, nodes            | §2, §6; the A# entries for the item (search §10 for its todo id)             |
+| Solver: constraints, objectives, diagnostics | §3, §5                                                                       |
+| Links, world solve, node pool, build marks   | §4                                                                           |
+| Package boundaries, where code lives         | §7                                                                           |
+| UI layout, tables, flowchart style           | A77 (layout), A78 (readability), A81 (stats scope), A93 and A101 (flowchart) |
+| Tests                                        | §9                                                                           |
+| Why something is the way it is               | §10: search for the todo id (DF-, TI-, UX-, R) or the A#                     |
+
+---
+
 ## 1. Decisions at a glance
 
 | Area              | Decision                                                                                                                                                                                             | Why (short)                                                                                                                                                                   |
