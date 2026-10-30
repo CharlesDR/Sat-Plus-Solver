@@ -188,6 +188,14 @@ describe('pnpm solve: output', () => {
         'Iron Ingot         Smelter      Iron Ore 90.0    Iron Ingot 90.0    3.0      3  12.0',
         'Iron Plate         Constructor  Iron Ingot 90.0  Iron Plate 60.0    3.0      3  12.0',
         '',
+        // TI-1 (A100): buildings to place; the mini model has no build costs, so no materials.
+        'Machines to build',
+        'Machine      Build',
+        '-----------  -----',
+        'Constructor      3',
+        'Miner Mk.1       2',
+        'Smelter          3',
+        '',
       ].join('\n'),
     );
   });
@@ -339,6 +347,26 @@ describe('full SF+ model', () => {
     expect(text).toMatch(/Count\s+Build\s+Boiler\s+MW/);
     expect(text).toMatch(/Heater.*\s1\.0\s+1\s+20\.0%\s/);
     expect(r.surplus.find((s) => s.item === 'steam')).toBeUndefined();
+  });
+
+  test('the plan lists machines and materials to build (TI-1)', async () => {
+    const r = await solve(
+      model,
+      { targets: [{ item: 'iron-plate', rate: 60 }] },
+      createHighsBackend(),
+    );
+    expect(r.status).toBe('ok');
+    const text = renderPlan(model, r);
+    const constructors = r.recipes
+      .filter((x) => x.machine === 'constructor')
+      .reduce((n, x) => n + x.machinesCeil, 0);
+    expect(constructors).toBeGreaterThan(0);
+    expect(text).toMatch(
+      new RegExp(`Machines to build\\n.*\\n.*\\n(.*\\n)*Constructor\\s+${constructors}\\n`),
+    );
+    // Each Constructor takes 10 Iron Plate, 2 Cable and 10 Screws, among other buildings' parts.
+    expect(text).toMatch(/Materials to build\n/);
+    expect(text).toMatch(/\nIron Plate\s+\d+/);
   });
 
   test('5 targets solve in under 1 s, including loading HiGHS', async () => {

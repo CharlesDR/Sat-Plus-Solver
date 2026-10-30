@@ -7,9 +7,12 @@ import {
   targetNodeId,
 } from '@sps/graph';
 import {
+  buildingTable,
   formatExact,
+  materialTable,
   recipeTable,
   starterNote,
+  type BuildBill,
   type PlanSummary,
   type SummaryFlow,
   type SummaryItem,
@@ -20,7 +23,7 @@ import type { ScopeTotalsView, ScopeView } from './stats/scope';
 import { itemIcon } from './icons/icons';
 import { StatusChip } from './ui/StatusChip';
 import { useNumbers } from './ui/numbers';
-import { useOpenPref, usePlanTab, type PlanTab } from './ui/prefs';
+import { useOpenPref, usePageOpen, usePlanTab, type PlanTab } from './ui/prefs';
 import { OBJECTIVE_CODES, OBJECTIVE_LABELS } from './controls/ObjectiveStack';
 
 const MINERS_TIP =
@@ -227,16 +230,20 @@ function ScopeStats({ totals }: { totals: ScopeTotalsView }) {
         Power: {num.rate(p.consumptionMW)} MW draw, {num.rate(p.generationMW)} MW generated, net{' '}
         {num.rate(p.netMW)} MW
       </p>
+      <Fold section="machines" title="Machines to build" count={totals.bill.buildings.length}>
+        <Machines bill={totals.bill} />
+      </Fold>
     </div>
   );
 }
 
-/** The Recipes and Items tables, one at a time behind tabs (UX-4). */
+/** The Recipes, Items and Machines tables, one at a time behind tabs (UX-4, TI-1). */
 function PlanTables({ plan, ...pick }: { plan: PlanSummary } & Pick) {
   const [tab, setTab] = usePlanTab();
   const tabs: [PlanTab, string, number][] = [
     ['recipes', 'Recipes', plan.recipes.length],
     ['items', 'Items', plan.items.length],
+    ['machines', 'Machines', plan.bill.buildings.length],
   ];
   return (
     <div className="plan-tables">
@@ -256,7 +263,13 @@ function PlanTables({ plan, ...pick }: { plan: PlanSummary } & Pick) {
         ))}
       </div>
       <div id="plan-tab-panel" role="tabpanel" aria-labelledby={`plan-tab-${tab}`}>
-        {tab === 'recipes' ? <Recipes plan={plan} {...pick} /> : <Items items={plan.items} />}
+        {tab === 'recipes' ? (
+          <Recipes plan={plan} {...pick} />
+        ) : tab === 'items' ? (
+          <Items items={plan.items} />
+        ) : (
+          <Machines bill={plan.bill} />
+        )}
       </div>
     </div>
   );
@@ -313,6 +326,32 @@ function FlowChips({ flows }: { flows: SummaryFlow[] }) {
   );
 }
 
+/**
+ * The buildings to place in game, then the materials they take (TI-1). A
+ * factory marked as built also shows what its expansion adds (To expand).
+ */
+function Machines({ bill }: { bill: BuildBill }) {
+  const machines = buildingTable(bill);
+  const materials = materialTable(bill, useNumbers());
+  return (
+    <>
+      <Table title="Machines" {...machines} />
+      <Fold
+        section="materials"
+        title="Materials to build"
+        count={bill.materials.length}
+        remember={false}
+      >
+        <Table
+          title="Materials to build"
+          {...materials}
+          icons={bill.materials.map((m) => itemIcon(m.item))}
+        />
+      </Fold>
+    </>
+  );
+}
+
 /** Every item the plan moves, with what is made, used, brought in and left over (UX-4). */
 function Items({ items }: { items: SummaryItem[] }) {
   const num = useNumbers();
@@ -334,20 +373,24 @@ function Items({ items }: { items: SummaryItem[] }) {
 
 /**
  * A table that starts folded (UX-B): a closed section whose header gives the
- * count. Its open state is a preference per section. Picking one of its rows
- * in the flowchart opens it. Without `fold`, the table shows as it is.
+ * count. Its open state is a preference per section, or, with `remember`
+ * false, holds only until the page reloads. Picking one of its rows in the
+ * flowchart opens it. Without `fold`, the table shows as it is.
  */
 function Fold(props: {
   section: string;
   title: string;
   count: number;
   fold?: boolean;
+  remember?: boolean;
   keys?: string[];
   selection?: Selection | undefined;
   children: ReactNode;
 }) {
-  const { section, title, count, fold = true, keys, selection, children } = props;
-  const [open, setOpen] = useOpenPref(`plan:${section}`);
+  const { section, title, count, fold = true, remember = true, keys, selection, children } = props;
+  const kept = useOpenPref(`plan:${section}`);
+  const forPage = usePageOpen(`plan:${section}`);
+  const [open, setOpen] = remember ? kept : forPage;
   const hit = selection?.from === 'graph' && keys?.includes(selection.id) === true;
   // Stays open once a pick opened it, until the user folds it again.
   const [reveal, setReveal] = useState(false);

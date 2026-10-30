@@ -666,6 +666,7 @@ function PlanView(props: {
           world,
           selection: selection?.id,
           recipes: o.plan.recipes,
+          buildings: o.plan.bill.buildings,
           itemName: items.name,
           nodeLabel: (id) => nodeLabels.get(id) ?? id,
         })

@@ -83,6 +83,7 @@ const recipe: SummaryRecipe = {
   id: 'screw',
   name: 'Screw',
   machine: 'Constructor',
+  machineId: 'constructor',
   machines: 2.5,
   machinesCeil: 3,
   powerMW: 10,
@@ -165,6 +166,42 @@ describe('scopeView (A81)', () => {
     expect(rates(m.extraction)).toEqual({ ore: 60 });
     expect(m.exports).toEqual([]);
     expect(m.nodes).toEqual([{ node: 'ore-normal', label: 'node ore-normal', used: 1 }]);
+  });
+
+  test('the build bill follows the scope (TI-1)', () => {
+    const cost = [{ item: 'plate', name: 'Plate', amount: 10 }];
+    const ctor = (count: number, expand?: number) => ({
+      machine: 'constructor',
+      name: 'Constructor',
+      count,
+      ...(expand !== undefined ? { expand } : {}),
+      cost,
+    });
+    const billed: ScopeWorld = {
+      ...world,
+      factories: world.factories.map((f) =>
+        f.id === 'c'
+          ? { ...f, buildings: [ctor(2)] }
+          : f.id === 'o'
+            ? { ...f, buildings: [ctor(1, 1)] }
+            : f,
+      ),
+    };
+    const all = totals({ scope: 'world', world: billed });
+    expect(all.bill.buildings).toEqual([{ ...ctor(3, 1) }]);
+    expect(all.bill.materials).toEqual([{ item: 'plate', name: 'Plate', amount: 30, expand: 10 }]);
+    // Current & Below leaves out "o", and with it the To expand count.
+    expect(totals({ world: billed }).bill.materials).toEqual([
+      { item: 'plate', name: 'Plate', amount: 20 },
+    ]);
+    // A recipe group: its whole machines at its building's cost.
+    const one = totals({
+      scope: 'selected',
+      selection: 'recipe:screw',
+      buildings: [ctor(9)],
+    });
+    expect(one.bill.buildings.map((b) => [b.name, b.count])).toEqual([['Constructor', 3]]);
+    expect(one.bill.materials[0]!.amount).toBe(30);
   });
 
   test('a Selected scope with nothing summable picked asks for a pick', () => {

@@ -20,6 +20,8 @@ import {
   sizeNetwork,
   solve,
   summarizePlan,
+  buildBill,
+  wholeBuildings,
   type LpBackend,
 } from '@sps/solver';
 import {
@@ -36,6 +38,7 @@ import {
   scaleUp,
   writeModeler,
   sizePowerPlant,
+  type Factory,
   type FactoryResult,
   type ResolveOptions,
   type SolveFactory,
@@ -241,9 +244,10 @@ export function createSolverService(
         cache.delete(key);
       }
       const f = focus !== undefined ? result.factories.find((x) => x.id === focus) : undefined;
-      const plan: FocusPlan | undefined = f && focusPlan(model, labels, f, result);
+      const built = (id: string) => builtCounts(world.factories.find((x) => x.id === id));
+      const plan: FocusPlan | undefined = f && focusPlan(model, labels, f, result, built(f.id));
       return {
-        world: summarizeWorld(result),
+        world: summarizeWorld(result, model, built),
         ...(plan ? { focus: plan } : {}),
         ...(edited ? { edited } : {}),
         ...(previews ? { previews } : {}),
@@ -267,8 +271,9 @@ export function focusPlan(
   labels: GraphLabels,
   f: FactoryResult,
   world?: Pick<WorldResult, 'factories' | 'links'>,
+  built?: ReadonlyMap<string, number>,
 ): FocusPlan {
-  const plan = summarizePlan(model, f.result);
+  const plan = summarizePlan(model, f.result, built);
   const flows = (from: string, to: string) =>
     (world?.links ?? [])
       .filter((l) => l.from === from && l.to === to && l.delivered > 0)
@@ -313,14 +318,36 @@ export function focusPlan(
   };
 }
 
-/** The world result without each factory's full solve result (it stays in the worker). */
-export function summarizeWorld(result: WorldResult): WorldSummary {
+/** A factory's build mark as whole buildings per recipe group (A44), for To expand (TI-1). */
+export function builtCounts(factory: Factory | undefined): Map<string, number> | undefined {
+  if (!factory?.built) return undefined;
+  const counts = new Map<string, number>();
+  for (const e of factory.built.entries)
+    counts.set(e.recipe, (counts.get(e.recipe) ?? 0) + wholeBuildings(e.machines));
+  return counts;
+}
+
+/**
+ * The world result without each factory's full solve result (it stays in
+ * the worker), with each factory's buildings to place (TI-1).
+ */
+export function summarizeWorld(
+  result: WorldResult,
+  model: Pick<Model, 'machines' | 'items'>,
+  built: (id: string) => ReadonlyMap<string, number> | undefined = () => undefined,
+): WorldSummary {
   return {
     ...result,
     factories: result.factories.map((f) => {
       const { result: solved, ...rest } = f;
+      const groups = solved.recipes.map((r) => ({
+        machine: r.machine,
+        count: r.machinesCeil,
+        recipe: r.id,
+      }));
       return {
         ...rest,
+        buildings: buildBill(model, groups, built(f.id)).buildings,
         diagnostics: [...solved.diagnostics],
         ...(solved.minerSupply ? { minerSupply: solved.minerSupply.map((m) => ({ ...m })) } : {}),
       };

@@ -2,7 +2,14 @@
  * Stats scope (UI-9, A81): which factories, or which recipe group, the plan
  * stats sum over. Pure: the factory view renders what `scopeView` returns.
  */
-import type { PowerSummary, SummaryFlow, SummaryRecipe } from '@sps/solver';
+import {
+  mergeBills,
+  type BuildBill,
+  type PowerSummary,
+  type SummaryBuilding,
+  type SummaryFlow,
+  type SummaryRecipe,
+} from '@sps/solver';
 import { scopeStats, type FactoryResult, type ScopeSource } from '@sps/world';
 
 export type StatsScope = 'current-below' | 'current' | 'selected-below' | 'selected' | 'world';
@@ -33,6 +40,8 @@ export interface ScopeTotalsView {
   /** Whole machines to build. */
   machines: number;
   running: number;
+  /** Buildings and materials to build (TI-1), summed over the scope. */
+  bill: BuildBill;
 }
 
 export type ScopeView =
@@ -45,7 +54,10 @@ export type ScopeView =
 /** The world result as the stats read it. */
 export interface ScopeWorld extends ScopeSource {
   factories: readonly (ScopeSource['factories'][number] &
-    Pick<FactoryResult, 'name' | 'subtree'>)[];
+    Pick<FactoryResult, 'name' | 'subtree'> & {
+      /** Its buildings to place (TI-1); absent counts as none. */
+      buildings?: readonly SummaryBuilding[];
+    })[];
 }
 
 export interface ScopeInput {
@@ -57,6 +69,8 @@ export interface ScopeInput {
   selection: string | undefined;
   /** The open factory's recipes, for a selected recipe group. */
   recipes: readonly SummaryRecipe[];
+  /** The open factory's buildings (TI-1), for a selected recipe group's cost. */
+  buildings?: readonly SummaryBuilding[];
   itemName(id: string): string;
   nodeLabel(id: string): string;
 }
@@ -106,6 +120,9 @@ function factoryTotals(world: ScopeWorld, members: string[], input: ScopeInput):
     power: s.power,
     machines: s.machines,
     running: s.running,
+    bill: mergeBills(
+      world.factories.filter((f) => s.factories.includes(f.id)).flatMap((f) => f.buildings ?? []),
+    ),
   };
 }
 
@@ -135,7 +152,17 @@ function recipeTotals(r: SummaryRecipe, input: ScopeInput): ScopeTotalsView {
     },
     machines: r.machinesCeil,
     running: r.machines,
+    bill: recipeBill(r, input.buildings ?? []),
   };
+}
+
+/** One recipe group's buildings (TI-1): its whole machines, at its building's cost. */
+function recipeBill(r: SummaryRecipe, buildings: readonly SummaryBuilding[]): BuildBill {
+  if (r.machinesCeil <= 0) return { buildings: [], materials: [] };
+  const b = buildings.find((x) => x.machine === r.machineId);
+  return mergeBills([
+    { machine: r.machineId, name: r.machine, count: r.machinesCeil, cost: b?.cost ?? [] },
+  ]);
 }
 
 const flow = (item: string, rate: number, input: ScopeInput): SummaryFlow => ({

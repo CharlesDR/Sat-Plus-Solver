@@ -1,7 +1,7 @@
 /** Messages between the main thread and the solver worker. */
 import type { Area, BeltCapacity, NodePurity, RecipeUnlock } from '@sps/data';
 import type { FactoryGraph } from '@sps/graph';
-import type { Diagnostic, ItemRate, PlanSummary, SummaryFlow } from '@sps/solver';
+import type { Diagnostic, ItemRate, PlanSummary, SummaryBuilding, SummaryFlow } from '@sps/solver';
 import type { FactoryResult, ModelerReportLine, World, WorldResult } from '@sps/world';
 
 /** An item the target picker offers. */
@@ -92,6 +92,8 @@ export interface FactorySummary extends Omit<FactoryResult, 'result'> {
   diagnostics: Diagnostic[];
   /** Miner fluid supplied from outside (A69), for the Miner support factory (A71). */
   minerSupply?: ItemRate[];
+  /** Its buildings to place (TI-1), with To expand when marked as built; summed per stats scope. */
+  buildings: SummaryBuilding[];
 }
 
 /** The world result the UI shows (PLAN M8). */

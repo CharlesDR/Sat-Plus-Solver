@@ -41,6 +41,8 @@ import {
   solve,
   starterNote,
   summarizePlan,
+  buildingTable,
+  materialTable,
   type AlternatesReport,
   type ImportCap,
   type ItemRate,
@@ -362,6 +364,15 @@ export function renderPlan(model: Model, result: SolveResult): string {
   out.push('', 'Recipes');
   const recipes = recipeTable({ recipes: productionOrder(plan.recipes) }, { io: true });
   out.push(table(recipes.head, recipes.rows, 4));
+  // What it takes to build (TI-1), from the same summary as the web Machines tab.
+  if (plan.bill.buildings.length) {
+    const machines = buildingTable(plan.bill);
+    out.push('', 'Machines to build', table(machines.head, machines.rows));
+  }
+  if (plan.bill.materials.length) {
+    const materials = materialTable(plan.bill);
+    out.push('', 'Materials to build', table(materials.head, materials.rows));
+  }
   return out.join('\n') + '\n';
 }
 

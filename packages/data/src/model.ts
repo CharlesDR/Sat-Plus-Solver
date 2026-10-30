@@ -42,6 +42,16 @@ export interface Machine {
   name: string;
   /** Draw at 100% clock (negative = generation). */
   powerMW: number;
+  /**
+   * What one building costs to place (TI-1), by item id, sorted, each amount
+   * > 0. Absent in models built before TI-1.
+   */
+  buildCost?: ItemAmount[];
+}
+
+export interface ItemAmount {
+  item: string;
+  amount: number;
 }
 
 export interface Flow {

@@ -261,6 +261,52 @@ describe('real dataset', () => {
   });
 });
 
+describe('build costs (TI-1)', () => {
+  const cost = (m: Model, id: string) =>
+    Object.fromEntries(
+      m.machines.find((x) => x.id === id)!.buildCost!.map((c) => [c.item, c.amount]),
+    );
+
+  test('each placed machine carries its build cost by item id', () => {
+    expect(cost(model, 'constructor')).toEqual({ cable: 2, 'iron-plate': 10, screws: 10 });
+    expect(model.machines.every((m) => m.buildCost && m.buildCost.length > 0)).toBe(true);
+  });
+
+  test('labels are skipped, repeats added up, negatives counted as positive', () => {
+    // Base, mining head and module each list parts; "… 0" rows are labels.
+    expect(cost(model, 'modular-miner-mk-1-smelter-module')).toEqual({
+      'bronze-frame': 4,
+      cable: 55,
+      concrete: 10,
+      'iron-plate': 10,
+      'iron-rod': 15,
+      'portable-miner': 2,
+      quickwire: 150,
+      'reinforced-iron-plate': 5,
+      screws: 45,
+      'tin-plate': 10,
+    });
+    expect(cost(model, 'modular-miner-mk-3')['turbo-motor']).toBe(5);
+    const flipped = result.issues.filter((i) => i.code === 'machine.cost.negative');
+    expect(flipped.map((i) => i.severity)).toContain('warning');
+    expect(flipped.some((i) => i.message.startsWith('Modular Miner Mk.3:'))).toBe(true);
+  });
+
+  test('fractional amounts parse exactly', () => {
+    const data = JSON.parse(inputs.gameData) as {
+      Machines: { Name: string; Cost: { Part: string; Amount: string }[] }[];
+    };
+    const c = data.Machines.find((m) => m.Name === 'Constructor')!;
+    c.Cost[0]!.Amount = '1 1/3';
+    c.Cost[1]!.Amount = '7.5';
+    const r = buildModel({ ...inputs, gameData: JSON.stringify(data) });
+    expect(errorsOf(r)).toEqual([]);
+    const got = cost(r.model!, 'constructor');
+    expect(got['iron-plate']).toBeCloseTo(4 / 3, 12);
+    expect(got.cable).toBe(7.5);
+  });
+});
+
 describe('invalid inputs fail the build with a clear message', () => {
   const expectError = (mutated: Partial<BuildInputs>, code: string, text: RegExp) => {
     const r = buildModel({ ...inputs, ...mutated });
@@ -276,6 +322,21 @@ describe('invalid inputs fail the build with a clear message', () => {
     };
     data.Recipes.find((r) => r.Name === 'Iron Plate')!.Parts[1]!.Amount = 'two';
     expectError({ gameData: JSON.stringify(data) }, 'number', /Iron Plate.*cannot parse "two"/);
+  });
+
+  test('unparseable or unknown build cost (TI-1)', () => {
+    const data = JSON.parse(inputs.gameData) as {
+      Machines: { Name: string; Cost: { Part: string; Amount: string }[] }[];
+    };
+    const c = data.Machines.find((m) => m.Name === 'Constructor')!;
+    c.Cost[0]!.Amount = 'ten';
+    expectError({ gameData: JSON.stringify(data) }, 'number', /Constructor cost Iron Plate.*"ten"/);
+    c.Cost[0] = { Part: 'Unobtainium Ingot', Amount: '1' };
+    expectError(
+      { gameData: JSON.stringify(data) },
+      'machine.cost',
+      /Constructor cost names unknown part "Unobtainium Ingot"/,
+    );
   });
 
   test('alternate unlock for an unknown recipe or part', () => {
