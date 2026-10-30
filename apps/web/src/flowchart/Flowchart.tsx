@@ -36,8 +36,10 @@ import {
 import '@xyflow/react/dist/style.css';
 import { createPortal } from 'react-dom';
 import {
+  createContext,
   memo,
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -396,38 +398,46 @@ export function Flowchart(props: {
   // Fullscreen (UX-3): the flowchart covers the window until Esc or the button.
   const [full, setFull] = useState(false);
   useEscapeLayer(full, () => setFull(false));
+  // Pop-ups open inside the chart's own root, so they sit above it in fullscreen too (DF-6).
+  const [root, setRoot] = useState<HTMLElement | null>(null);
   if (!props.graph.nodes.length) return null;
   return (
     <section
+      ref={setRoot}
       className={full ? 'flowchart factory-flowchart fullscreen' : 'flowchart factory-flowchart'}
       aria-label="Flowchart"
     >
-      {state.kind === 'pending' && <p className="hint">Laying out the flowchart…</p>}
-      {state.kind === 'error' && (
-        <p className="error" role="alert">
-          The flowchart layout failed: {state.message}
-        </p>
-      )}
-      {state.kind === 'done' && (
-        <ReactFlowProvider>
-          <Canvas
-            layout={state.layout}
-            recipes={recipes}
-            fluids={fluids}
-            selection={props.selection}
-            onSelect={props.onSelect}
-            full={full}
-            onFullscreen={setFull}
-            rate={rate}
-            {...(props.viewKey !== undefined ? { viewKey: props.viewKey } : {})}
-            {...(props.onOpenFactory ? { onOpenFactory: props.onOpenFactory } : {})}
-            {...(props.areas ? { areas: props.areas } : {})}
-          />
-        </ReactFlowProvider>
-      )}
+      <PopupRoot.Provider value={root}>
+        {state.kind === 'pending' && <p className="hint">Laying out the flowchart…</p>}
+        {state.kind === 'error' && (
+          <p className="error" role="alert">
+            The flowchart layout failed: {state.message}
+          </p>
+        )}
+        {state.kind === 'done' && (
+          <ReactFlowProvider>
+            <Canvas
+              layout={state.layout}
+              recipes={recipes}
+              fluids={fluids}
+              selection={props.selection}
+              onSelect={props.onSelect}
+              full={full}
+              onFullscreen={setFull}
+              rate={rate}
+              {...(props.viewKey !== undefined ? { viewKey: props.viewKey } : {})}
+              {...(props.onOpenFactory ? { onOpenFactory: props.onOpenFactory } : {})}
+              {...(props.areas ? { areas: props.areas } : {})}
+            />
+          </ReactFlowProvider>
+        )}
+      </PopupRoot.Provider>
     </section>
   );
 }
+
+/** Where the chart's pop-ups are portaled: its own root, or the page before it mounts (DF-6). */
+const PopupRoot = createContext<HTMLElement | null>(null);
 
 /** The opening view: as wide as the canvas allows, within the zoom limits. */
 function opening(layout: FactoryLayout, width: number, full = false) {
@@ -724,7 +734,8 @@ function useTooltip(
 /**
  * The click tooltip (A48), drawn over the page at screen size, so neither
  * the zoom nor the canvas's edge cuts it: above its node, or below it where
- * there's no room above.
+ * there's no room above. It is portaled into the chart's root (DF-6), so a
+ * fullscreen chart doesn't cover it.
  */
 function Tooltip({
   node,
@@ -759,6 +770,7 @@ function Tooltip({
   const GAP = 8;
   const above = top.y - GAP - size.height >= GAP;
   const x = Math.min(Math.max(GAP, top.x - size.width / 2), window.innerWidth - size.width - GAP);
+  const root = useContext(PopupRoot);
   return createPortal(
     <div
       ref={box}
@@ -769,7 +781,7 @@ function Tooltip({
     >
       <NodeTip node={node} name={name} areas={areas} />
     </div>,
-    document.body,
+    root ?? document.body,
   );
 }
 

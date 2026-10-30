@@ -2181,12 +2181,13 @@ tr.flash td {
 }
 
 /* ---------- Toasts ---------- */
-/* Top right, just under the top bar, clear of the plan's tables and flowchart (B11). */
+/* Top right, just under the top bar, clear of the plan's tables and flowchart (B11).
+   Above a fullscreen flowchart (1000), like quick search (DF-6). */
 .toasts {
   position: fixed;
   right: 16px;
   top: calc(var(--topbar-h) + 8px);
-  z-index: 50;
+  z-index: 1050;
   display: grid;
   gap: 8px;
   pointer-events: none;
@@ -2253,10 +2254,11 @@ details[open] > :not(summary) {
 }
 
 /* ---------- Quick search ---------- */
+/* Ctrl+K works over a fullscreen flowchart (z-index 1000) too (DF-6). */
 .palette-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: 1100;
   display: grid;
   justify-items: center;
   align-items: start;

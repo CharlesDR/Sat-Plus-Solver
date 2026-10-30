@@ -2,7 +2,7 @@
  * M7 (docs/PLAN.md): the factory flowchart shows the plan, its edges carry
  * rates, and selection syncs both ways between the flowchart and the table.
  */
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import { clickFlowNode, openFactory } from './helpers';
 
@@ -112,3 +112,37 @@ test('hover focus, and the click tooltip with exact values closes on Esc first (
   await page.getByTestId('plan-status').click();
   await expect(tip).toBeHidden();
 });
+
+test('the click tooltip opens above a fullscreen flowchart (DF-6)', async ({ page }) => {
+  await openFactory(page);
+  await page.getByLabel('Per minute').fill('5');
+  await page.getByLabel('Target item').fill('Reinforced Iron Plate');
+  await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
+  const chart = page.getByTestId('flowchart');
+  await chart.getByRole('button', { name: 'Fullscreen' }).click();
+  await chart.getByRole('button', { name: 'Fit the whole plan' }).click();
+
+  await clickFlowNode(page, 'recipe:water');
+  const tip = page.getByRole('dialog', { name: 'Water: exact values' });
+  await expect(tip).toBeVisible();
+  expect(await onTopOf(tip)).toBe(true);
+  // Esc closes the tooltip first, and the fullscreen only after.
+  await page.keyboard.press('Escape');
+  await expect(tip).toBeHidden();
+  await expect(chart.getByRole('button', { name: 'Exit fullscreen' })).toBeVisible();
+
+  // Quick search opens over the fullscreen chart too.
+  await page.keyboard.press('Control+k');
+  const search = page.getByRole('combobox', { name: 'Search factories and items' });
+  await expect(search).toBeFocused();
+  expect(await onTopOf(search)).toBe(true);
+});
+
+/** Whether nothing covers the element: the topmost element at its centre is inside it. */
+async function onTopOf(el: Locator): Promise<boolean> {
+  return el.evaluate((e) => {
+    const r = e.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return hit !== null && e.contains(hit);
+  });
+}
