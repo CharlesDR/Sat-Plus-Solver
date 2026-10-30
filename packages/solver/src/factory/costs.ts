@@ -51,9 +51,12 @@ export async function solveCosted(
   if (free.status !== 'ok') return free;
   const rates = new Map(items.map((i) => [i, 1]));
   const costAt = async (plan: SolveResult) => {
-    // Rates below MIN_RATE are solver noise, and below what a standalone plan can target.
-    for (const i of plan.imports)
-      if (rates.has(i.item) && i.rate >= MIN_RATE) rates.set(i.item, i.rate);
+    // Rates below MIN_RATE are solver noise, and below what a standalone plan
+    // can target. Only the paid part is costed (A99).
+    for (const i of plan.imports) {
+      const paid = i.rate - (base.importFree.get(i.item) ?? 0);
+      if (rates.has(i.item) && paid >= MIN_RATE) rates.set(i.item, paid);
+    }
     const warnings: Diagnostic[] = [];
     const costs = new Map<string, ImportCost>(given);
     for (const item of items) {
@@ -100,7 +103,9 @@ export async function solveCosted(
     if (cycle || round + 1 >= MAX_COST_ROUNDS) break;
   }
   // No fixed point: re-cost every plan at its own rates and keep the best.
-  const recosted = seen.map(({ plan, solvedWith, own }) => recost(plan, solvedWith, own));
+  const recosted = seen.map(({ plan, solvedWith, own }) =>
+    recost(plan, solvedWith, own, base.importFree),
+  );
   const best = recosted.reduce((a, b) => (lexBetter(b, a) ? b : a));
   best.diagnostics.push({
     code: 'import-cost',
@@ -131,11 +136,13 @@ function recost(
   plan: SolveResult,
   solvedWith: Map<string, ImportCost>,
   own: Map<string, ImportCost>,
+  free: ReadonlyMap<string, number>,
 ): SolveResult {
+  const paid = (i: { item: string; rate: number }) => Math.max(0, i.rate - (free.get(i.item) ?? 0));
   const shift = (o: ObjectiveId) =>
     plan.imports.reduce(
       (sum, i) =>
-        sum + ((own.get(i.item)?.cost[o] ?? 0) - (solvedWith.get(i.item)?.cost[o] ?? 0)) * i.rate,
+        sum + ((own.get(i.item)?.cost[o] ?? 0) - (solvedWith.get(i.item)?.cost[o] ?? 0)) * paid(i),
       0,
     );
   const stages = plan.stages.map((s) =>

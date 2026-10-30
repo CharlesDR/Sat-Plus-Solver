@@ -38,3 +38,45 @@ test('mark as built, drift, restore, clear', async ({ page }) => {
   await bar.getByRole('button', { name: 'Clear mark' }).click();
   await expect(page.getByRole('button', { name: 'Mark as built' })).toBeVisible();
 });
+
+test('Machines tab: buildings to place, materials, and what an expansion adds (TI-1)', async ({
+  page,
+}) => {
+  await openFactory(page);
+  await page.getByLabel('Per minute').fill('60');
+  await page.getByLabel('Target item').fill('Iron Plate');
+  await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
+
+  await page.getByRole('tab', { name: /Machines/ }).click();
+  const machines = page.getByRole('table', { name: 'Machines' });
+  await expect(machines.locator('thead th')).toHaveText(['Machine', 'Build']);
+  await expect(machines.getByRole('row', { name: /^Constructor/ })).toBeVisible();
+  // Materials to build starts folded, below the machine list.
+  const fold = page.locator('details.fold', { hasText: 'Materials to build' });
+  await expect(fold).not.toHaveAttribute('open', '');
+  await fold.locator('summary').click();
+  const materials = page.getByRole('table', { name: 'Materials to build' });
+  await expect(materials.getByRole('row', { name: /^Iron Plate/ })).toBeVisible();
+
+  // Marked as built, then raised: To expand shows what to add.
+  await page.getByRole('button', { name: /^Build not marked/ }).click();
+  await page.getByRole('button', { name: 'Mark as built' }).click();
+  await expect(page.getByTestId('build-bar')).toContainText('Matches build');
+  await page.getByLabel('Per minute').fill('120');
+  await expect(page.getByTestId('build-bar')).toContainText('Needs expansion');
+  await expect(machines.locator('thead th')).toHaveText(['Machine', 'Build', 'To expand']);
+  await expect(
+    machines
+      .getByRole('row', { name: /^Constructor/ })
+      .getByRole('cell')
+      .last(),
+  ).toHaveText(/^[1-9]\d*$/);
+  await expect(materials.locator('thead th').last()).toHaveText('To expand');
+
+  // Left open, it is folded again after a reload.
+  await page.reload();
+  await page.getByRole('button', { name: 'Open Factory', exact: true }).click();
+  await expect(machines).toBeVisible();
+  await expect(fold).not.toHaveAttribute('open', '');
+  await expect(materials).toBeHidden();
+});

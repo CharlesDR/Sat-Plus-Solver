@@ -39,3 +39,20 @@ export function itemsUpToTier(
   if (!maxTier) return items;
   return items.filter((i) => i.tier === undefined || !aboveTier(i.tier, maxTier));
 }
+
+/** The target items a max tier leaves out (R2), in name order; none without a limit. */
+export function itemsAboveTier(
+  items: readonly CatalogItem[],
+  maxTier: string | null | undefined,
+): readonly CatalogItem[] {
+  if (!maxTier) return [];
+  return items
+    .filter((i) => i.tier !== undefined && aboveTier(i.tier, maxTier))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** A tier as the Max tier select names it: "T6". */
+export const tierLabel = (tier: string): string => {
+  const m = major(tier);
+  return Number.isNaN(m) ? tier : `T${m}`;
+};

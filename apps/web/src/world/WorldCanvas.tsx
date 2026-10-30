@@ -101,9 +101,11 @@ const handleItem = (id: string | null | undefined) =>
   id && (id.startsWith('in:') || id.startsWith('out:')) ? id.slice(id.indexOf(':') + 1) : undefined;
 
 const portTitle = (p: WorldPort) =>
-  `${p.name}: ${rateText(p.rate)}/min` +
-  (p.unmet ? ` (short ${rateText(p.unmet)}, unmet)` : '') +
-  (p.surplus ? ` (${rateText(p.surplus)} spare)` : '');
+  p.band === 'byproduct'
+    ? `${p.name}: ${rateText(p.surplus ?? 0)}/min spare (byproduct)`
+    : `${p.name}: ${rateText(p.rate)}/min` +
+      (p.unmet ? ` (short ${rateText(p.unmet)}, unmet)` : '') +
+      (p.surplus ? ` (${rateText(p.surplus)} spare)` : '');
 
 /** One port on a card's edge: the part's icon, and its handle on the edge. */
 function Port(props: { side: 'in' | 'out'; slot: number; port: WorldPort; connectable: boolean }) {

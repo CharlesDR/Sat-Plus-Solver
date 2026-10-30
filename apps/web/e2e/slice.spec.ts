@@ -131,10 +131,16 @@ test('Iron Plate 60/min matches the CLI table without blocking the main thread',
     .toBe(1);
 
   // The CLI writes numbers in full (A41); the page does too in precise mode
-  // (UX-6, A78), which also puts the exact values in the cells.
+  // (UX-6, A78), which also puts the exact values in the cells. The bill of
+  // buildings and materials (TI-1) is on the Machines tab.
   await page.getByLabel('Precise numbers').check();
-  expect(await pageTables(page)).toEqual(expected.tables);
+  const bill = ['Machines to build', 'Materials to build'];
+  const inBill = (t: CliTable) => bill.includes(t.title);
+  expect(expected.tables.filter(inBill).map((t) => t.title)).toEqual(bill);
+  expect(await pageTables(page)).toEqual(expected.tables.filter((t) => !inBill(t)));
   await expect(page.getByTestId('power')).toHaveText(expected.power);
+  await page.getByRole('tab', { name: /^Machines/ }).click();
+  expect((await pageTables(page)).filter(inBill)).toEqual(expected.tables.filter(inBill));
 });
 
 test('clearing the target returns to the empty state', async ({ page }) => {

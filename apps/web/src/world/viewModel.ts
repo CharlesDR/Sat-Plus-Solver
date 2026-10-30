@@ -82,6 +82,25 @@ export function availableFrom(
   return t ? { spare: t.spare, forLinks: t.forLinks } : undefined;
 }
 
+/**
+ * What a producer has spare of `item` for a new link (DF-4), without making
+ * more: its untaken For links rate for a target (A92), otherwise its
+ * surplus, such as a byproduct. 0 when it has none.
+ */
+export function spareFrom(
+  summary: WorldSummary | undefined,
+  factoryId: string,
+  item: string,
+): number {
+  const a = availableFrom(summary, factoryId, item);
+  if (a) return a.spare;
+  const f = summary?.factories.find((x) => x.id === factoryId);
+  return f?.ledger.find((r) => r.item === item)?.surplus ?? 0;
+}
+
+/** A fixed rate that never asks the source for more: `spare` rounded down to 0.01/min (DF-4). */
+export const fixedDefault = (spare: number): number => Math.floor(spare * 100 + 1e-9) / 100;
+
 export interface PowerRow {
   /** `factory:<id>`, `group:<id>` or `total`. */
   key: string;

@@ -595,10 +595,13 @@ function effectiveRequest(
     demand.set(l.item, (demand.get(l.item) ?? 0) + r);
   }
   const caps = new Map<string, number>();
+  // What fixed links already ship is free to the consumer (DF-5, A99).
+  const free = new Map<string, number>();
   for (const i of base.imports ?? []) caps.set(i.item, (caps.get(i.item) ?? 0) + i.cap);
   for (const l of ctx.in.get(id) ?? []) {
     const cap = l.mode.kind === 'fixed' ? l.mode.rate : Infinity;
     caps.set(l.item, (caps.get(l.item) ?? 0) + cap);
+    if (l.mode.kind === 'fixed') free.set(l.item, (free.get(l.item) ?? 0) + l.mode.rate);
   }
   for (const o of offers) caps.set(o.item, (caps.get(o.item) ?? 0) + o.cap);
   const rest: SolveRequest = { ...base };
@@ -616,7 +619,12 @@ function effectiveRequest(
     ...(demand.size ? { demand: toRates(demand) } : {}),
     ...(caps.size
       ? {
-          imports: [...caps].map(([item, cap]): ImportCap => ({ item, cap })).sort(byItem),
+          imports: [...caps]
+            .map(([item, cap]): ImportCap => {
+              const f = base.costImports ? (free.get(item) ?? 0) : 0;
+              return f > 0 ? { item, cap, free: f } : { item, cap };
+            })
+            .sort(byItem),
         }
       : {}),
     ...(given.length ? { importCosts: given } : {}),

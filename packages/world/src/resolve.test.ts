@@ -428,6 +428,50 @@ describe('linked-import costing (A18)', () => {
     expect(r.stats.passes).toBe(2);
   });
 
+  // DF-5 (A99): B may use Solid Steel Ingot, which takes less ore and coal
+  // than A's plain Steel Ingot, so B's own steel costs less than A's marginal
+  // cost and B would rather make it than take A's.
+  const steel = (links: Parameters<typeof buildWorld>[1]) => {
+    const world = buildWorld(
+      [
+        { id: 'a' },
+        {
+          id: 'b',
+          targets: [{ item: 'steel-beam', rate: 15 }],
+          request: { costImports: true, recipes: { 'solid-steel-ingot': true } },
+        },
+      ],
+      links,
+    );
+    world.defaults.objectives = ['resources'];
+    return world;
+  };
+  const made = (r: WorldResult, id: string, recipe: string) =>
+    factory(r, id).result.recipes.find((x) => x.id === recipe)?.machines ?? 0;
+
+  test('what a fixed link ships is free to its consumer (DF-5)', async () => {
+    const r = await resolveWorld(
+      steel([fixed('f', 'a', 'b', 'steel-ingot', 20)]),
+      model,
+      solveFactory,
+    );
+    expect(r.diagnostics).toEqual([]);
+    expect(link(r, 'f').used).toBeCloseTo(20, 9);
+    // B still pays A's marginal cost beyond the link, so it makes the other 40 of its 60 ingots.
+    const b = factory(r, 'b');
+    expect(b.request.imports).toEqual([{ item: 'steel-ingot', cap: 20, free: 20 }]);
+    expect(b.request.importCosts?.[0]?.cost.resources).toBeGreaterThan(0);
+    expect(made(r, 'b', 'solid-steel-ingot')).toBeCloseTo(40 / 60, 9);
+  });
+
+  test('a pull link keeps marginal costing (DF-5)', async () => {
+    const r = await resolveWorld(steel([pull('q', 'a', 'b', 'steel-ingot')]), model, solveFactory);
+    expect(factory(r, 'b').request.imports).toEqual([{ item: 'steel-ingot', cap: Infinity }]);
+    // Making steel is cheaper for B than A making more, so B takes none.
+    expect(link(r, 'q').used).toBeCloseTo(0, 9);
+    expect(made(r, 'b', 'solid-steel-ingot')).toBeCloseTo(1, 9);
+  });
+
   test('without the toggle, linked imports are free and producers report no costs', async () => {
     const world = buildWorld(
       [{ id: 'a' }, { id: 'b', targets: [{ item: 'reinforced-iron-plate', rate: 5 }] }],

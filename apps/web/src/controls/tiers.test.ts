@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { withRecent } from '../ui/prefs';
-import { itemsUpToTier, tierOptions } from './tiers';
+import { itemsAboveTier, itemsUpToTier, tierLabel, tierOptions } from './tiers';
 
 describe('max tier as major tiers (UX-5, UX-17)', () => {
   const tiers = ['0-3', '0-6', '1-1', '1-5', '2-0', '2-6', '10-0'];
@@ -33,6 +33,12 @@ describe('max tier as major tiers (UX-5, UX-17)', () => {
     ];
     expect(itemsUpToTier(items, '1-5').map((i) => i.id)).toEqual(['a', 'c', 'd']);
     expect(itemsUpToTier(items, null)).toBe(items);
+    // And says what it leaves out, with the tier each needs (R2).
+    expect(itemsAboveTier(items, '1-5').map((i) => [i.name, tierLabel(i.tier!)])).toEqual([
+      ['B', 'T2'],
+    ]);
+    expect(itemsAboveTier(items, null)).toEqual([]);
+    expect(tierLabel('10-0')).toBe('T10');
   });
 });
 

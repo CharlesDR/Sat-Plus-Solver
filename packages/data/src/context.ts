@@ -40,6 +40,10 @@ export interface DraftRecipe {
   route?: MinerRoute;
   /** Modular Miner routes: base extraction per machine (A33). Other extractors use their output. */
   baseRate?: Rational;
+  /** Modular Miner routes below the best drill (DF-1, A98): see `Recipe`. */
+  nodeShare?: Rational;
+  supersededAt?: string;
+  family?: string;
   /** Heater/boiler recipe (A17). */
   heater?: true;
 }

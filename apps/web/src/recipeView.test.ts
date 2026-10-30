@@ -28,7 +28,7 @@ describe('recipe rows', () => {
   test('standard on, alternates off by default', () => {
     const rows = recipeRows(createWorld(), { kind: 'factory', id: F }, recipes);
     expect(rows).toHaveLength(recipes.length);
-    expect(row(rows, 'screw')).toEqual({ recipe: expect.anything(), on: true });
+    expect(row(rows, 'screw')).toEqual({ recipe: expect.anything(), key: 'screw', on: true });
     expect(row(rows, 'cast-screw')).toMatchObject({ on: false, reason: 'alternate' });
   });
 
@@ -55,6 +55,28 @@ describe('recipe rows', () => {
     const rows = recipeRows(w, { kind: 'factory', id: F }, recipes);
     expect(row(rows, 'steel-beam')).toMatchObject({ on: false, reason: 'tier' });
     expect(row(recipeRows(w, { kind: 'world' }, recipes), 'steel-beam')?.on).toBe(true);
+  });
+
+  test('a miner route shows at the drill the max tier unlocks; its toggle covers every drill (DF-1)', () => {
+    const top = { ...recipes.find((r) => r.id === 'screw')!, id: 'mine:ore', tier: '8-2' };
+    const mk1 = { ...top, id: 'mine:ore:mk1', tier: '0-5', supersededAt: '4-3', family: top.id };
+    const list = [mk1, top];
+    const w = createWorld();
+    w.factories[0]!.request.maxTier = '2-0';
+    const t2 = recipeRows(w, { kind: 'factory', id: F }, list);
+    expect(row(t2, 'mine:ore:mk1')).toMatchObject({ key: 'mine:ore', on: true });
+    expect(row(t2, 'mine:ore')).toMatchObject({ on: false, reason: 'tier' });
+    // With no max tier the best drill runs and the Mk.1 route is not listed.
+    const open = recipeRows(createWorld(), { kind: 'factory', id: F }, list);
+    expect(open.map((r) => r.recipe.id)).toEqual(['mine:ore']);
+    // A toggle saved on the best-drill id turns the Mk.1 route off too.
+    w.factories[0]!.request.recipes = { 'mine:ore': false };
+    const off = recipeRows(w, { kind: 'factory', id: F }, list);
+    expect(row(off, 'mine:ore:mk1')).toMatchObject({
+      on: false,
+      reason: 'excluded',
+      toggle: false,
+    });
   });
 
   test('search and views filter the list', () => {

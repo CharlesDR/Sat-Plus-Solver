@@ -125,7 +125,9 @@ test('a big new plan opens with its big areas collapsed, and Expand all sticks (
   // A change of rate keeps the same recipes, so the user's choice stands.
   await page.getByLabel('Per minute').fill('6');
   await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
-  await expect(chart(page).locator('.react-flow__node').first()).toBeVisible();
+  // The whole expanded plan is laid out again, which can run past the default
+  // wait on a slow machine, as a world solve can (worldSettled).
+  await expect(chart(page).locator('.react-flow__node').first()).toBeVisible({ timeout: 20_000 });
   await expect(boxes).toHaveCount(0);
   // A plan of other parts applies the rule again.
   await page.getByLabel('Target item').fill('Modular Engine');

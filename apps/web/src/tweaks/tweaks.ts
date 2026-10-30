@@ -53,9 +53,10 @@ export function swapCandidates(
   const out: SwapCandidate[] = [];
   for (const r of recipes) {
     if (r.id === target.recipe || !r.outputs.includes(target.product)) continue;
-    out.push(
-      recipeExclusion(r, filter) === 'tier' ? { recipe: r, blocked: 'tier' } : { recipe: r },
-    );
+    const why = recipeExclusion(r, filter);
+    // A miner route a better drill has replaced is no candidate (DF-1).
+    if (why === 'superseded') continue;
+    out.push(why === 'tier' ? { recipe: r, blocked: 'tier' } : { recipe: r });
   }
   const rank = (c: SwapCandidate) => (c.blocked ? 2 : c.recipe.alternate ? 1 : 0);
   // `recipes` is sorted by name, then id, and the sort is stable.

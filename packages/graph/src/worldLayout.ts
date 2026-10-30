@@ -23,7 +23,7 @@ import {
   type Box,
   type LayoutEngine,
 } from './layout';
-import type { WorldEdge, WorldGraph, WorldNode } from './world';
+import { OUT_BANDS, type WorldEdge, type WorldGraph, type WorldNode } from './world';
 
 /** The "…" port's place in `PlacedWorldNode.ports.out`. */
 export const MORE_PORT = '…';
@@ -274,7 +274,15 @@ export async function layoutWorldGraph(
       for (const { e } of mine)
         for (const item of named)
           if (!order.includes(item) && e.items.some((i) => i.item === item)) order.push(item);
-      return [...order, ...named.filter((item) => !order.includes(item))];
+      const ordered = [...order, ...named.filter((item) => !order.includes(item))];
+      if (dir === 'in') return ordered;
+      // Outputs keep their bands (DF-3); the crossing order applies within each, "…" last.
+      const band = new Map((n.outPorts ?? []).map((p) => [p.item, OUT_BANDS.indexOf(p.band!)]));
+      const rank = (item: string) => band.get(item) ?? OUT_BANDS.length;
+      return ordered
+        .map((item, k) => ({ item, k }))
+        .sort((a, b) => rank(a.item) - rank(b.item) || a.k - b.k)
+        .map((x) => x.item);
     };
     const named = namedOrder(n);
     orders.set(n.id, { in: side('in', named.in), out: side('out', named.out) });

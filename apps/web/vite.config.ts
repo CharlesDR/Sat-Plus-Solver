@@ -29,8 +29,17 @@ function layoutCodeHash(): string {
   return h.digest('hex').slice(0, 12);
 }
 
+/** The build stamp shown in the File menu (R1): short commit SHA, or "local", and UTC date. */
+const build = {
+  sha: process.env.GITHUB_SHA?.slice(0, 7) ?? 'local',
+  date: new Date().toISOString().slice(0, 10),
+};
+
 export default defineConfig({
-  define: { __LAYOUT_CODE__: JSON.stringify(layoutCodeHash()) },
+  define: {
+    __LAYOUT_CODE__: JSON.stringify(layoutCodeHash()),
+    __BUILD__: JSON.stringify(build),
+  },
   // Relative base so the build works under a GitHub Pages project path.
   base: './',
   plugins: [react(), requireModel()],

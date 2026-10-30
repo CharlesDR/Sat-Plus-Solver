@@ -1,7 +1,8 @@
-# M2: cautious grouped dependency updates. Patch and minor versions arrive as one
-# grouped PR a month; each major version gets its own PR. Nothing auto-merges:
-# every update PR runs the full CI, e2e included, and is merged by hand on green,
-# one at a time. The Playwright container image in ci.yml follows the lockfile,
+# M2, R3: cautious grouped dependency updates. A month brings at most one npm PR
+# and one GitHub Actions PR, with major, minor and patch versions grouped
+# together. Nothing auto-merges: every update PR runs the full CI, e2e included,
+# and is merged by hand on green. If a grouped major breaks CI, the fix goes in
+# that PR, or only that package is split out of it. The Playwright container image in ci.yml follows the lockfile,
 # so a @playwright/test bump updates both.
 version: 2
 updates:
@@ -11,12 +12,12 @@ updates:
       interval: monthly
     open-pull-requests-limit: 5
     groups:
-      minor-and-patch:
-        update-types: [minor, patch]
+      npm:
+        update-types: [major, minor, patch]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
     groups:
       actions:
-        update-types: [minor, patch]
+        update-types: [major, minor, patch]

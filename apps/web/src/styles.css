@@ -708,6 +708,13 @@ details.menu[open] > summary {
   font-size: 15px;
   margin-bottom: 10px;
 }
+/* Which build is running (R1): quiet, at the foot of the File menu. */
+.build-stamp {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: right;
+}
 .menu-panel fieldset {
   box-shadow: none;
   background: var(--surface-2);
@@ -833,6 +840,11 @@ label.inline {
   margin: 0;
   font-size: 13px;
 }
+/* What the Max tier leaves out of the picker (R2). */
+.targets > .hint {
+  margin: 4px 0 8px;
+  font-size: 13px;
+}
 .recipe-list {
   list-style: none;
   margin: 0;
@@ -860,9 +872,17 @@ label.inline {
   align-items: center;
 }
 .nodes table {
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   margin-top: 8px;
   width: 100%;
+}
+/* The sidebar scrolls on its own: the headers stick to its top (DF-7). */
+.nodes thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
 }
 .nodes td,
 .nodes th {
@@ -1161,8 +1181,10 @@ label.inline {
 }
 
 /* ---------- Tables ---------- */
-.summary {
-  overflow-x: auto;
+/* More miners than nodes of the kind (DF-1). */
+.over-nodes {
+  color: var(--warn);
+  font-weight: 600;
 }
 .summary-head {
   display: flex;
@@ -1259,7 +1281,7 @@ label.inline {
 }
 .summary thead th {
   position: sticky;
-  top: 0;
+  top: var(--topbar-h);
   z-index: 1;
   background: var(--surface-2);
   font-size: 12.5px;
@@ -1273,6 +1295,16 @@ label.inline {
 }
 .summary thead th:last-child {
   border-top-right-radius: var(--radius);
+}
+/* No scroll container between a table and the page, so its headers stick
+   below the top bar (DF-7). Narrow screens scroll wide tables sideways instead. */
+@media (max-width: 720px) {
+  .summary {
+    overflow-x: auto;
+  }
+  .summary thead th {
+    position: static;
+  }
 }
 .summary tbody tr:nth-child(even) td {
   background: color-mix(in srgb, var(--surface-2) 55%, transparent);
@@ -1465,14 +1497,30 @@ section.diagnostics li p {
   gap: 6px;
   width: 100%;
   height: 100%;
-  padding: 4px 7px;
-  /* A solid box in its kind's colour, white text, no border or shadow (A93). */
-  background: var(--fill);
-  border-radius: 6px;
+  /* A solid hexagon in its kind's colour, white text, no border or shadow
+     (A93, DF-2): the fill is drawn by ::before, the text kept clear of the
+     slanted sides. */
+  padding: 4px calc(var(--slant, 0px) + 7px);
+  isolation: isolate;
   color: var(--flow-node-fg);
   font-size: 14px;
   line-height: 17px;
   cursor: pointer;
+}
+.flow-node::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--fill);
+  clip-path: polygon(
+    var(--slant, 0px) 0,
+    calc(100% - var(--slant, 0px)) 0,
+    100% 50%,
+    calc(100% - var(--slant, 0px)) 100%,
+    var(--slant, 0px) 100%,
+    0 50%
+  );
 }
 .flow-node:hover {
   filter: brightness(1.08);
@@ -1497,9 +1545,32 @@ section.diagnostics li p {
 .flow-node.missing {
   --fill: var(--flow-missing);
 }
-.react-flow__node.selected .flow-node {
-  outline: 2.5px solid var(--accent);
-  outline-offset: 2px;
+/* The selection ring follows the hexagon, 2px off it and 2.5px wide (DF-2):
+   two hexagons, 5px and 2.5px out, cut even-odd. Growing the box by e moves
+   a slanted side's top end in by e × (1 − tan 30°) ≈ 0.42e. */
+.react-flow__node.selected .flow-node::after {
+  content: '';
+  position: absolute;
+  inset: -4.5px;
+  z-index: -1;
+  background: var(--accent);
+  clip-path: polygon(
+    evenodd,
+    calc(var(--slant, 0px) - 1.9px) 0,
+    calc(100% - var(--slant, 0px) + 1.9px) 0,
+    100% 50%,
+    calc(100% - var(--slant, 0px) + 1.9px) 100%,
+    calc(var(--slant, 0px) - 1.9px) 100%,
+    0 50%,
+    calc(var(--slant, 0px) - 1.9px) 0,
+    calc(var(--slant, 0px) + 1.65px) 2.5px,
+    2.5px 50%,
+    calc(var(--slant, 0px) + 1.65px) calc(100% - 2.5px),
+    calc(100% - var(--slant, 0px) - 1.65px) calc(100% - 2.5px),
+    calc(100% - 2.5px) 50%,
+    calc(100% - var(--slant, 0px) - 1.65px) 2.5px,
+    calc(var(--slant, 0px) + 1.65px) 2.5px
+  );
 }
 .flow-node .react-flow__handle {
   opacity: 0;
@@ -2169,12 +2240,13 @@ tr.flash td {
 }
 
 /* ---------- Toasts ---------- */
-/* Top right, just under the top bar, clear of the plan's tables and flowchart (B11). */
+/* Top right, just under the top bar, clear of the plan's tables and flowchart (B11).
+   Above a fullscreen flowchart (1000), like quick search (DF-6). */
 .toasts {
   position: fixed;
   right: 16px;
   top: calc(var(--topbar-h) + 8px);
-  z-index: 50;
+  z-index: 1050;
   display: grid;
   gap: 8px;
   pointer-events: none;
@@ -2239,12 +2311,40 @@ details[open] > :not(summary) {
     animation: none;
   }
 }
+/* Sections close as they open (R5): their content grows and fades in, then
+   shrinks and fades out, where the browser can animate <details>; elsewhere
+   they keep the fade on open. Menus are <details> too, but their panels hang
+   outside the box, so they keep their own pane-in and close at once. */
+@supports selector(::details-content) {
+  @media (prefers-reduced-motion: no-preference) {
+    :root {
+      interpolate-size: allow-keywords;
+    }
+    details:not(.menu)::details-content {
+      block-size: 0;
+      opacity: 0;
+      overflow: clip;
+      transition:
+        block-size 0.18s ease-out,
+        opacity 0.18s ease-out,
+        content-visibility 0.18s allow-discrete;
+    }
+    details:not(.menu)[open]::details-content {
+      block-size: auto;
+      opacity: 1;
+    }
+    details:not(.menu)[open] > :not(summary) {
+      animation: none;
+    }
+  }
+}
 
 /* ---------- Quick search ---------- */
+/* Ctrl+K works over a fullscreen flowchart (z-index 1000) too (DF-6). */
 .palette-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: 1100;
   display: grid;
   justify-items: center;
   align-items: start;

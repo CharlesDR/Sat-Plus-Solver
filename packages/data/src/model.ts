@@ -42,6 +42,16 @@ export interface Machine {
   name: string;
   /** Draw at 100% clock (negative = generation). */
   powerMW: number;
+  /**
+   * What one building costs to place (TI-1), by item id, sorted, each amount
+   * > 0. Absent in models built before TI-1.
+   */
+  buildCost?: ItemAmount[];
+}
+
+export interface ItemAmount {
+  item: string;
+  amount: number;
 }
 
 export interface Flow {
@@ -66,6 +76,8 @@ export interface MinerRoute {
   purity: Purity;
   processing: string | null; // primary product item id, or null for plain mining
   fluid: string | null; // fluid item id, or null
+  /** Drill Mk the route's miners use (DF-1, A98). */
+  mk: number;
 }
 
 export interface Recipe {
@@ -83,6 +95,23 @@ export interface Recipe {
   clock: number;
   /** Node class this recipe draws on: one machine uses one node (or one fracking site). */
   node?: string;
+  /**
+   * Share of the world node pool one machine takes (DF-1, A98): its output ÷
+   * the same route's output at the best drill. 1 when absent. World totals,
+   * the node pool and the scarcity and resources objectives count shares;
+   * a factory's own count is one node per machine.
+   */
+  nodeShare?: number;
+  /**
+   * Modular Miner route at a lower drill (DF-1, A98): the tier at which a
+   * better drill replaces it. Left out at that max tier and above, and with no max tier.
+   */
+  supersededAt?: string;
+  /**
+   * The same route at the best drill (DF-1): a saved toggle or tweak on that
+   * id also applies here.
+   */
+  family?: string;
   source: 'dataset' | 'generated';
   /** Present on generated Modular Miner routes. */
   route?: MinerRoute;

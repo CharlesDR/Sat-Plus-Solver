@@ -1,7 +1,7 @@
 /** Messages between the main thread and the solver worker. */
 import type { Area, BeltCapacity, NodePurity, RecipeUnlock } from '@sps/data';
 import type { FactoryGraph } from '@sps/graph';
-import type { Diagnostic, ItemRate, PlanSummary, SummaryFlow } from '@sps/solver';
+import type { Diagnostic, ItemRate, PlanSummary, SummaryBuilding, SummaryFlow } from '@sps/solver';
 import type { FactoryResult, ModelerReportLine, World, WorldResult } from '@sps/world';
 
 /** An item the target picker offers. */
@@ -25,6 +25,9 @@ export interface CatalogRecipe {
   tier: string;
   /** Alternates: how and from which tier it can be researched (A82). */
   unlock?: RecipeUnlock;
+  /** Miner routes below the best drill (DF-1, A98): see the model's `Recipe`. */
+  supersededAt?: string;
+  family?: string;
   /** Output item names, for search. */
   products: string[];
   /** Output item ids (no MW), for the swap list (A35). */
@@ -69,6 +72,8 @@ export interface Catalog {
   resources: CatalogResource[];
   /** Distinct recipe tiers above `0-0`, in tier order. */
   tiers: string[];
+  /** The first tier with a miner fluid route: the Fluid Module's unlock (DF-1, A98). */
+  minerFluidTier?: string;
   /** Fluid item ids (a link carrying one defaults to pipes), sorted. */
   fluids: string[];
   /** Belt capacity per tier, items/min, from the dataset. */
@@ -87,6 +92,8 @@ export interface FactorySummary extends Omit<FactoryResult, 'result'> {
   diagnostics: Diagnostic[];
   /** Miner fluid supplied from outside (A69), for the Miner support factory (A71). */
   minerSupply?: ItemRate[];
+  /** Its buildings to place (TI-1), with To expand when marked as built; summed per stats scope. */
+  buildings: SummaryBuilding[];
 }
 
 /** The world result the UI shows (PLAN M8). */

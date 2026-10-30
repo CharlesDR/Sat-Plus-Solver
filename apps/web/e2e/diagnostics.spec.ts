@@ -4,7 +4,7 @@
  * A world solve shows which factory it is on.
  */
 import { expect, test } from './fixtures';
-import { addFactory, worldSettled } from './helpers';
+import { addFactory, toggleSection, worldSettled } from './helpers';
 
 test('an unreachable target: world diagnostic → factory → one-click recipe fix', async ({
   page,
@@ -44,7 +44,7 @@ test('resources turned off: one click per resource turns it back on', async ({ p
   await page.getByLabel('Target item').fill('Iron Plate');
   await page.getByLabel('Per minute').fill('20');
   await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
-  await page.locator('summary', { hasText: 'Resources' }).click();
+  await toggleSection(page.locator('summary', { hasText: 'Resources' }));
   const limits = page.getByRole('table', { name: 'Resource limits' });
   for (const use of await limits.getByRole('checkbox').all()) await use.uncheck();
   await expect(page.getByTestId('plan-status')).toContainText('Status: infeasible');

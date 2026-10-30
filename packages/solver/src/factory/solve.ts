@@ -62,8 +62,13 @@ export async function solve(
   const wanted = [...new Set([...demand.keys(), ...scaled.keys()])];
 
   const importCaps = new Map<string, number>();
-  for (const i of request.imports ?? [])
+  const importFree = new Map<string, number>();
+  for (const i of request.imports ?? []) {
     if (i.cap > 0) importCaps.set(i.item, (importCaps.get(i.item) ?? 0) + i.cap);
+    const free = Math.min(i.free ?? 0, i.cap);
+    if (request.costImports && free > 0)
+      importFree.set(i.item, (importFree.get(i.item) ?? 0) + free);
+  }
 
   // Recipe filter, then reachability (§3.5) and pruning.
   const filtered = filterRecipes([...model.recipes].sort(byId), request.recipes);
@@ -141,7 +146,11 @@ export async function solve(
   const itemSet = new Set(wanted);
   for (const r of recipes) for (const f of [...r.inputs, ...r.outputs]) itemSet.add(f.item);
   const items = [...itemSet].sort();
-  for (const item of [...importCaps.keys()]) if (!itemSet.has(item)) importCaps.delete(item);
+  for (const item of [...importCaps.keys()])
+    if (!itemSet.has(item)) {
+      importCaps.delete(item);
+      importFree.delete(item);
+    }
 
   const fluids = new Set(model.items.filter((i) => i.form === 'fluid').map((i) => i.id));
   for (const item of [...supply.keys()]) if (!itemSet.has(item)) supply.delete(item);
@@ -211,6 +220,7 @@ export async function solve(
     demand,
     scaled,
     importCaps,
+    importFree,
     nodeCaps,
     nodes,
     extracts,

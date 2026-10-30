@@ -33,7 +33,7 @@ const miner = (resource: string, fluid: string | null, rate: number): Recipe =>
     node: `node:${resource}:normal`,
     inputs: fluid ? [{ item: fluid, rate: 10 }] : [],
     outputs: [{ item: resource, rate }],
-    route: { resource, purity: 'normal', processing: null, fluid },
+    route: { resource, purity: 'normal', processing: null, fluid, mk: 3 },
   });
 
 const model: Model = {

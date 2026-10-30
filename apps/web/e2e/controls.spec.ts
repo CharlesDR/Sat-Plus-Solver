@@ -66,6 +66,19 @@ test('an alternate turned on is used when better; the tier filter takes it away'
   expect(await recipeNames(page)).not.toContain('Stitched Iron Plate');
   await expect(toggle).toBeDisabled();
   await expect(page.getByText('above max tier')).toBeVisible();
+
+  // The Target picker says what the limit leaves out (R2), and names the
+  // tier a search's only matches need.
+  await expect(page.getByTestId('hidden-by-tier')).toHaveText(
+    /^\d+ items need a higher Max tier than T1 and aren’t listed\.$/,
+  );
+  const target = page.getByLabel('Target item', { exact: true });
+  await target.fill('TITAN Fra');
+  await expect(page.getByTestId('above-tier')).toHaveText(
+    /^Needs a higher Max tier than T1: TITAN Frame \(T\d+\)\.$/,
+  );
+  await target.fill('Iron Pl');
+  await expect(page.getByTestId('above-tier')).toHaveCount(0);
 });
 
 test('a resource limit below usage gives the infeasibility diagnostic', async ({ page }) => {

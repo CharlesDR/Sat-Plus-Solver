@@ -108,7 +108,9 @@ describe('layoutFactoryGraph', () => {
     const iconed = await layoutFactoryGraph(graph, new ELK(), { iconSize: 60 });
     for (const n of plain.nodes) {
       const m = iconed.nodes.find((x) => x.id === n.id)!;
-      expect(m.width).toBe(n.width + 60 + ICON_GAP);
+      // Between the slanted sides (DF-2), which grow with the taller box.
+      expect(m.width - 2 * m.slant).toBe(n.width - 2 * n.slant + 60 + ICON_GAP);
+      expect(m.slant).toBe(Math.round((m.height * Math.tan(Math.PI / 6)) / 2));
       expect(m.height).toBeGreaterThanOrEqual(60);
     }
     expect(overlaps(iconed)).toEqual([]);
@@ -189,8 +191,11 @@ describe('layoutFactoryGraph', () => {
     const ys = outs.map((p) => p.y).sort((a, b) => a - b);
     expect(ys[0]).toBeLessThan(rec.height / 2);
     expect(ys[2]).toBeGreaterThan(rec.height / 2);
-    for (const p of outs) expect(p.x).toBe(rec.width);
-    for (const p of rec.ports.filter((q) => q.dir === 'in')) expect(p.x).toBe(0);
+    // Off the vertex, a port sits on the hexagon's slanted side (DF-2).
+    const inset = (y: number) => (rec.slant * Math.abs(y - rec.height / 2)) / (rec.height / 2);
+    expect(rec.slant).toBeGreaterThan(0);
+    for (const p of outs) expect(p.x).toBeCloseTo(rec.width - inset(p.y), 9);
+    for (const p of rec.ports.filter((q) => q.dir === 'in')) expect(p.x).toBeCloseTo(inset(p.y), 9);
     // Every line starts at its source's port for its item and ends at its target's.
     for (const e of l.edges) {
       const s = node(e.source);
@@ -370,6 +375,7 @@ describe('layoutFactoryGraph', () => {
       ...box,
       text: { title: ['Ore'], details: [] },
       ports: [],
+      slant: 0,
     };
     const layout: FactoryLayout = {
       width: 20,

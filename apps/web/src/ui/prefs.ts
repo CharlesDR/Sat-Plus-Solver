@@ -90,6 +90,25 @@ export function useOpenPref(section: string, active = false): [boolean, (open: b
   return [open, set];
 }
 
+const pageOpen = new Map<string, boolean>();
+
+/**
+ * Like `useOpenPref`, but kept only until the page reloads (TI-1): the section
+ * starts closed on every load, and a toggle holds while moving around the app.
+ */
+export function usePageOpen(section: string): [boolean, (open: boolean) => void] {
+  const [, bump] = useState(0);
+  const open = pageOpen.get(section) ?? false;
+  const set = useCallback(
+    (o: boolean) => {
+      pageOpen.set(section, o);
+      bump((n) => n + 1);
+    },
+    [section],
+  );
+  return [open, set];
+}
+
 /** What the factory plan shows: the flowchart, the tables, or both (UX-3). */
 export type PlanView = 'both' | 'graph' | 'table';
 const isPlanView = (x: unknown): x is PlanView => x === 'both' || x === 'graph' || x === 'table';
@@ -139,12 +158,13 @@ export function usePreciseNumbers(): [boolean, (precise: boolean) => void] {
 }
 
 /** Which table the bottom of the plan summary shows (UX-4). */
-export type PlanTab = 'recipes' | 'items';
+export type PlanTab = 'recipes' | 'items' | 'machines';
 
 export function usePlanTab(): [PlanTab, (t: PlanTab) => void] {
-  const [tab, setTab] = useState<PlanTab>(() =>
-    read(KEY.planTab) === 'items' ? 'items' : 'recipes',
-  );
+  const [tab, setTab] = useState<PlanTab>(() => {
+    const t = read(KEY.planTab);
+    return t === 'items' || t === 'machines' ? t : 'recipes';
+  });
   const set = useCallback((t: PlanTab) => {
     setTab(t);
     write(KEY.planTab, t);

@@ -35,7 +35,7 @@ const model: Model = {
       node: 'node:gem:normal',
       inputs: [{ item: 'water', rate: 10 }],
       outputs: [{ item: 'gem', rate: 60 }],
-      route: { resource: 'gem', purity: 'normal', processing: null, fluid: 'water' },
+      route: { resource: 'gem', purity: 'normal', processing: null, fluid: 'water', mk: 3 },
     }),
     recipe('pump', { outputs: [{ item: 'water', rate: 120 }] }),
   ],

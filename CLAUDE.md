@@ -2,7 +2,7 @@
 
 A client-side, two-layer production planner for the Satisfactory Plus (SF+) mod. The outer layer is a world of factories joined by links; inside each factory is an LP/MILP solver with satisfactory-tools parity.
 
-**Read first:** `docs/ARCHITECTURE.md` (design) and `docs/PLAN.md` (status and open backlog). Finished milestones and resolved assumptions are in `docs/archive/`; read them only when a task needs the history. They are the source of truth. If code and docs disagree, stop and ask; don't silently pick one.
+**Read first:** the "Current state" section at the top of `docs/ARCHITECTURE.md`, then only the sections the task touches, and `docs/PLAN.md` (status and open backlog). Finished milestones and resolved assumptions are in `docs/archive/`; read them only when a task needs the history. They are the source of truth. If code and docs disagree, stop and ask; don't silently pick one.
 
 ## Working rules
 

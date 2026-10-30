@@ -43,6 +43,7 @@ export { filterMinerRoutes, minerFluidOptions, minerSupplyItem } from './factory
 export type { MinerFluidOptions, MinerFluids, MinerFluidSupply } from './factory/minerFluids';
 export {
   aboveTier,
+  isSuperseded,
   compareTiers,
   DEFAULT_ALTERNATES,
   filterRecipes,
@@ -58,6 +59,11 @@ export type * from './factory/types';
 export {
   summarizePlan,
   recipeTable,
+  buildBill,
+  mergeBills,
+  buildingTable,
+  materialTable,
+  wholeBuildings,
   starterNote,
   PRECISE_NUMBERS,
   QUIET_NUMBERS,
@@ -74,8 +80,12 @@ export {
   type MixedNumber,
 } from './factory/numbers';
 export type {
+  BuildBill,
   NumberFormat,
   PlanSummary,
+  SummaryAmount,
+  SummaryBuilding,
+  SummaryMaterial,
   SummaryFlow,
   SummaryItem,
   SummaryNode,

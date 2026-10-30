@@ -51,6 +51,10 @@ test('save slots and the autosave survive a reload', async ({ page }) => {
   await page.goto('/');
   await addFactory(page, 'Smelter');
   const panel = await openPanel(page);
+  // The File menu says which build is running (R1).
+  await expect(panel.getByTestId('build-stamp')).toHaveText(
+    /^Build ([0-9a-f]{7}|local) · \d{4}-\d{2}-\d{2}$/,
+  );
   await panel.getByLabel('Save name').fill('Base');
   await panel.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(panel.getByRole('status')).toHaveText(/Saved “Base”/);

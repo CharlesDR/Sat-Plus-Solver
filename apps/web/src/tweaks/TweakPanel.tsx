@@ -121,7 +121,13 @@ export function TweakPanel(props: {
           <span className="node-name">{target.name}</span>
           <button
             type="button"
-            onClick={() => props.onTweak({ kind: 'ban', recipe: target.recipe })}
+            // A miner route is banned at every drill, by its best-drill id (DF-1).
+            onClick={() =>
+              props.onTweak({
+                kind: 'ban',
+                recipe: byId.get(target.recipe)?.family ?? target.recipe,
+              })
+            }
           >
             Don’t use this recipe
           </button>

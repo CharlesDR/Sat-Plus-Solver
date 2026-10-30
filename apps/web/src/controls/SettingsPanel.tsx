@@ -1,4 +1,4 @@
-import type { MinerFluidSupply } from '@sps/solver';
+import { compareTiers, type MinerFluidSupply } from '@sps/solver';
 import type { ReactNode } from 'react';
 import { useStore } from 'zustand';
 import type { Catalog } from '../solver/protocol';
@@ -46,6 +46,7 @@ export function SettingsPanel({ store, scope, catalog, simple = false }: Props) 
       ? effectiveSettings(world, scope.id)
       : { values: world.defaults as Settings, overridden: undefined };
   const minerFluids = values.minerFluids ?? 'any';
+  const fluidTier = catalog.minerFluidTier;
   const set = <K extends SettingKey>(key: K, v: Settings[K]) => setSetting(scope, key, v);
 
   // The Advanced subpanel starts closed; a dot on its header marks a value
@@ -181,6 +182,11 @@ export function SettingsPanel({ store, scope, catalog, simple = false }: Props) 
           <p className="hint">
             Off, miners use no fluid modules, except where an ore can't be mined without one.
           </p>
+          {values.maxTier && fluidTier && compareTiers(values.maxTier, fluidTier) < 0 && (
+            <p className="hint" data-testid="fluid-module-tier">
+              Fluid Module unlocks at T{fluidTier.split('-')[0]}: below that, miners use none.
+            </p>
+          )}
         </SettingField>
         <SettingField {...meta('minerFluidSupply')}>
           <label>

@@ -9,6 +9,7 @@ import {
   MW_ITEM_ID,
   type BeltCapacity,
   type Item,
+  type ItemAmount,
   type Machine,
   type Model,
   type Recipe,
@@ -16,7 +17,16 @@ import {
 } from './model';
 import { parseNodesCsv } from './nodes';
 import { normalizeDatasetRecipes } from './normalize';
-import { ZERO, isNegative, isZero, parseRational, toNumber, type Rational } from './rational';
+import {
+  ZERO,
+  abs,
+  add,
+  isNegative,
+  isZero,
+  parseRational,
+  toNumber,
+  type Rational,
+} from './rational';
 import {
   AlternateUnlocksConfig,
   AreasConfig,
@@ -25,6 +35,7 @@ import {
   RawGameData,
   ScarcityUsageConfig,
   stripComments,
+  type RawMachine,
 } from './raw';
 
 /** Raw text of every pipeline input (docs/ARCHITECTURE.md §6). */
@@ -263,6 +274,7 @@ export function buildModel(inputs: BuildInputs): BuildResult {
         id: machineId,
         name: machine.Name,
         powerMW: -toNumber(parseRational(machine.AveragePower ?? '0') ?? ZERO),
+        buildCost: buildCost(machine, itemId, issues),
       });
     }
     const recipe: Recipe = {
@@ -299,8 +311,12 @@ export function buildModel(inputs: BuildInputs): BuildResult {
         purity: d.route.purity,
         processing: d.route.processing === null ? null : itemId.get(d.route.processing)!,
         fluid: d.route.fluid === null ? null : itemId.get(d.route.fluid)!,
+        mk: d.route.mk,
       };
     }
+    if (d.nodeShare !== undefined) recipe.nodeShare = toNumber(d.nodeShare);
+    if (d.supersededAt !== undefined) recipe.supersededAt = d.supersededAt;
+    if (d.family !== undefined) recipe.family = d.family;
     recipes.push(recipe);
   }
   recipes.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
@@ -432,4 +448,47 @@ export function buildModel(inputs: BuildInputs): BuildResult {
 
 export function nodeId(resource: string, purity: string): string {
   return `node:${slug(resource)}:${purity}`;
+}
+
+/**
+ * A machine's build cost (TI-1), as exact amounts summed per part. A zero
+ * amount is a section label in the dataset ("Modular Miner Smelter Module 0")
+ * and is skipped; a part listed twice (base and module) is added up. A
+ * negative amount (the Mk.3 drill parts, the Modular Power pieces) is taken
+ * as a sign slip and counted as positive, with a report entry (Charles
+ * 2026-10-30).
+ */
+function buildCost(
+  machine: RawMachine,
+  itemId: ReadonlyMap<string, string>,
+  issues: Issues,
+): ItemAmount[] {
+  const sum = new Map<string, Rational>();
+  const flipped: string[] = [];
+  for (const c of machine.Cost) {
+    const r = parseRational(c.Amount);
+    if (!r) {
+      issues.error(
+        'number',
+        `${machine.Name} cost ${c.Part}: cannot parse "${c.Amount}" as a number`,
+      );
+      continue;
+    }
+    if (isZero(r)) continue;
+    const id = itemId.get(c.Part);
+    if (id === undefined) {
+      issues.error('machine.cost', `${machine.Name} cost names unknown part "${c.Part}"`);
+      continue;
+    }
+    if (isNegative(r)) flipped.push(c.Part);
+    sum.set(id, sum.has(id) ? add(sum.get(id)!, abs(r)) : abs(r));
+  }
+  if (flipped.length)
+    issues.warn(
+      'machine.cost.negative',
+      `${machine.Name}: negative build amounts counted as positive (${flipped.join(', ')})`,
+    );
+  return [...sum]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([item, r]) => ({ item, amount: toNumber(r) }));
 }
