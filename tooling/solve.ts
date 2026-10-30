@@ -349,8 +349,9 @@ export function renderPlan(model: Model, result: SolveResult): string {
       '',
       'Nodes',
       table(
-        ['Node', 'Used', 'Budget', 'NNE'],
-        plan.nodes.map((n) => [n.label, fmt(n.used), fmt(n.budget), fmt(n.nne)]),
+        // As the web Nodes table (DF-1, A98): miners on nodes, then their share of the pool.
+        ['Node', 'Miners', 'Pool use', 'Pool', 'NNE'],
+        plan.nodes.map((n) => [n.label, fmt(n.occupied), fmt(n.used), fmt(n.budget), fmt(n.nne)]),
       ),
     );
   }

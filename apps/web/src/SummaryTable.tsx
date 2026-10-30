@@ -335,7 +335,7 @@ function Machines({ bill }: { bill: BuildBill }) {
   const materials = materialTable(bill, useNumbers());
   return (
     <>
-      <Table title="Machines" {...machines} />
+      <Table title="Machines to build" {...machines} />
       <Fold
         section="materials"
         title="Materials to build"
