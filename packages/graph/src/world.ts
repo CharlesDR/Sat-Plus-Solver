@@ -67,7 +67,17 @@ export interface WorldPort extends CardItem {
   surplus?: number;
   /** A link edge carries it. */
   linked: boolean;
+  /** Outputs: which band of the card's side it sits in, top to bottom (DF-3). */
+  band?: OutBand;
 }
+
+/**
+ * The bands of a card's output side, top to bottom (DF-3): parts for links
+ * (For links targets and exports), then byproducts (surplus that is no
+ * target, so it can be dragged to a link), then Kept-only targets.
+ */
+export const OUT_BANDS = ['links', 'byproduct', 'kept'] as const;
+export type OutBand = (typeof OUT_BANDS)[number];
 
 /** Output ports a card shows before the rest fold into its "+N" port. */
 export const MAX_OUT_PORTS = 8;
@@ -104,11 +114,12 @@ export interface WorldNode {
   members?: number;
   /** Factories and collapsed groups: input ports, by part name (A80). */
   inPorts?: WorldPort[];
-  /** Factories and collapsed groups: output ports, by part name. */
+  /** Factories and collapsed groups: output ports, by band, then by part name (DF-3). */
   outPorts?: WorldPort[];
   /**
-   * The "…" port: any unlinked outputs past `MAX_OUT_PORTS`, then surplus
-   * that is neither a target nor an export, each by name.
+   * The "…" port: the outputs folded past `MAX_OUT_PORTS` (Kept-only
+   * targets fold first, then byproducts, then unlinked parts for links),
+   * listed in band order.
    */
   more?: (CardItem & { kind: 'surplus' | 'product' })[];
   /** Factories: raw resources the plan extracts, shown while the card is selected. */
@@ -230,6 +241,16 @@ export function worldGraph(input: WorldGraphInput, options: WorldGraphOptions = 
         for (const t of f.targets ?? []) m.set(t.item, (m.get(t.item) ?? 0) + t.spare);
     return m;
   };
+  /** Per shown node: targets no member wants any of For links, only Kept (DF-3). */
+  const keptOnly = new Map<string, Set<string>>();
+  const keptOnlyOf = (ids: readonly string[]) => {
+    const forLinks = new Map<string, number>();
+    for (const f of input.factories)
+      if (ids.includes(f.id))
+        for (const t of f.targets ?? [])
+          forLinks.set(t.item, (forLinks.get(t.item) ?? 0) + t.forLinks);
+    return new Set([...forLinks].filter(([, rate]) => rate <= FLOW_TOL).map(([item]) => item));
+  };
 
   /** Raw resources the factories extract, summed per minute (items and m³ alike). */
   const extracted = (ids: readonly string[]) => {
@@ -285,6 +306,7 @@ export function worldGraph(input: WorldGraphInput, options: WorldGraphOptions = 
     if (isCollapsed) {
       ledgers.set(id, totals.ledger);
       spares.set(id, spareOf(members));
+      keptOnly.set(id, keptOnlyOf(members));
     }
   }
 
@@ -323,6 +345,7 @@ export function worldGraph(input: WorldGraphInput, options: WorldGraphOptions = 
     });
     ledgers.set(id, f.ledger);
     spares.set(id, spareOf([f.id]));
+    keptOnly.set(id, keptOnlyOf([f.id]));
   }
 
   // Link edges, one per pair of shown nodes; a link inside one node is hidden.
@@ -404,42 +427,52 @@ export function worldGraph(input: WorldGraphInput, options: WorldGraphOptions = 
         };
       })
       .sort(byName);
-    const outItems = new Set([
-      ...[...rows.values()]
-        .filter((r) => r.target > FLOW_TOL || r.exported > FLOW_TOL)
-        .map((r) => r.item),
-      ...outs.keys(),
-    ]);
+    // Outputs in three bands (DF-3): parts for links, byproducts, Kept-only targets.
+    const kept = keptOnly.get(n.id) ?? new Set<string>();
+    const bandOf = (item: string): OutBand | undefined => {
+      const r = rows.get(item);
+      if (outs.has(item) || (r?.exported ?? 0) > FLOW_TOL) return 'links';
+      if ((r?.target ?? 0) > FLOW_TOL) return kept.has(item) ? 'kept' : 'links';
+      if ((r?.surplus ?? 0) > FLOW_TOL) return 'byproduct';
+      return undefined;
+    };
+    const outItems = new Set([...rows.keys(), ...outs.keys()]);
     const outPorts = [...outItems]
-      .map((item): WorldPort => {
+      .flatMap((item): WorldPort[] => {
+        const band = bandOf(item);
+        if (!band) return [];
         const r = rows.get(item);
         const surplus = (r?.surplus ?? 0) + (spares.get(n.id)?.get(item) ?? 0);
-        return {
-          item,
-          name: name(item),
-          rate: r ? r.target + r.exported : outs.get(item)!,
-          ...(surplus > FLOW_TOL ? { surplus } : {}),
-          linked: outs.has(item),
-        };
+        return [
+          {
+            item,
+            name: name(item),
+            rate: r ? r.target + r.exported : outs.get(item)!,
+            ...(surplus > FLOW_TOL ? { surplus } : {}),
+            linked: outs.has(item),
+            band,
+          },
+        ];
       })
-      .sort(byName);
-    const more: NonNullable<WorldNode['more']> = [...rows.values()]
-      .filter((r) => r.surplus > FLOW_TOL && !outItems.has(r.item))
-      .map((r) => ({ item: r.item, name: name(r.item), rate: r.surplus, kind: 'surplus' as const }))
-      .sort(byName);
-    // Past the cap, unlinked outputs fold into the "…" port; linked ones always show.
-    const room = MAX_OUT_PORTS - 1;
-    if (outPorts.length + (more.length ? 1 : 0) > MAX_OUT_PORTS) {
-      const linked = outPorts.filter((p) => p.linked).length;
-      let free = Math.max(0, room - linked);
-      const folded: typeof more = [];
-      n.outPorts = outPorts.filter((p) => {
-        if (p.linked || free-- > 0) return true;
-        folded.push({ item: p.item, name: p.name, rate: p.rate, kind: 'product' });
-        return false;
-      });
-      more.unshift(...folded);
-    } else n.outPorts = outPorts;
+      .sort((a, b) => OUT_BANDS.indexOf(a.band!) - OUT_BANDS.indexOf(b.band!) || byName(a, b));
+    // Past the cap, Kept-only targets fold into the "…" port first, then
+    // byproducts, then unlinked parts for links; linked ones always show.
+    let fold = outPorts.length > MAX_OUT_PORTS ? outPorts.length - (MAX_OUT_PORTS - 1) : 0;
+    const folded = new Set<WorldPort>();
+    for (const band of [...OUT_BANDS].reverse())
+      for (const p of outPorts.filter((q) => q.band === band && !q.linked).reverse())
+        if (fold > 0) {
+          folded.add(p);
+          fold--;
+        }
+    n.outPorts = outPorts.filter((p) => !folded.has(p));
+    const more: NonNullable<WorldNode['more']> = outPorts
+      .filter((p) => folded.has(p))
+      .map((p) =>
+        p.band === 'byproduct'
+          ? { item: p.item, name: p.name, rate: p.surplus ?? 0, kind: 'surplus' as const }
+          : { item: p.item, name: p.name, rate: p.rate, kind: 'product' as const },
+      );
     if (more.length) n.more = more;
   }
 

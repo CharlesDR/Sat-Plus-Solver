@@ -170,7 +170,8 @@ describe('worldGraph', () => {
     expect(worldEdgeLines(plates)).toEqual(['18.0 Iron Plate']);
     expect(plates.items[0]!.links).toEqual(['link-1']);
     // Ports (A80): Rods takes 20 ingots over a link and uses 10, so the rest
-    // is surplus in its "…" port; Screw is an unmet import, a red input port.
+    // is surplus, a byproduct port below its targets (DF-3); Screw is an
+    // unmet import, a red input port.
     const rods = node('factory:factory-3');
     expect(rods.inPorts).toEqual([
       { item: 'iron-ingot', name: 'Iron Ingot', rate: 20, linked: true },
@@ -178,17 +179,23 @@ describe('worldGraph', () => {
     ]);
     // Its targets are outputs, Screw included: it targets the screws it imports.
     expect(rods.outPorts).toEqual([
-      { item: 'iron-rod', name: 'Iron Rod', rate: 10, linked: false },
-      { item: 'screw', name: 'Screw', rate: 4, linked: false },
+      { item: 'iron-rod', name: 'Iron Rod', rate: 10, linked: false, band: 'links' },
+      { item: 'screw', name: 'Screw', rate: 4, linked: false, band: 'links' },
+      {
+        item: 'iron-ingot',
+        name: 'Iron Ingot',
+        rate: 0,
+        surplus: 10,
+        linked: false,
+        band: 'byproduct',
+      },
     ]);
-    expect(rods.more).toEqual([
-      { item: 'iron-ingot', name: 'Iron Ingot', rate: 10, kind: 'surplus' },
-    ]);
+    expect(rods.more).toBeUndefined();
     expect(worldNodeLines(node('factory:factory-1'))[0]).toBe('Ore');
     // Ore ships both parts over links; its ore is used inside, so it has no port.
     expect(node('factory:factory-1').outPorts).toEqual([
-      { item: 'iron-ingot', name: 'Iron Ingot', rate: 20, linked: true },
-      { item: 'iron-plate', name: 'Iron Plate', rate: 18, linked: true },
+      { item: 'iron-ingot', name: 'Iron Ingot', rate: 20, linked: true, band: 'links' },
+      { item: 'iron-plate', name: 'Iron Plate', rate: 18, linked: true, band: 'links' },
     ]);
     expect(node('factory:factory-1').inPorts).toEqual([]);
   });
@@ -241,6 +248,79 @@ describe('worldGraph', () => {
       ['part-7', 'product'],
       ['part-8', 'product'],
       ['slag', 'surplus'],
+    ]);
+  });
+
+  test('outputs sit in bands: for links, byproducts, Kept; Kept folds first (DF-3)', async () => {
+    const kept = ['kept-a', 'kept-b', 'kept-c', 'kept-d', 'kept-e'];
+    const f = {
+      ...result.factories[0]!,
+      ledger: [
+        row('a-linked', { produced: 5, exported: 5 }),
+        row('z-for-links', { produced: 8, target: 8 }),
+        ...kept.map((k) => row(k, { produced: 1, target: 1 })),
+        row('b-slag', { produced: 2, surplus: 2 }),
+        row('c-ash', { produced: 1, surplus: 1 }),
+      ],
+      targets: [
+        { item: 'z-for-links', forLinks: 8, kept: 0, taken: 0, spare: 8 },
+        ...kept.map((item) => ({ item, forLinks: 0, kept: 1, taken: 0, spare: 0 })),
+      ],
+    };
+    delete f.groupId;
+    const sink = {
+      ...result.factories[2]!,
+      id: 'factory-9',
+      ledger: [row('a-linked', { imported: 5 })],
+    };
+    const g = worldGraph(
+      {
+        factories: [f, sink],
+        groups: [],
+        links: [
+          link({ id: 'l', from: 'factory-1', to: 'factory-9', item: 'a-linked', requested: 5 }),
+        ],
+      },
+      {},
+    );
+    const n = g.nodes.find((x) => x.id === 'factory:factory-1')!;
+    // Nine outputs past the cap of eight: two Kept-only targets fold into "…".
+    expect(n.outPorts!.map((p) => [p.item, p.band])).toEqual([
+      ['a-linked', 'links'],
+      ['z-for-links', 'links'],
+      ['b-slag', 'byproduct'],
+      ['c-ash', 'byproduct'],
+      ['kept-a', 'kept'],
+      ['kept-b', 'kept'],
+      ['kept-c', 'kept'],
+    ]);
+    expect(n.more!.map((m) => [m.item, m.kind])).toEqual([
+      ['kept-d', 'product'],
+      ['kept-e', 'product'],
+    ]);
+    expect(n.outPorts!.find((p) => p.item === 'b-slag')).toMatchObject({ rate: 0, surplus: 2 });
+    // The layout keeps the bands; the crossing order applies within each.
+    const laid = await layoutWorldGraph(g, new ELK());
+    const ports = laid.nodes.find((x) => x.id === n.id)!.ports.out;
+    expect(ports).toEqual([...n.outPorts!.map((p) => p.item), '…']);
+  });
+
+  test('past the cap, byproducts fold before unlinked parts for links (DF-3)', () => {
+    const parts = Array.from({ length: 7 }, (_, k) => `part-${k}`);
+    const f = {
+      ...result.factories[0]!,
+      ledger: [
+        ...parts.map((p) => row(p, { produced: 1, target: 1 })),
+        row('slag', { produced: 2, surplus: 2 }),
+        row('ash', { produced: 1, surplus: 1 }),
+      ],
+    };
+    delete f.groupId;
+    const n = worldGraph({ factories: [f], groups: [], links: [] }, {}).nodes[0]!;
+    expect(n.outPorts!.map((p) => p.item)).toEqual(parts);
+    expect(n.more!.map((m) => [m.item, m.kind, m.rate])).toEqual([
+      ['ash', 'surplus', 1],
+      ['slag', 'surplus', 2],
     ]);
   });
 
