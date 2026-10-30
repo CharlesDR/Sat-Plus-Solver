@@ -67,6 +67,50 @@ describe('marginal costs (A18, linked-import costing)', () => {
     expect(plan.marginalCosts?.[0]?.cost.resources).toBe(0);
   });
 
+  test('the free part of an import costs nothing (DF-5, A99)', async () => {
+    // Solid Steel Ingot makes B's own steel cheaper than the given cost of
+    // importing it, so only the free part is imported.
+    const plan = (free?: number) =>
+      solve(
+        mini,
+        {
+          targets: [{ item: 'steel-beam', rate: 15 }],
+          objectives: ['resources'],
+          recipes: { include: ['solid-steel-ingot'] },
+          costImports: true,
+          imports: [{ item: 'steel-ingot', cap: 30, ...(free ? { free } : {}) }],
+          importCosts: [
+            { item: 'steel-ingot', rate: 30, cost: { resources: 1 }, resourceTypes: ['coal'] },
+          ],
+        },
+        backend,
+      );
+    const imported = (r: Awaited<ReturnType<typeof plan>>) =>
+      r.imports.find((i) => i.item === 'steel-ingot')?.rate ?? 0;
+    const paid = await plan();
+    expect(paid.status).toBe('ok');
+    expect(imported(paid)).toBeCloseTo(0, 9);
+    const part = await plan(20);
+    expect(imported(part)).toBeCloseTo(20, 9);
+    // Charged nothing for the 20: the value is its own 40 ingots' ore and coal.
+    const own = part.nodes.reduce((s, n) => s + n.nne, 0);
+    expect(part.objectiveValue).toBeCloseTo(own, 9);
+    // A free part above the cap is clamped to it.
+    expect(imported(await plan(50))).toBeCloseTo(30, 9);
+  });
+
+  test('rejects a negative free import', async () => {
+    const r = await solve(
+      mini,
+      {
+        targets: [{ item: 'iron-plate', rate: 60 }],
+        imports: [{ item: 'iron-ingot', cap: 10, free: -1 }],
+      },
+      backend,
+    );
+    expect(r.diagnostics[0]?.code).toBe('invalid-request');
+  });
+
   test('rejects a negative given cost', async () => {
     const r = await solve(
       mini,

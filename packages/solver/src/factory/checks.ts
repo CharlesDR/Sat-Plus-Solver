@@ -271,6 +271,8 @@ export function validate(
     if (!known.has(i.item)) return bad(`Unknown import item "${i.item}".`);
     if (Number.isNaN(i.cap) || i.cap < 0)
       return bad(`Import cap for ${i.item} must be ≥ 0 (got ${i.cap}).`);
+    if (i.free !== undefined && (!Number.isFinite(i.free) || i.free < 0))
+      return bad(`Free import for ${i.item} must be a finite number ≥ 0 (got ${i.free}).`);
   }
   for (const c of request.importCosts ?? []) {
     if (!known.has(c.item)) return bad(`Unknown import-cost item "${c.item}".`);

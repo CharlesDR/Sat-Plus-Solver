@@ -15,6 +15,12 @@ export interface ImportCap {
   item: string;
   /** Upper bound on the import, per minute. `Infinity` for unlimited. */
   cap: number;
+  /**
+   * With `costImports`: the first `free`/min of the import cost nothing under
+   * any objective, because a fixed link already ships it (DF-5, A99). The
+   * rest is costed as usual. Clamped to `cap`.
+   */
+  free?: number;
 }
 
 /**

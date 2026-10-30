@@ -16,11 +16,14 @@ export const surplusVar = (item: string) => `surplus:${item}`;
 export const supplyVar = (item: string) => `supply:${item}`;
 export const nodeSlackVar = (node: string) => `slack:node:${node}`;
 export const importSlackVar = (item: string) => `slack:import:${item}`;
+/** The free part of a costed import (DF-5, A99): what fixed links already ship. */
+export const importFreeVar = (item: string) => `importfree:${item}`;
 export const resourceSlackVar = (item: string) => `slack:resource:${item}`;
 export const surplusSlackVar = (item: string) => `slack:surplus:${item}`;
 export const balanceRow = (item: string) => `balance:${item}`;
 const nodeRow = (node: string) => `cap:${node}`;
 const importRow = (item: string) => `importcap:${item}`;
+const importFreeRow = (item: string) => `importfree:${item}`;
 const resourceRow = (item: string) => `limit:${item}`;
 export const machinesVar = (id: string) => `machines:${id}`;
 const typeVar = (resource: string) => `type:${resource}`;
@@ -64,6 +67,8 @@ export interface Problem {
   scaled: Map<string, number>;
   /** Imports with a positive cap, on balance-row items only. */
   importCaps: Map<string, number>;
+  /** With `costImports`: per import item, the rate that costs nothing (DF-5, A99), ≤ its cap. */
+  importFree: Map<string, number>;
   /** Caps of the node classes the kept recipes use. */
   nodeCaps: Map<string, number>;
   nodes: Map<string, ResourceNode>;
@@ -135,7 +140,9 @@ export function objectiveTerms(p: Problem, objective: ObjectiveId): LpTerm[] {
   }
   for (const [item, ic] of [...p.importCosts].sort(([a], [b]) => (a < b ? -1 : 1))) {
     const c = ic.cost[objective] ?? 0;
-    if (c !== 0) terms.push({ var: importVar(item), coef: c });
+    if (c === 0) continue;
+    terms.push({ var: importVar(item), coef: c });
+    if (p.importFree.has(item)) terms.push({ var: importFreeVar(item), coef: -c });
   }
   for (const [item, { cost }] of p.supply) {
     const c = cost[objective] ?? 0;
@@ -244,6 +251,20 @@ export function buildLp(
       });
     } else variables.push({ name: v, lo: 0, hi: Math.min(cap_i, cap) });
     balance.get(item)!.push({ var: v, coef: 1 });
+    // A costed import pays only for what it takes beyond the free part
+    // (DF-5, A99): cost × (import − free part), free part ≤ import.
+    const free = p.importCosts.has(item) ? p.importFree.get(item) : undefined;
+    if (free) {
+      variables.push({ name: importFreeVar(item), lo: 0, hi: free });
+      constraints.push({
+        name: importFreeRow(item),
+        terms: [
+          { var: importFreeVar(item), coef: 1 },
+          { var: v, coef: -1 },
+        ],
+        hi: 0,
+      });
+    }
   }
   for (const item of p.supply.keys()) {
     variables.push({ name: supplyVar(item), lo: 0, hi: cap });
@@ -306,13 +327,17 @@ export function buildLp(
     for (const [item, ic] of [...p.importCosts].sort(([a], [b]) => (a < b ? -1 : 1))) {
       const cap_i = p.importCaps.get(item) ?? 0;
       const big = Number.isFinite(cap_i) ? cap_i : SANITY_CAP;
+      // The free part (A99) brings in no resource types: they are spent upstream anyway.
+      const paid: LpTerm[] = p.importFree.has(item)
+        ? [
+            { var: importVar(item), coef: 1 },
+            { var: importFreeVar(item), coef: -1 },
+          ]
+        : [{ var: importVar(item), coef: 1 }];
       for (const resource of ic.resourceTypes) {
         constraints.push({
           name: typeImportRow(item, resource),
-          terms: [
-            { var: importVar(item), coef: 1 },
-            { var: typeVar(resource), coef: -big },
-          ],
+          terms: [...paid, { var: typeVar(resource), coef: -big }],
           hi: 0,
         });
       }
