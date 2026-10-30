@@ -79,3 +79,40 @@ test('a port dragged to empty canvas makes a new factory with the link (Cancel m
   await expect(row).toContainText('Beam Yard');
   await expect(row).toContainText('Steel Beam');
 });
+
+test('a new link starts fixed at what the source has spare, byproducts included (DF-4)', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await addFactory(page, 'A');
+  await addFactory(page, 'B');
+  await page.getByRole('button', { name: 'Open A', exact: true }).click();
+  await page.getByLabel('Target item').fill('Plastic');
+  await page.getByLabel('Per minute').fill('20');
+  await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
+  const crumbs = page.getByRole('navigation', { name: 'Breadcrumb' });
+  await crumbs.getByRole('button', { name: 'World' }).click();
+  await worldSettled(page);
+
+  await drawLink(page, 'factory:factory-1', 'factory:factory-2');
+  const editor = page.getByRole('form', { name: 'New link' });
+  const part = editor.getByLabel('Part', { exact: true });
+  const fixed = editor.getByLabel('Fixed rate');
+  const rate = editor.getByLabel('Rate per minute');
+  // A target's untaken For links rate: fixed at all of it.
+  await part.selectOption({ label: 'Plastic (20.0 of 20.0 available)' });
+  await expect(fixed).toBeChecked();
+  await expect(rate).toHaveValue('20');
+  // A byproduct lists its surplus and starts fixed at it, rounded down to 0.01/min.
+  const byproduct = part.locator('option', { hasText: /\/min spare\)$/ }).first();
+  const text = (await byproduct.textContent())!;
+  const spare = Number(/\(([\d.,]+)\/min spare\)$/.exec(text)![1]!.replace(/,/g, ''));
+  await part.selectOption({ label: text });
+  await expect(fixed).toBeChecked();
+  expect(Number(await rate.inputValue())).toBeLessThanOrEqual(spare);
+  expect(Number(await rate.inputValue())).toBeGreaterThan(spare - 0.01 - 1e-9);
+  // Once the mode is chosen by hand, another part keeps it.
+  await editor.getByLabel('Pull (what the consumer needs)').check();
+  await part.selectOption({ label: 'Plastic (20.0 of 20.0 available)' });
+  await expect(editor.getByLabel('Pull (what the consumer needs)')).toBeChecked();
+});

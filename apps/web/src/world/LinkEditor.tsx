@@ -3,7 +3,9 @@
  * `pull`, and the transport with its belt or pipe count. Opened by dragging
  * between two factories on the canvas, by "Add link", or by "Edit" in the
  * link table. The part is picked from the source's products, or any part
- * under "Other…" (UX-18); a drag from a part's port pre-fills it (A80).
+ * under "Other…" (UX-18); a drag from a part's port pre-fills it (A80). A
+ * new link of a part the source has spare starts fixed at that amount, so
+ * the source doesn't grow; one with none starts as pull (DF-4).
  */
 import { formatRate as fmt } from '@sps/solver';
 import type { Link, LinkSpec, Transport, World } from '@sps/world';
@@ -12,7 +14,14 @@ import { Field } from '../controls/Field';
 import { useItemLookup } from '../controls/itemRows';
 import type { Catalog, WorldSummary } from '../solver/protocol';
 import { SHOW_TRANSPORT } from '../flags';
-import { availableFrom, carriersFor, productsOf, transportTiers } from './viewModel';
+import {
+  availableFrom,
+  carriersFor,
+  fixedDefault,
+  productsOf,
+  spareFrom,
+  transportTiers,
+} from './viewModel';
 
 const TRANSPORTS: { kind: Transport; label: string }[] = [
   { kind: 'unspecified', label: 'Unspecified' },
@@ -55,10 +64,36 @@ export function LinkEditor(props: {
   const [itemText, setItemText] = useState(
     start !== undefined && !products.includes(start) ? items.name(start) : '',
   );
-  const [mode, setMode] = useState<'pull' | 'fixed'>(link?.mode.kind ?? 'pull');
-  const [rateText, setRateText] = useState(
-    link?.mode.kind === 'fixed' ? String(link.mode.rate) : '60',
-  );
+  // A new link's mode and rate follow its source and part until the user sets them (DF-4).
+  const spareDefault = (f: string, part: string | undefined) => {
+    const r = part === undefined ? 0 : fixedDefault(spareFrom(summary, f, part));
+    return r > 0
+      ? { mode: 'fixed' as const, rate: String(r) }
+      : { mode: 'pull' as const, rate: '60' };
+  };
+  const initial = link
+    ? {
+        mode: link.mode.kind,
+        rate: link.mode.kind === 'fixed' ? String(link.mode.rate) : '60',
+      }
+    : spareDefault(draft.from, start);
+  const [mode, setModeState] = useState<'pull' | 'fixed'>(initial.mode);
+  const [rateText, setRateTextState] = useState(initial.rate);
+  const [modeSet, setModeSet] = useState(false);
+  const setMode = (m: 'pull' | 'fixed') => {
+    setModeSet(true);
+    setModeState(m);
+  };
+  const setRateText = (t: string) => {
+    setModeSet(true);
+    setRateTextState(t);
+  };
+  const followSpare = (f: string, part: string | undefined) => {
+    if (link || modeSet) return;
+    const d = spareDefault(f, part);
+    setModeState(d.mode);
+    setRateTextState(d.rate);
+  };
   // A part pre-filled by a drag (A80) gets belts or pipes, as a picked one does.
   const startKind: Transport =
     link?.transport?.kind ??
@@ -99,11 +134,16 @@ export function LinkEditor(props: {
   };
   const pickItem = (text: string) => {
     setItemText(text);
-    carrierFor(items.find(text)?.id);
+    const id = items.find(text)?.id;
+    carrierFor(id);
+    followSpare(from, id);
   };
   const pick = (value: string) => {
     setChoice(value);
-    if (value !== OTHER) carrierFor(value || undefined);
+    if (value !== OTHER) {
+      carrierFor(value || undefined);
+      followSpare(from, value || undefined);
+    }
   };
   // Another source has other products: a part it doesn't list moves to Other.
   const setFrom = (f: string) => {
@@ -112,6 +152,7 @@ export function LinkEditor(props: {
       setChoice(OTHER);
       setItemText(items.name(choice));
     }
+    followSpare(f, item?.id);
   };
 
   const save = () => {
@@ -175,12 +216,18 @@ export function LinkEditor(props: {
               <select id={id} data-part value={choice} onChange={(e) => pick(e.target.value)}>
                 <option value="">Pick a part…</option>
                 {products.map((p) => {
-                  // What its targets leave for links (A92): "x of y available".
+                  // What its targets leave for links (A92): "x of y available";
+                  // a byproduct's surplus: "x/min spare" (DF-4).
                   const a = availableFrom(summary, from, p);
+                  const spare = a ? 0 : spareFrom(summary, from, p);
                   return (
                     <option key={p} value={p}>
                       {items.name(p)}
-                      {a ? ` (${fmt(a.spare)} of ${fmt(a.forLinks)} available)` : ''}
+                      {a
+                        ? ` (${fmt(a.spare)} of ${fmt(a.forLinks)} available)`
+                        : spare > 0
+                          ? ` (${fmt(spare)}/min spare)`
+                          : ''}
                     </option>
                   );
                 })}

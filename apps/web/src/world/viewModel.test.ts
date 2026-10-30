@@ -20,7 +20,9 @@ import {
   ledgerFor,
   ledgerScopes,
   powerRows,
+  fixedDefault,
   productsOf,
+  spareFrom,
   sumPower,
   traceableItems,
   worldStatus,
@@ -100,6 +102,36 @@ describe('ledger', () => {
     // Ore's products are what it ships, not the ore and ingots it uses up.
     expect(productsOf(summary, 'factory-1')).toEqual(['iron-plate']);
     expect(productsOf(undefined, 'factory-1')).toEqual([]);
+  });
+});
+
+describe('link defaults (DF-4)', () => {
+  const summary = {
+    factories: [
+      {
+        id: 'f',
+        targets: [{ item: 'plastic', forLinks: 20, kept: 0, spare: 12.5 }],
+        ledger: [
+          { item: 'plastic', surplus: 0 },
+          { item: 'heavy-oil-residue', surplus: 10.0049 },
+        ],
+      },
+    ],
+  } as unknown as WorldSummary;
+
+  test('spare: a target’s untaken For links, else its surplus', () => {
+    expect(spareFrom(summary, 'f', 'plastic')).toBe(12.5);
+    expect(spareFrom(summary, 'f', 'heavy-oil-residue')).toBe(10.0049);
+    expect(spareFrom(summary, 'f', 'rubber')).toBe(0);
+    expect(spareFrom(undefined, 'f', 'plastic')).toBe(0);
+  });
+
+  test('a fixed default never asks for more: rounded down to 0.01/min', () => {
+    expect(fixedDefault(10.0049)).toBe(10);
+    expect(fixedDefault(12.5)).toBe(12.5);
+    expect(fixedDefault(1 / 3)).toBe(0.33);
+    expect(fixedDefault(0.29)).toBe(0.29);
+    expect(fixedDefault(0.004)).toBe(0);
   });
 });
 
