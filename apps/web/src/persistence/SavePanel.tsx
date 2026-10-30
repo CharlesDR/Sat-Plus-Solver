@@ -13,6 +13,7 @@ import type { Boot } from './session';
 import { isShareHash, readShareHash } from './share';
 import { downloadText, modelerFileName, ShareControls } from './ShareControls';
 import { ChevronDownIcon, FileIcon } from '../ui/icons';
+import { BUILD_STAMP } from '../buildStamp';
 import { FileButton } from '../ui/FileButton';
 import { useMenuDismiss } from '../ui/Menu';
 import { useToast } from '../ui/toasts';
@@ -363,6 +364,9 @@ export function SavePanel(props: {
             )}
           </fieldset>
         )}
+        <p className="build-stamp" data-testid="build-stamp">
+          {BUILD_STAMP}
+        </p>
       </div>
     </details>
   );
