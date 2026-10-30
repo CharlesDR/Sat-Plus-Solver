@@ -4,7 +4,7 @@ import { readRecentTargets, withRecent, writeRecentTargets } from '../ui/prefs';
 import { CloseIcon, PlusIcon } from '../ui/icons';
 import type { CatalogItem } from '../solver/protocol';
 import { newRowKey, useItemLookup, type DraftRow } from './itemRows';
-import { itemsUpToTier } from './tiers';
+import { itemsAboveTier, itemsUpToTier, tierLabel } from './tiers';
 
 interface Props {
   catalog: CatalogItem[];
@@ -13,6 +13,9 @@ interface Props {
   maxTier?: string | null | undefined;
   onChange(targets: Target[]): void;
 }
+
+/** Hidden items a hint names before "and n more". */
+const MAX_NAMED = 4;
 
 /** A target row's draft: the For links rate in `numberText`, and Kept (A92). */
 type TargetRow = DraftRow & { keptText: string };
@@ -40,6 +43,17 @@ export function TargetsEditor({ catalog, targets, maxTier, onChange }: Props) {
   const listId = useId();
   const items = useItemLookup(catalog);
   const offered = useMemo(() => itemsUpToTier(catalog, maxTier), [catalog, maxTier]);
+  // What the max tier leaves out of the list, so a missing item is explained (R2).
+  const hidden = useMemo(() => itemsAboveTier(catalog, maxTier), [catalog, maxTier]);
+  /** Hidden items a row's text names or matches, when no listed item matches it. */
+  const hiddenMatches = (text: string): readonly CatalogItem[] => {
+    const q = text.trim().toLowerCase();
+    if (!q || !hidden.length) return [];
+    const exact = hidden.filter((i) => i.name.toLowerCase() === q);
+    if (exact.length) return exact;
+    if (offered.some((i) => i.name.toLowerCase().includes(q))) return [];
+    return hidden.filter((i) => i.name.toLowerCase().includes(q));
+  };
   const box = useRef<HTMLFieldSetElement>(null);
   // Recently planned items as quick chips (UX-12), kept per browser.
   const [recent, setRecent] = useState(readRecentTargets);
@@ -115,6 +129,7 @@ export function TargetsEditor({ catalog, targets, maxTier, onChange }: Props) {
       {rows.map((r, k) => {
         const n = k === 0 ? '' : ` ${k + 1}`;
         const unknown = r.itemText.trim() !== '' && !items.find(r.itemText);
+        const above = hiddenMatches(r.itemText);
         // A Space Elevator phase is planned in its top part's rate (A84).
         const per = items.find(r.itemText)?.per;
         return (
@@ -178,11 +193,28 @@ export function TargetsEditor({ catalog, targets, maxTier, onChange }: Props) {
                 <CloseIcon />
               </button>
             )}
-            {unknown && <p className="hint">No item named “{r.itemText}”.</p>}
+            {above.length > 0 ? (
+              <p className="hint" data-testid="above-tier">
+                Needs a higher Max tier than {tierLabel(maxTier!)}:{' '}
+                {above
+                  .slice(0, MAX_NAMED)
+                  .map((i) => `${i.name} (${tierLabel(i.tier!)})`)
+                  .join(', ')}
+                {above.length > MAX_NAMED ? `, and ${above.length - MAX_NAMED} more` : ''}.
+              </p>
+            ) : (
+              unknown && <p className="hint">No item named “{r.itemText}”.</p>
+            )}
             {per && <p className="hint">Rate is per min of {per}, the phase’s top part.</p>}
           </div>
         );
       })}
+      {hidden.length > 0 && (
+        <p className="hint" data-testid="hidden-by-tier">
+          {hidden.length} {hidden.length === 1 ? 'item needs' : 'items need'} a higher Max tier than{' '}
+          {tierLabel(maxTier!)} and {hidden.length === 1 ? 'isn’t' : 'aren’t'} listed.
+        </p>
+      )}
       <button type="button" className="ghost" onClick={addRow}>
         <PlusIcon /> Add target
       </button>

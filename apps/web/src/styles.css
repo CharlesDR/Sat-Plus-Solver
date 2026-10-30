@@ -840,6 +840,11 @@ label.inline {
   margin: 0;
   font-size: 13px;
 }
+/* What the Max tier leaves out of the picker (R2). */
+.targets > .hint {
+  margin: 4px 0 8px;
+  font-size: 13px;
+}
 .recipe-list {
   list-style: none;
   margin: 0;
