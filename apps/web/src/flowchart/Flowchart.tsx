@@ -304,7 +304,7 @@ const FlowNodeView = memo(function FlowNodeView({ data }: NodeProps<FlowchartNod
   if (data.dim) classes.push('dim');
   if (data.tip) classes.push('tip');
   return (
-    <div className={classes.join(' ')}>
+    <div className={classes.join(' ')} style={{ ['--slant' as string]: `${n.slant}px` }}>
       <Handle type="target" position={Position.Left} isConnectable={false} />
       {data.icon ? (
         <img className="flow-icon" src={data.icon} alt="" width={ICON_SIZE} height={ICON_SIZE} />

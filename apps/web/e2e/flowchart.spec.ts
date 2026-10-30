@@ -67,11 +67,12 @@ test('Reinforced Iron Plate 5/min: multi-stage Water, a fan-out labelled per lin
   await expect(chart.locator('.flow-edge-label[title="Iron Ingot: 15.0/min"]')).toHaveCount(2);
   await expect(chart.locator('.flow-edge-label[title*="in all"]')).toHaveCount(0);
 
-  // Boxes are filled in their kind's colour, with no output tray.
+  // Boxes are filled in their kind's colour, with no output tray. The fill is
+  // the hexagon drawn under the label (DF-2).
   const fill = (id: string) =>
     node(page, id)
       .locator('.flow-node')
-      .evaluate((el) => getComputedStyle(el).backgroundColor);
+      .evaluate((el) => getComputedStyle(el, '::before').backgroundColor);
   expect(await fill('recipe:iron-plate')).not.toBe(await fill('target:reinforced-iron-plate'));
   expect(await fill('recipe:iron-plate')).not.toBe('rgba(0, 0, 0, 0)');
   await expect(chart.locator('.flow-tray-row')).toHaveCount(0);

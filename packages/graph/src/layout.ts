@@ -53,6 +53,8 @@ export type PlacedNode = FlowNode &
     text: NodeText;
     ports: NodePort[];
     stages?: number;
+    /** How far the hexagon's left and right vertices stand out from its flat top and bottom (DF-2). */
+    slant: number;
   };
 
 export interface PlacedEdge extends FlowEdge {
@@ -117,6 +119,8 @@ const PADDING_Y = 4;
 /** The node's 1px border, inside its box. */
 const BORDER = 1;
 const MIN_NODE_WIDTH = 80;
+/** A hexagon's slant per px of height: sides at 60° to the flat top and bottom (A40, DF-2). */
+const SLANT = Math.tan(Math.PI / 6) / 2;
 /** Shortest box: room for its icon and padding. */
 const MIN_NODE_HEIGHT = 40;
 /** Space between two ports on one side of a box, enough for the thickest lines. */
@@ -391,7 +395,7 @@ function centreMain(order: readonly string[], main: string | undefined): string[
 const inPort = (node: string, item: string) => `${node}#in:${item}`;
 const outPort = (node: string, item: string) => `${node}#out:${item}`;
 
-type Sized = { node: FlowNode; text: NodeText; width: number; height: number };
+type Sized = { node: FlowNode; text: NodeText; width: number; height: number; slant: number };
 type Label = { text: string; width: number; height: number };
 type Order = { ins: string[]; outs: string[] };
 
@@ -467,8 +471,12 @@ async function layoutWith(
       Math.max((text.title.length + text.details.length) * FLOW_LINE_HEIGHT, icon) +
         2 * (PADDING_Y + BORDER),
     );
-    const width = Math.max(MIN_NODE_WIDTH, textWidth + iconSpace + 2 * (PADDING_X + BORDER));
-    sized.set(n.id, { node: n, text, width, height });
+    const slant = Math.round(height * SLANT);
+    const width = Math.max(
+      MIN_NODE_WIDTH,
+      textWidth + iconSpace + 2 * (PADDING_X + BORDER) + 2 * slant,
+    );
+    sized.set(n.id, { node: n, text, width, height, slant });
   }
 
   /** Port heights on a node, given the order of its inputs and outputs. */
@@ -800,7 +808,10 @@ async function layoutWith(
       const [, kind = ''] = p.id.slice(n.id.length).split(/[#:]/);
       if (kind !== 'in' && kind !== 'out') continue;
       const item = p.id.slice(n.id.length + kind.length + 2);
-      ports.push({ item, dir: kind, x: kind === 'in' ? 0 : s.width, y: p.y ?? 0 });
+      // Lines meet the slanted sides: a port off the vertex sits further in.
+      const y = p.y ?? 0;
+      const inset = (s.slant * Math.abs(y - s.height / 2)) / (s.height / 2);
+      ports.push({ item, dir: kind, x: kind === 'in' ? inset : s.width - inset, y });
     }
     nodePorts.set(n.id, ports);
   }
@@ -836,6 +847,7 @@ async function layoutWith(
       ...box.get(n.id)!,
       text: sized.get(n.id)!.text,
       ports: nodePorts.get(n.id)!,
+      slant: sized.get(n.id)!.slant,
       ...(stagesFed !== undefined ? { stages: stagesFed } : {}),
     };
   });
