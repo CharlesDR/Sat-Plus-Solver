@@ -1306,6 +1306,16 @@ label.inline {
     position: static;
   }
 }
+/* World panel tables are wider (the Factories table needs about 1110 px), so
+   they scroll sideways in their panel sooner, never the whole page (UV-3). */
+@media (max-width: 1180px) {
+  .world > .panel {
+    overflow-x: auto;
+  }
+  .world > .panel thead th {
+    position: static;
+  }
+}
 .summary tbody tr:nth-child(even) td {
   background: color-mix(in srgb, var(--surface-2) 55%, transparent);
 }
@@ -2074,6 +2084,11 @@ img:is(.world-icon, .flow-icon, .flow-item-icon, .cell-icon, .io-icon),
   top: 0;
   margin-left: 8px;
 }
+/* Near the canvas bottom the list opens upward, so the edge doesn't cut it (UV-4). */
+.world-more-list.up {
+  top: auto;
+  bottom: 0;
+}
 /* Raw resources of the selected card, beside it: the layout doesn't move. */
 .world-raw {
   right: 100%;
@@ -2676,6 +2691,11 @@ details.advanced > summary {
   display: flex;
   align-items: flex-end;
   gap: 8px;
+}
+/* A world panel brought into view keeps its tab row above it, below the top bar (UV-2). */
+.world > .panel {
+  scroll-margin-top: calc(var(--topbar-h) + 64px);
+  scroll-margin-bottom: 16px;
 }
 .tabs-row > .tabs {
   flex: 1;

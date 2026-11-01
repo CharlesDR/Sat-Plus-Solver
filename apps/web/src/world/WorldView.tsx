@@ -13,7 +13,7 @@ import {
   type LinkSpec,
   type World,
 } from '@sps/world';
-import { lazy, Suspense, useCallback, useId, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { useItemLookup } from '../controls/itemRows';
 import { DiagnosticsList, useNames } from '../Diagnostics';
 import { worldDiagnostics, type Fix } from '../diagnostics';
@@ -87,6 +87,17 @@ export function WorldView(props: {
     },
     [setPanelOpen],
   );
+  // A panel opened from its tab, the tab keys or a diagnostic comes into view,
+  // since on a laptop it opens below the fold (UV-2). A link drawn on the
+  // canvas marks its row and scrolls that instead.
+  const [reveal, setReveal] = useState(0);
+  const showTab = useCallback(
+    (t: Tab) => {
+      setTab(t);
+      setReveal((k) => k + 1);
+    },
+    [setTab],
+  );
   const [traceItem, setTraceId] = useState<string>();
   const [traceText, setTraceText] = useState('');
   const [draft, setDraft] = useState<LinkDraft>();
@@ -98,6 +109,9 @@ export function WorldView(props: {
   const toast = useToast();
   const traceId = useId();
   const panelId = useId();
+  useEffect(() => {
+    if (reveal) document.getElementById(`${panelId}-panel`)?.scrollIntoView({ block: 'nearest' });
+  }, [reveal, panelId]);
   const items = useItemLookup(catalog.items);
   const itemName = useCallback(
     (id: string) => (id === MW_ITEM_ID ? 'Power (MW)' : items.name(id)),
@@ -173,7 +187,7 @@ export function WorldView(props: {
   const fix = (f: Fix) => {
     if (f.kind === 'open-factory') onOpen(f.factory);
     else if (f.kind === 'remove-link') store.getState().removeLink(f.link);
-    else if (f.kind === 'show-nodes') setTab('Nodes');
+    else if (f.kind === 'show-nodes') showTab('Nodes');
     else if (f.kind === 'edit-link') {
       const link = world.links.find((l) => l.id === f.link);
       if (link) setDraft({ from: link.from, to: link.to, link });
@@ -501,7 +515,7 @@ export function WorldView(props: {
                       : undefined;
             if (next === undefined) return;
             e.preventDefault();
-            setTab(TABS[next]!);
+            showTab(TABS[next]!);
             document.getElementById(`${panelId}-tab-${next}`)?.focus();
           }}
         >
@@ -514,7 +528,7 @@ export function WorldView(props: {
               aria-selected={tab === t}
               aria-controls={summary && panelOpen ? `${panelId}-panel` : undefined}
               tabIndex={tab === t ? 0 : -1}
-              onClick={() => setTab(t)}
+              onClick={() => showTab(t)}
             >
               <span data-help={`tab:${t}`}>{t}</span>
               {count(t) !== undefined && (

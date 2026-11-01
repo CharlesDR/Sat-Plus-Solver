@@ -49,8 +49,11 @@ import {
   startTransition,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
+  type RefObject,
 } from 'react';
 import { itemIcon } from '../icons/icons';
 import { FitIcon } from '../ui/icons';
@@ -128,6 +131,18 @@ function Port(props: { side: 'in' | 'out'; slot: number; port: WorldPort; connec
   );
 }
 
+/**
+ * Opens a card's list upward when the canvas edge would cut it off below and
+ * there's more room above (UV-4). It runs as the list mounts, before paint.
+ */
+function openUpIfCut(list: HTMLElement | null) {
+  const canvas = list?.closest('.react-flow')?.getBoundingClientRect();
+  if (!list || !canvas) return;
+  const r = list.getBoundingClientRect();
+  if (r.bottom > canvas.bottom && r.top - canvas.top > canvas.bottom - r.top)
+    list.classList.add('up');
+}
+
 /** The "…" port (A80): spare parts and folded outputs, listed on hover or click. */
 function MorePort({ slot, items }: { slot: number; items: (CardItem & { kind: string })[] }) {
   const [open, setOpen] = useState(false);
@@ -152,7 +167,12 @@ function MorePort({ slot, items }: { slot: number; items: (CardItem & { kind: st
         {label}
       </button>
       {open && (
-        <ul className="world-more-list nodrag" role="list" aria-label="More parts">
+        <ul
+          ref={openUpIfCut}
+          className="world-more-list nodrag"
+          role="list"
+          aria-label="More parts"
+        >
           {items.map((i) => (
             <li key={i.item}>
               <ItemIcon item={i.item} name={i.name} />
@@ -415,7 +435,35 @@ function overPane(event: MouseEvent | TouchEvent): boolean {
   return !!el?.closest('.react-flow__pane') && !el.closest('.react-flow__node');
 }
 
+/** The canvas height's limits, px, and the room it leaves below for the world panels' tab row. */
+const CANVAS = { min: 320, max: 560, below: 72 };
+
+/**
+ * The canvas height: up to 560 px, but short enough that it ends inside the
+ * window with the world panels' tab row below it, so on a laptop the first
+ * screen shows the canvas's own buttons and the tabs (UV-1). Set before the
+ * first paint, so the opening view fits the final size.
+ */
+function useCanvasHeight(box: RefObject<HTMLDivElement | null>) {
+  const [height, setHeight] = useState<number>(CANVAS.max);
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const size = () => {
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      const room = Math.round(window.innerHeight - top - CANVAS.below);
+      setHeight(Math.min(CANVAS.max, Math.max(CANVAS.min, room)));
+    };
+    size();
+    window.addEventListener('resize', size);
+    return () => window.removeEventListener('resize', size);
+  }, [box]);
+  return height;
+}
+
 function Canvas(props: { layout: WorldLayout; traced: WorldGraph; actions: CanvasActions }) {
+  const box = useRef<HTMLDivElement>(null);
+  const height = useCanvasHeight(box);
   const { layout, traced } = props;
   const { connect, dropOnPane } = props.actions;
   // The factory whose raw resources show (A80); a new layout keeps it if it's still there.
@@ -474,7 +522,7 @@ function Canvas(props: { layout: WorldLayout; traced: WorldGraph; actions: Canva
     isFactory(c.source) && isFactory(c.target) && c.source !== c.target;
 
   return (
-    <div className="flow-canvas" data-testid="world-canvas">
+    <div ref={box} className="flow-canvas" data-testid="world-canvas" style={{ height }}>
       <ReactFlow<CanvasNode, CanvasEdge>
         nodes={nodes}
         edges={edges}

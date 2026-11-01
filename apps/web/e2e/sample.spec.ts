@@ -28,6 +28,10 @@ test('the README sample world opens from its link and solves without errors', as
 test('the world canvas refits as groups collapse and expand, under a docked Add factory (B3)', async ({
   page,
 }) => {
+  // Tall enough for the canvas's full 560 px: in a shorter window it shrinks
+  // to keep the panel tabs on screen (UV-1), and the sample then opens at its
+  // text floor (UX-9) rather than whole.
+  await page.setViewportSize({ width: 1280, height: 900 });
   const readme = await readFile(README, 'utf8');
   const hash = /https:\/\/charlesdr\.github\.io\/Sat-Plus-Solver\/(#w=[\w$+\-.]+)/.exec(
     readme,
