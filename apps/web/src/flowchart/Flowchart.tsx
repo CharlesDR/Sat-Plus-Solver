@@ -439,22 +439,40 @@ export function Flowchart(props: {
 /** Where the chart's pop-ups are portaled: its own root, or the page before it mounts (DF-6). */
 const PopupRoot = createContext<HTMLElement | null>(null);
 
-/** The opening view: as wide as the canvas allows, within the zoom limits. */
-function opening(layout: FactoryLayout, width: number, full = false) {
+/** Room left above the drawing for the hover-only area buttons, so they don't cover the first area's title (UV-7). */
+const AREA_BUTTONS = 48;
+/** Gap kept below the canvas, so its bottom edge shows on open (UV-5). */
+const BELOW = 16;
+
+/** Where an element starts on the page, whatever the scroll. */
+const pageTop = (el: HTMLElement) => el.getBoundingClientRect().top + window.scrollY;
+
+/**
+ * The opening view: as wide as the canvas allows, within the zoom limits.
+ * `top` is where the canvas starts on the page; `inset` leaves room for the
+ * area buttons at its top-left.
+ */
+function opening(layout: FactoryLayout, width: number, full: boolean, top: number, inset: boolean) {
   const fit = (width - 2 * PAD) / Math.max(1, layout.width);
   const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, fit));
   const drawn = { width: layout.width * zoom, height: layout.height * zoom };
+  const above = inset ? AREA_BUTTONS : PAD;
   // Tall enough for the drawing at that zoom and at least half the window, up
-  // to the window less the compact toolbar (UX-3); fullscreen fills the window.
-  const room = window.innerHeight - (full ? 2 * PAD : 120);
+  // to the window less what sits above the canvas, so its bottom edge and its
+  // zoom, fit and fullscreen buttons show on open (UX-3, UV-5); fullscreen
+  // fills the window.
+  const half = window.innerHeight / 2;
+  const room = full
+    ? window.innerHeight - 2 * PAD
+    : Math.max(half, window.innerHeight - top - BELOW);
   const height = full
     ? room
-    : Math.max(360, Math.min(Math.max(drawn.height + 2 * PAD, window.innerHeight / 2), room));
+    : Math.max(360, Math.min(Math.max(drawn.height + above + PAD, half), room));
   return {
     zoom,
     height,
     x: drawn.width < width ? (width - drawn.width) / 2 : PAD,
-    y: drawn.height < height ? (height - drawn.height) / 2 : PAD,
+    y: drawn.height + above + PAD < height ? Math.max(above, (height - drawn.height) / 2) : above,
   };
 }
 
@@ -477,25 +495,32 @@ function Canvas(props: {
   const box = useRef<HTMLDivElement>(null);
   // Measured before the first paint, so the plan opens at its view without a jump.
   const [width, setWidth] = useState<number>();
+  const [top, setTop] = useState(0);
   useLayoutEffect(() => {
     const el = box.current;
     if (!el) return;
-    setWidth(el.clientWidth);
-    const watch = new ResizeObserver(() => setWidth(el.clientWidth));
+    const measure = () => {
+      setWidth(el.clientWidth);
+      setTop(pageTop(el));
+    };
+    measure();
+    const watch = new ResizeObserver(measure);
     watch.observe(el);
     return () => watch.disconnect();
   }, []);
+  // The area buttons show at the top-left while some area can fold or unfold.
+  const inset = areas !== undefined && (areas.collapsed || areas.expanded);
   // A resize changes the canvas height only; the view moves only for a new plan.
   // A factory opens where it was last left, while its plan draws the same
   // (UX-13); a changed plan opens at its readable view.
   const view = useMemo(() => {
     if (width === undefined) return undefined;
-    const open = opening(layout, width, full);
+    const open = opening(layout, width, full, top, inset);
     const saved = viewKey !== undefined ? readViewport(viewKey) : undefined;
     return saved && saved.width === layout.width && saved.height === layout.height
       ? { ...open, x: saved.x, y: saved.y, zoom: saved.zoom }
       : open;
-  }, [layout, width, full, viewKey]);
+  }, [layout, width, full, top, inset, viewKey]);
 
   // The node or line under the pointer, and the node whose tooltip is open (A48).
   const [hoverNode, setHoverNode] = useState<string>();
@@ -673,7 +698,7 @@ function Canvas(props: {
               </ControlButton>
             </Controls>
             {tipNode && <Tooltip node={tipNode} name={name} areas={areas} />}
-            <Follow layout={layout} box={box} selection={selection} />
+            <Follow layout={layout} box={box} selection={selection} full={full} inset={inset} />
           </ReactFlow>
         )}
         {areas && (areas.collapsed || areas.expanded) && (
@@ -770,6 +795,15 @@ function Tooltip({
   const GAP = 8;
   const above = top.y - GAP - size.height >= GAP;
   const x = Math.min(Math.max(GAP, top.x - size.width / 2), window.innerWidth - size.width - GAP);
+  // Above the node, or below it when there's no room above, but always inside
+  // the window, so the pop-up stays in view wherever the node is (UV-6).
+  const y = Math.max(
+    GAP,
+    Math.min(
+      above ? top.y - GAP - size.height : bottom.y + GAP,
+      window.innerHeight - size.height - GAP,
+    ),
+  );
   const root = useContext(PopupRoot);
   return createPortal(
     <div
@@ -777,7 +811,7 @@ function Tooltip({
       className="flow-tooltip"
       role="dialog"
       aria-label={`${node.label}: exact values`}
-      style={{ left: x, top: above ? top.y - GAP - size.height : bottom.y + GAP }}
+      style={{ left: x, top: y }}
     >
       <NodeTip node={node} name={name} areas={areas} />
     </div>,
@@ -853,10 +887,14 @@ function Follow({
   layout,
   box,
   selection,
+  full,
+  inset,
 }: {
   layout: FactoryLayout;
   box: RefObject<HTMLDivElement | null>;
   selection: Selection | undefined;
+  full: boolean;
+  inset: boolean;
 }) {
   const flow = useReactFlow();
   // The first plan opened at `defaultViewport`; each later plan opens the same way.
@@ -864,9 +902,10 @@ function Follow({
   useEffect(() => {
     if (shown.current === layout || !box.current) return;
     shown.current = layout;
-    const { x, y, zoom } = opening(layout, box.current.clientWidth);
+    const el = box.current;
+    const { x, y, zoom } = opening(layout, el.clientWidth, full, pageTop(el), inset);
     void flow.setViewport({ x, y, zoom });
-  }, [flow, layout, box]);
+  }, [flow, layout, box, full, inset]);
   useEffect(() => {
     if (selection?.from !== 'table') return;
     const n = layout.nodes.find((x) => x.id === selection.id);
