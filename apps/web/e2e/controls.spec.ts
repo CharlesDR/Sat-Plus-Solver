@@ -31,6 +31,14 @@ async function settled(page: Page) {
 test('several targets are planned together', async ({ page }) => {
   await plan(page, 'Iron Plate', '60');
   await page.getByRole('button', { name: 'Add target' }).click();
+  // A new target asks for its rate: Kept, then For links, both blank.
+  const row = page.locator('.targets .row').nth(1);
+  await expect(row.locator('input[type=number]')).toHaveCount(2);
+  await expect(row.locator('label:has(input[type=number])')).toHaveText([
+    /^Kept 2/,
+    /^For links per minute 2/,
+  ]);
+  await expect(page.getByLabel('Per minute 2')).toHaveValue('');
   await page.getByLabel('Target item 2').fill('Iron Rod');
   await page.getByLabel('Per minute 2').fill('30');
   await settled(page);

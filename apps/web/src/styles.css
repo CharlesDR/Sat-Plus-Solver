@@ -818,7 +818,7 @@ label.inline {
   padding: 2px 7px;
   box-shadow: none;
 }
-/* For links and Kept share one width; the item field takes the rest (T2). */
+/* Kept and For links share one width; the item field takes the rest (T2). */
 .targets .row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 90px 90px auto;
