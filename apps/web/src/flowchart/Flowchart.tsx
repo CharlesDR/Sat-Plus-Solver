@@ -504,8 +504,11 @@ function Canvas(props: {
       setTop(pageTop(el));
     };
     measure();
+    // The page grows when a row shows above the canvas (a recipe's tweak
+    // actions, an opened section) and pushes it down; its height follows (UV-5).
     const watch = new ResizeObserver(measure);
     watch.observe(el);
+    watch.observe(document.body);
     return () => watch.disconnect();
   }, []);
   // The area buttons show at the top-left while some area can fold or unfold.

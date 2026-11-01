@@ -82,6 +82,9 @@ test('the flowchart opens with its buttons on screen, and a pick keeps it there 
   await expect(page.locator('.flow-tooltip')).toBeVisible();
   expect(await page.evaluate(() => scrollY)).toBe(0);
   expect(await shown(page, '.flow-tooltip')).toBe(1);
+  // The tweak actions now show above the chart; its buttons stay on screen.
+  await expect(page.getByRole('button', { name: /use this recipe/ })).toBeVisible();
+  await expect(chart.getByRole('button', { name: 'Fullscreen' })).toBeInViewport({ ratio: 1 });
   // Its row is still marked in the Recipes table below.
   await expect(page.locator('tr.selected')).toContainText('Cast Iron Ingot');
 });
