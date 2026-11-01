@@ -11,6 +11,12 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 5
+    ignore:
+      # TypeScript 7 is split out of the group: typescript-eslint refuses to
+      # load with it (typescript-eslint#10940), which failed lint on PR #78.
+      # Remove this once typescript-eslint supports TS 7.
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
     groups:
       npm:
         update-types: [major, minor, patch]
