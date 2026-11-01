@@ -73,9 +73,13 @@ test('Machines tab: buildings to place, materials, and what an expansion adds (T
   ).toHaveText(/^[1-9]\d*$/);
   await expect(materials.locator('thead th').last()).toHaveText('To expand');
 
-  // Left open, it is folded again after a reload.
+  // Left open, it is folded again after a reload. Its card's Open button: once
+  // the world solves, the build-drift diagnostic offers an "Open Factory" too.
   await page.reload();
-  await page.getByRole('button', { name: 'Open Factory', exact: true }).click();
+  await page
+    .getByTestId('world-canvas')
+    .getByRole('button', { name: 'Open Factory', exact: true })
+    .click();
   await expect(machines).toBeVisible();
   await expect(fold).not.toHaveAttribute('open', '');
   await expect(materials).toBeHidden();

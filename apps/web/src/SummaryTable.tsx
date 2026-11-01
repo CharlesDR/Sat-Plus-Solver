@@ -17,7 +17,7 @@ import {
   type SummaryFlow,
   type SummaryItem,
 } from '@sps/solver';
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import type { Selection } from './selection';
 import type { ScopeTotalsView, ScopeView } from './stats/scope';
 import { itemIcon } from './icons/icons';
@@ -609,16 +609,12 @@ function SelectableRow(props: {
   children: ReactNode;
 }) {
   const { id, selection, onSelect, children } = props;
+  // A node picked in the flowchart marks its row but leaves the page where it
+  // is, so the node and its pop-up stay in view (UV-6).
   const selected = selection?.id === id;
-  const ref = useRef<HTMLTableRowElement>(null);
-  // A node picked in the flowchart scrolls its row into view.
-  useEffect(() => {
-    if (selected && selection?.from === 'graph') ref.current?.scrollIntoView({ block: 'nearest' });
-  }, [selected, selection]);
   const toggle = () => onSelect(selected ? undefined : id);
   return (
     <tr
-      ref={ref}
       className={selected ? 'selectable selected' : 'selectable'}
       aria-selected={selected}
       data-node={id}
