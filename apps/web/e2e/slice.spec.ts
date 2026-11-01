@@ -147,6 +147,7 @@ test('clearing the target returns to the empty state', async ({ page }) => {
   await openFactory(page);
   const item = page.getByLabel('Target item');
   await item.fill('Iron Plate');
+  await page.getByLabel('Per minute').fill('60');
   await expect(page.getByTestId('plan')).toBeVisible();
   await item.fill('');
   await expect(page.getByText('Pick an item and a rate')).toBeVisible();

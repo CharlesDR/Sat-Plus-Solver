@@ -1,5 +1,5 @@
 import type { Target } from '@sps/world';
-import { useId, useMemo, useRef, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { readRecentTargets, withRecent, writeRecentTargets } from '../ui/prefs';
 import { CloseIcon, PlusIcon } from '../ui/icons';
 import type { CatalogItem } from '../solver/protocol';
@@ -17,7 +17,10 @@ interface Props {
 /** Hidden items a hint names before "and n more". */
 const MAX_NAMED = 4;
 
-/** A target row's draft: the For links rate in `numberText`, and Kept (A92). */
+/**
+ * A target row's draft: Kept, and the For links rate in `numberText` (A92).
+ * Both start blank, so a new target asks for its rate instead of assuming one.
+ */
 type TargetRow = DraftRow & { keptText: string };
 
 /** A rate box's value: blank is 0; `undefined` when it isn't a number ≥ 0. */
@@ -27,10 +30,17 @@ function rateOf(text: string): number | undefined {
   return Number.isFinite(n) && n >= 0 ? n : undefined;
 }
 
+const blankRow = (itemText = ''): TargetRow => ({
+  key: newRowKey(),
+  itemText,
+  numberText: '',
+  keptText: '',
+});
+
 const rowOf = (t: Target | undefined, name: (id: string) => string): TargetRow => ({
   key: newRowKey(),
   itemText: t ? name(t.item) : '',
-  numberText: String(t?.rate ?? 60),
+  numberText: t?.rate ? String(t.rate) : '',
   keptText: t?.kept ? String(t.kept) : '',
 });
 
@@ -54,7 +64,6 @@ export function TargetsEditor({ catalog, targets, maxTier, onChange }: Props) {
     if (offered.some((i) => i.name.toLowerCase().includes(q))) return [];
     return hidden.filter((i) => i.name.toLowerCase().includes(q));
   };
-  const box = useRef<HTMLFieldSetElement>(null);
   // Recently planned items as quick chips (UX-12), kept per browser.
   const [recent, setRecent] = useState(readRecentTargets);
   const [rows, setRows] = useState<TargetRow[]>(() =>
@@ -100,12 +109,14 @@ export function TargetsEditor({ catalog, targets, maxTier, onChange }: Props) {
     update(
       last && last.itemText.trim() === ''
         ? rows.map((r) => (r === last ? { ...r, itemText: name } : r))
-        : [...rows, { key: newRowKey(), itemText: name, numberText: '60', keptText: '' }],
+        : [...rows, blankRow(name)],
     );
   };
-  const chips = recent.filter((id) => items.find(id) && !targets.some((t) => t.item === id));
-  const addRow = () =>
-    update([...rows, { key: newRowKey(), itemText: '', numberText: '60', keptText: '' }]);
+  // A chip's item already in a row, rate typed or not, isn't offered again.
+  const chips = recent.filter(
+    (id) => items.find(id) && !rows.some((r) => items.find(r.itemText)?.id === id),
+  );
+  const addRow = () => update([...rows, blankRow()]);
 
   // Targets changed elsewhere (quick search, a loaded world): show them. This
   // adjusts state while rendering, React's pattern for following a prop.
@@ -115,11 +126,17 @@ export function TargetsEditor({ catalog, targets, maxTier, onChange }: Props) {
     if (!sameAs(validOf(rows)))
       setRows((targets.length ? targets : [undefined]).map((t) => rowOf(t, items.name)));
   }
+  /** Selects the rate box after `from` in its row (Kept, then For links). */
+  const nextRate = (from: HTMLInputElement) => {
+    const rates = from.closest('.row')?.querySelectorAll<HTMLInputElement>('input[type=number]');
+    const all = rates ? [...rates] : [];
+    all[all.indexOf(from) + 1]?.select();
+  };
   const edit = (key: number, patch: Partial<TargetRow>) =>
     update(rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
 
   return (
-    <fieldset className="targets" ref={box}>
+    <fieldset className="targets">
       <legend>Targets</legend>
       <datalist id={listId}>
         {offered.map((c) => (
@@ -142,31 +159,11 @@ export function TargetsEditor({ catalog, targets, maxTier, onChange }: Props) {
                 placeholder="Search items…"
                 aria-invalid={unknown}
                 onChange={(e) => edit(r.key, { itemText: e.target.value })}
-                // Enter on a known item goes on to its rate (UX-12).
+                // Enter on a known item goes on to its first rate (UX-12).
                 onKeyDown={(e) => {
                   if (e.key !== 'Enter' || !items.find(r.itemText)) return;
                   e.preventDefault();
-                  const rates =
-                    box.current?.querySelectorAll<HTMLInputElement>('input[type=number]');
-                  rates?.[k]?.select();
-                }}
-              />
-            </label>
-            <label data-help="target-for-links">
-              <span className="sub-label">For links</span> per minute{n}
-              <input
-                type="number"
-                min="0"
-                step="any"
-                value={r.numberText}
-                aria-invalid={rateOf(r.numberText) === undefined}
-                onChange={(e) => edit(r.key, { numberText: e.target.value })}
-                // Enter in the last rate adds the next target.
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && k === rows.length - 1) {
-                    e.preventDefault();
-                    addRow();
-                  }
+                  nextRate(e.currentTarget);
                 }}
               />
             </label>
@@ -180,6 +177,30 @@ export function TargetsEditor({ catalog, targets, maxTier, onChange }: Props) {
                 value={r.keptText}
                 aria-invalid={rateOf(r.keptText) === undefined}
                 onChange={(e) => edit(r.key, { keptText: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter') return;
+                  e.preventDefault();
+                  nextRate(e.currentTarget);
+                }}
+              />
+            </label>
+            <label data-help="target-for-links">
+              <span className="sub-label">For links</span> per minute{n}
+              <input
+                type="number"
+                min="0"
+                step="any"
+                placeholder="0"
+                value={r.numberText}
+                aria-invalid={rateOf(r.numberText) === undefined}
+                onChange={(e) => edit(r.key, { numberText: e.target.value })}
+                // Enter in the last rate adds the next target.
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && k === rows.length - 1) {
+                    e.preventDefault();
+                    addRow();
+                  }
+                }}
               />
             </label>
             {rows.length > 1 && (
@@ -225,7 +246,7 @@ export function TargetsEditor({ catalog, targets, maxTier, onChange }: Props) {
               key={id}
               type="button"
               className="chip"
-              title={`Add ${items.name(id)} at 60/min`}
+              title={`Add ${items.name(id)}`}
               onClick={() => addItem(id)}
             >
               <PlusIcon /> {items.name(id)}
