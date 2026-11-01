@@ -51,11 +51,17 @@ test('the world canvas, its buttons and the panel tabs fit the first screen (UV-
 });
 
 test('a wide world table scrolls in its panel, not the page (UV-3)', async ({ page }) => {
-  await page.setViewportSize({ width: 1024, height: 768 });
+  // Narrow enough that the Factories table overflows its panel with any fonts
+  // (at 1024 px it does with some and not others).
+  await page.setViewportSize({ width: 800, height: 768 });
   await openSample(page);
   await page.getByRole('tab', { name: /^Factories/ }).click();
   await expect(page.getByRole('table', { name: 'Factories' })).toBeVisible();
   await animationsDone(page);
+  const [table, box] = await page
+    .getByRole('tabpanel')
+    .evaluate((e) => [e.scrollWidth, e.clientWidth]);
+  expect(table).toBeGreaterThan(box!);
   const wide = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
   expect(wide).toBeLessThanOrEqual(0);
   // Its row buttons are reached by scrolling the panel sideways.
