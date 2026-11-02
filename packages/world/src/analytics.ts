@@ -262,7 +262,14 @@ export function analyze(
         id: f.id,
         name: f.name,
         ...(targets.length ? { targets } : {}),
-        ...(pass.held.has(f.id) ? { held: true as const } : {}),
+        ...(pass.held.has(f.id)
+          ? {
+              held: true as const,
+              heldCaps: [...pass.held.get(f.id)!]
+                .map(([item, rate]) => ({ item, rate }))
+                .sort((a, b) => byKey(a.item, b.item)),
+            }
+          : {}),
         ...(f.groupId !== undefined ? { groupId: f.groupId } : {}),
         ...(f.parentId !== undefined && world.factories.some((p) => p.id === f.parentId)
           ? { parentId: f.parentId }
@@ -408,8 +415,9 @@ export function analyze(
 
 /**
  * Held built factories that can't keep up (A92): per factory and item, its
- * short pull links, the factories they feed and those further downstream on
- * pull links, and the held factories upstream that scaling it up may drag along.
+ * short links (pull links beyond its cap, and fixed links above it, A104),
+ * the factories they feed and those further downstream on pull links, and
+ * the held factories upstream that scaling it up may drag along.
  */
 function shortfalls(links: readonly LinkResult[], pass: Pass): Shortfall[] {
   const pulls = links.filter((l) => l.mode === 'pull');
@@ -426,8 +434,12 @@ function shortfalls(links: readonly LinkResult[], pass: Pass): Shortfall[] {
     return [...seen].sort();
   };
   const groups = new Map<string, LinkResult[]>();
-  for (const l of pulls)
-    if (pass.held.has(l.from) && l.short > FLOW_TOL * Math.max(1, l.requested)) {
+  for (const l of links)
+    if (
+      (l.mode === 'pull' || l.mode === 'fixed') &&
+      pass.held.has(l.from) &&
+      l.short > FLOW_TOL * Math.max(1, l.requested)
+    ) {
       const k = `${l.from}\n${l.item}`;
       groups.set(k, [...(groups.get(k) ?? []), l]);
     }
@@ -436,13 +448,23 @@ function shortfalls(links: readonly LinkResult[], pass: Pass): Shortfall[] {
     .map(([, short]) => {
       const { from: factory, item } = short[0]!;
       const consumers = [...new Set(short.map((l) => l.to))].sort();
-      const fed = pulls.filter((l) => l.from === factory && l.item === item);
+      const fixed = short.filter((l) => l.mode === 'fixed').sort((a, b) => byKey(a.id, b.id));
+      // Fixed links above the cap leave nothing to pull links: they hold all of it.
+      const fed = links.filter(
+        (l) =>
+          l.from === factory &&
+          l.item === item &&
+          (l.mode === 'pull' || (fixed.length > 0 && l.mode === 'fixed')),
+      );
       return {
         factory,
         item,
         missing: short.reduce((s, l) => s + l.short, 0),
         holds: fed.reduce((s, l) => s + l.delivered, 0),
         links: short.map((l) => l.id).sort(),
+        ...(fixed.length
+          ? { fixed: fixed.map((l) => ({ link: l.id, delivered: l.delivered })) }
+          : {}),
         consumers,
         downstream: reach(consumers, (id) =>
           pulls.filter((l) => l.from === id).map((l) => l.to),
