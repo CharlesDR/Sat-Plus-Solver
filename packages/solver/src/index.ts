@@ -59,6 +59,7 @@ export type * from './factory/types';
 export {
   summarizePlan,
   recipeTable,
+  alternateMark,
   buildBill,
   mergeBills,
   buildingTable,

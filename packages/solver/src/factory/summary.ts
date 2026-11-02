@@ -3,7 +3,7 @@
  * (`pnpm solve`) and the web summary table, so both show the same numbers.
  * Names are resolved against the model; numbers stay numeric (use `formatRate` or `formatExact`).
  */
-import type { Model } from '@sps/data';
+import type { Model, Recipe, RecipeUnlock } from '@sps/data';
 import { formatExact, formatQuiet, formatRate, groupThousands } from './numbers';
 import type { Diagnostic, ObjectiveId, PowerSummary, SolveResult, SolveStatus } from './types';
 
@@ -24,6 +24,10 @@ export interface SummaryRecipe {
   outputs: SummaryFlow[];
   /** Extraction recipes: the node class they draw on. */
   node?: string;
+  /** An alternate recipe (DF-10); absent for a standard one. */
+  alternate?: true;
+  /** How an alternate is unlocked (A82), when known. */
+  unlock?: RecipeUnlock;
 }
 
 export interface SummaryFlow {
@@ -129,6 +133,7 @@ export function summarizePlan(
   const item = new Map(model.items.map((i) => [i.id, i.name]));
   const machine = new Map(model.machines.map((m) => [m.id, m.name]));
   const node = new Map(model.nodes.map((n) => [n.id, n]));
+  const recipe = new Map(model.recipes.map((r) => [r.id, r]));
   const name = (id: string) => item.get(id) ?? id;
   const flow = (id: string, rate: number): SummaryFlow => ({ item: id, name: name(id), rate });
   const per = new Map(model.items.flatMap((i) => (i.per ? [[i.id, name(i.per)] as const] : [])));
@@ -153,6 +158,7 @@ export function summarizePlan(
       inputs: r.inputs.filter((f) => f.item !== MW).map((f) => flow(f.item, f.rate)),
       outputs: r.outputs.filter((f) => f.item !== MW).map((f) => flow(f.item, f.rate)),
       ...(r.node !== undefined ? { node: r.node } : {}),
+      ...alternateOf(recipe.get(r.id)),
     })),
     targets: result.items.filter((i) => i.demand > 0).map((i) => target(i.item, i.demand)),
     imports: result.imports.map((r) => flow(r.item, r.rate)),
@@ -190,6 +196,24 @@ export function summarizePlan(
     ),
   };
 }
+
+/**
+ * What marks an alternate in the Recipe column (DF-10): "alternate · T5 MAM",
+ * or "alternate" when its unlock is unknown (A82). The CLI writes it in
+ * brackets after the name; the page shows it as a badge.
+ */
+export function alternateMark(r: {
+  alternate?: boolean | undefined;
+  unlock?: RecipeUnlock | undefined;
+}): string | undefined {
+  if (!r.alternate) return undefined;
+  if (!r.unlock) return 'alternate';
+  return `alternate · T${r.unlock.tier} ${r.unlock.via === 'mam' ? 'MAM' : 'hard drive'}`;
+}
+
+/** A recipe's alternate flag and unlock (DF-10), only for an alternate. */
+const alternateOf = (r: Recipe | undefined): Pick<SummaryRecipe, 'alternate' | 'unlock'> =>
+  r?.alternate ? { alternate: true, ...(r.unlock ? { unlock: { ...r.unlock } } : {}) } : {};
 
 /** Whole buildings for `machines` running machines, as a plan's Build column counts them. */
 export const wholeBuildings = (machines: number) => Math.ceil(machines - 1e-6);
@@ -324,7 +348,7 @@ export function recipeTable(
       'MW',
     ],
     rows: plan.recipes.map((r) => [
-      r.name,
+      alternateMark(r) ? `${r.name} (${alternateMark(r)})` : r.name,
       r.machine,
       ...(io ? [flowsText(r.inputs, format.rate), flowsText(r.outputs, format.rate)] : []),
       format.exact(r.machines),
