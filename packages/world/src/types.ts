@@ -110,8 +110,10 @@ export interface FactoryResult extends ScopeTotals {
   build?: BuildCheck;
   /** Its targets split (A92), by item, sorted; missing when it has none. */
   targets?: TargetSplit[];
-  /** Built and held at its build (A92): pull links take at most the built For links rate. */
+  /** Built and held at its build (A92): its links take at most the built For links rate. */
   held?: true;
+  /** Held: per item, what its links may take, fixed and pull together (A104), sorted. */
+  heldCaps?: ItemRate[];
 }
 
 /**
@@ -138,10 +140,15 @@ export interface Shortfall {
   item: string;
   /** Per minute asked beyond what it ships. */
   missing: number;
-  /** What its pull links may take of the item: its built For links rate less its fixed links. */
+  /**
+   * What its pull links may take of the item: its cap less its fixed links;
+   * with fixed links above the cap (A104), the whole cap.
+   */
   holds: number;
   /** Its short links, sorted. */
   links: string[];
+  /** Its fixed links above its cap (A104), by id, with what each ships; absent when none. */
+  fixed?: { link: string; delivered: number }[];
   /** Factories its short links feed, sorted. */
   consumers: string[];
   /** Factories further downstream on pull links that feel it, sorted. */

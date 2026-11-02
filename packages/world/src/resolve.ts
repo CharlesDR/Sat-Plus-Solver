@@ -19,6 +19,7 @@ import {
 import { analyze } from './analytics';
 import { factorySolveRequest, type Link, type ManualEntry, type World } from './document';
 import { createSolveCache, solveKey, type SolveCache } from './hash';
+import { holdCaps, isHeld } from './hold';
 import { manualEntries, manualOutcome, type ManualOutcome } from './manual';
 import type { SolveFactory, WorldDiagnostic, WorldResult } from './types';
 
@@ -88,8 +89,8 @@ export interface Pass {
    * took from the sub-factory's surplus on the parent's last solve.
    */
   drawn: Map<string, Map<string, number>>;
-  /** Built factories held at their build (A92). */
-  held: Set<string>;
+  /** Built factories held at their build (A92): per item, what their links may take (A104). */
+  held: Map<string, Map<string, number>>;
   diagnostics: WorldDiagnostic[];
 }
 
@@ -113,8 +114,12 @@ interface Context {
    * together, the built For links rate less their fixed links.
    */
   held: Map<string, Map<string, number>>;
+  /** Held built factories: per item, what all their links may take (`holdCaps`, A104). */
+  caps: Map<string, Map<string, number>>;
   /** Pull links out of a held factory: each one's share of that cap, for the remainder rule. */
   heldShare: Map<string, number>;
+  /** Fixed links out of a held factory above its cap (A104): the share of the cap each ships. */
+  heldFixed: Map<string, number>;
   /** Producer → items and objectives its linked consumers are costed under. */
   needs: Map<string, { items: Set<string>; objectives: Set<ObjectiveId> }>;
   run: (request: SolveRequest) => Promise<{ key: string; result: Solved['result'] }>;
@@ -191,7 +196,7 @@ export async function resolveWorld(
       factories.flatMap((f) => (f.manual?.enabled ? [[f.id, manualEntries(f.manual)]] : [])),
     ),
     ...nesting(world, diagnostics),
-    ...holds(world, links),
+    ...holds(world, model, links),
     needs: new Map(),
     async run(request) {
       const { key, canonical } = solveKey(model.meta.dataHash, request);
@@ -275,19 +280,22 @@ function group<T>(xs: readonly T[], key: (x: T) => string): Map<string, T[]> {
 
 /**
  * Targets split into For links and Kept, and the held built factories'
- * caps (A92): under "Built factories: Hold", a factory marked as built (and
- * not scaled up, nor in manual mode) lets its pull links take at most its
- * built For links rate (`outputs − kept` of the build mark) less what its
- * fixed links take, per item.
+ * caps (A92, A104): under "Built factories: Hold", a factory marked as built
+ * (and not scaled up, nor in manual mode) lets its links take at most its
+ * cap per item (`holdCaps`: the built For links rate, or what its build
+ * leaves over when that is more). Fixed links come first and share the cap
+ * by rate when they ask for more; pull links share what fixed links leave.
  */
 function holds(
   world: World,
+  model: Model,
   links: readonly Link[],
-): Pick<Context, 'split' | 'held' | 'heldShare'> {
+): Pick<Context, 'split' | 'held' | 'caps' | 'heldShare' | 'heldFixed'> {
   const split = new Map<string, Map<string, { forLinks: number; kept: number }>>();
   const held = new Map<string, Map<string, number>>();
+  const caps = new Map<string, Map<string, number>>();
   const heldShare = new Map<string, number>();
-  const hold = (world.defaults.builtFactories ?? 'hold') === 'hold';
+  const heldFixed = new Map<string, number>();
   for (const f of world.factories) {
     const m = new Map<string, { forLinks: number; kept: number }>();
     for (const t of f.request.targets) {
@@ -295,27 +303,36 @@ function holds(
       m.set(t.item, { forLinks: s.forLinks + t.rate, kept: s.kept + (t.kept ?? 0) });
     }
     split.set(f.id, m);
-    if (!hold || !f.built || f.built.grow || f.manual?.enabled) continue;
-    const caps = new Map<string, number>();
-    for (const o of f.built.outputs) caps.set(o.item, o.rate);
-    for (const k of f.built.kept ?? []) caps.set(k.item, (caps.get(k.item) ?? 0) - k.rate);
+    if (!isHeld(world, f)) continue;
+    const all = holdCaps(f, model);
+    caps.set(f.id, all);
     const out = links.filter((l) => l.from === f.id);
-    for (const l of out)
-      if (l.mode.kind === 'fixed') caps.set(l.item, (caps.get(l.item) ?? 0) - l.mode.rate);
+    const left = new Map(all);
+    for (const item of new Set(out.map((l) => l.item))) {
+      const fixed = out.filter((l) => l.item === item && l.mode.kind === 'fixed');
+      const total = fixed.reduce((s, l) => s + fixedRate(l), 0);
+      const c = all.get(item) ?? 0;
+      if (total > c * (1 + 1e-9) + MIN_RATE)
+        for (const l of fixed) heldFixed.set(l.id, (fixedRate(l) * c) / total);
+      left.set(item, Math.max(0, c - total));
+    }
     const pulls = out.filter((l) => l.mode.kind === 'pull');
     const cap = new Map<string, number>();
-    for (const l of pulls) cap.set(l.item, Math.max(0, caps.get(l.item) ?? 0));
+    for (const l of pulls) cap.set(l.item, left.get(l.item) ?? 0);
     held.set(f.id, cap);
     for (const l of pulls)
       heldShare.set(l.id, cap.get(l.item)! / pulls.filter((p) => p.item === l.item).length);
   }
-  return { split, held, heldShare };
+  return { split, held, caps, heldShare, heldFixed };
 }
+
+const fixedRate = (l: Link): number => (l.mode.kind === 'fixed' ? l.mode.rate : 0);
 
 /**
  * What each outgoing link asks of `id` in its request: fixed links their
- * rate, pull links their resolved rate; a held factory's pull links of an
- * item share its cap in proportion when they ask for more (A92).
+ * rate, pull links their resolved rate; a held factory's fixed links ship
+ * at most its cap (A104), and its pull links of an item share what they
+ * leave in proportion when they ask for more (A92).
  */
 function outRates(
   ctx: Context,
@@ -325,7 +342,10 @@ function outRates(
   const out = new Map<string, number>();
   const links = ctx.out.get(id) ?? [];
   for (const l of links)
-    out.set(l.id, l.mode.kind === 'fixed' ? l.mode.rate : (pull.get(l.id) ?? 0));
+    out.set(
+      l.id,
+      l.mode.kind === 'fixed' ? (ctx.heldFixed.get(l.id) ?? l.mode.rate) : (pull.get(l.id) ?? 0),
+    );
   const cap = ctx.held.get(id);
   if (cap)
     for (const [item, c] of cap) {
@@ -396,7 +416,7 @@ async function resolvePass(
     used: new Map(),
     delivered: new Map(),
     drawn: new Map(),
-    held: new Set(ctx.held.keys()),
+    held: ctx.caps,
     diagnostics: [],
   };
   const pull = new Map<string, number>();
@@ -431,10 +451,10 @@ async function resolvePass(
     }
     const { key, result } = await ctx.run(request);
     pass.solved.set(id, { request, key, result });
-    // A held factory ships at most its cap; the rest of a pull is short (A92).
+    // A held factory ships at most its cap; the rest of a link is short (A92, A104).
     if (ctx.held.has(id))
       for (const l of ctx.out.get(id) ?? [])
-        if (l.mode.kind === 'pull') {
+        if (l.mode.kind === 'pull' || ctx.heldFixed.has(l.id)) {
           const give = rates.get(l.id)!;
           pass.delivered.set(l.id, result.status === 'ok' ? (give >= MIN_RATE ? give : 0) : 0);
         }

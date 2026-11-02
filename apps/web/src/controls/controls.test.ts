@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { OBJECTIVE_IDS } from '@sps/solver';
 import { addObjective, moveObjective, OBJECTIVE_ORDER } from './ObjectiveStack';
 import { asPercent } from './ToleranceInput';
+import { objectiveOrder } from './SettingsPanel';
 import type { CatalogResource } from '../solver/protocol';
 import { limitsLabel, mapMax, rawResourcesOf, setEnabled, setMax } from './resourceLimits';
 
@@ -75,5 +76,13 @@ describe('resource limits (A33)', () => {
     expect(limitsLabel({ water: { enabled: false }, 'iron-ore': { enabled: true, max: 5 } })).toBe(
       '1 off, 1 limited',
     );
+  });
+});
+
+describe('the closed Objectives header (DF-8)', () => {
+  test('names the objective order', () => {
+    expect(objectiveOrder(['scarcity', 'power'])).toBe('Scarcity, then Power');
+    expect(objectiveOrder(['resources'])).toBe('Raw resources');
+    expect(objectiveOrder([])).toBe('none');
   });
 });

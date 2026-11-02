@@ -138,6 +138,19 @@ export interface ManualOutcome {
 }
 
 /**
+ * What `n` machines of a recipe take and make per minute. Heaters (A17):
+ * fuel and exhaust for every whole heater, the boiler pair at `n`.
+ */
+export function entryFlows(r: Recipe, n: number): { inputs: ItemRate[]; outputs: ItemRate[] } {
+  const whole = Math.ceil(n - 1e-6);
+  const rate = (f: Recipe['inputs'][number]) => f.rate * (f.heater ? whole : n);
+  return {
+    inputs: r.inputs.map((f) => ({ item: f.item, rate: rate(f) })),
+    outputs: r.outputs.map((f) => ({ item: f.item, rate: rate(f) })),
+  };
+}
+
+/**
  * The arithmetic of a manual plan under a world request: `request.targets`
  * are served first, then `request.demand` (outgoing links), then `later`
  * (in the world, the For links rate links leave spare, A92), which counts
@@ -168,11 +181,8 @@ export function manualOutcome(
     const r = recipes.get(e.recipe);
     if (!r || !(e.machines > EPS)) continue;
     const n = e.machines;
-    // Heaters (A17): fuel and exhaust for every whole heater, the boiler pair at n.
     const whole = Math.ceil(n - 1e-6);
-    const rate = (f: Recipe['inputs'][number]) => f.rate * (f.heater ? whole : n);
-    const inputs = r.inputs.map((f) => ({ item: f.item, rate: rate(f) }));
-    const outputs = r.outputs.map((f) => ({ item: f.item, rate: rate(f) }));
+    const { inputs, outputs } = entryFlows(r, n);
     for (const f of outputs) add(produced, f.item, f.rate);
     for (const f of inputs) add(consumed, f.item, f.rate);
     if (outside && r.route?.fluid)

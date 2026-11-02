@@ -11,6 +11,16 @@ export const OBJECTIVE_LABELS: Record<ObjectiveId, string> = {
   resourceTypes: 'Fewest resource types',
 };
 
+/** Short names, for a closed Objectives section's header (DF-8). */
+export const OBJECTIVE_SHORT: Record<ObjectiveId, string> = {
+  resources: 'Raw resources',
+  scarcity: 'Scarcity',
+  machines: 'Machines',
+  power: 'Power',
+  output: 'Output',
+  resourceTypes: 'Resource types',
+};
+
 export const OBJECTIVE_CODES: Record<ObjectiveId, string> = {
   resources: 'O1',
   scarcity: 'O2',

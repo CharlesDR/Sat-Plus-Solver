@@ -1,3 +1,4 @@
+import { alternateMark } from '@sps/solver';
 import type { CatalogRecipe } from '../solver/protocol';
 
 /** What an alternate's unlock reads as (A82): "T5 MAM", "T7 hard drive". */
@@ -15,17 +16,12 @@ export function unlockLabel(unlock: NonNullable<CatalogRecipe['unlock']>): {
 }
 
 /** The "alternate" badge, with the tier and way it is unlocked when known. */
-export function AlternateBadge({
-  recipe,
-}: {
-  recipe: Pick<CatalogRecipe, 'alternate' | 'unlock'>;
-}) {
-  if (!recipe.alternate) return null;
-  if (!recipe.unlock) return <span className="badge">alternate</span>;
-  const { text, title } = unlockLabel(recipe.unlock);
+export function AlternateBadge({ recipe }: { recipe: Parameters<typeof alternateMark>[0] }) {
+  const mark = alternateMark(recipe);
+  if (!mark) return null;
   return (
-    <span className="badge" title={title}>
-      alternate · {text}
+    <span className="badge" {...(recipe.unlock ? { title: unlockLabel(recipe.unlock).title } : {})}>
+      {mark}
     </span>
   );
 }

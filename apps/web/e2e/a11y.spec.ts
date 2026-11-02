@@ -53,7 +53,10 @@ test('factory view with a plan, diagnostics and every section open is axe-clean'
 
   await page.getByLabel('Target item').fill('Reinforced Iron Plate');
   await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
-  for (const s of await page.locator('.controls details summary').all()) await toggleSection(s);
+  // Open every closed section; Objectives starts open (DF-8).
+  for (const s of await page.locator('.controls details summary').all())
+    if (!(await s.evaluate((el) => (el.parentElement as HTMLDetailsElement).open)))
+      await toggleSection(s);
   await expect(page.locator('.react-flow__node').first()).toBeVisible();
   await axe(page, 'the factory view');
 });

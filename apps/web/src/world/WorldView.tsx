@@ -7,10 +7,15 @@ import { worldGraph, type LayoutEngine } from '@sps/graph';
 import {
   addFactory,
   addLink,
+  fixedOverruns,
+  holdCaps,
   MINER_SUPPORT_NAME,
+  scaleUp,
   unwiredMinerNeeds,
+  updateLink,
   wireMinerSupport,
   type LinkSpec,
+  type Overrun,
   type World,
 } from '@sps/world';
 import { lazy, Suspense, useCallback, useEffect, useId, useMemo, useState } from 'react';
@@ -23,6 +28,7 @@ import type { Catalog, WorldAction, WorldSummary } from '../solver/protocol';
 import type { SolveOutcome } from '../solver/client';
 import type { WorldStore } from '../store';
 import type { WorldPlanState } from '../useWorldPlan';
+import { GrowDialog } from './GrowDialog';
 import { LinkEditor, type LinkDraft } from './LinkEditor';
 import {
   FactoriesPanel,
@@ -31,9 +37,10 @@ import {
   LinksPanel,
   NodesPanel,
   PowerPanel,
+  SparePanel,
 } from './Panels';
 import { ShortfallPanel } from './ShortfallPanel';
-import { productsOf, traceableItems, transportTiers, worldStatus } from './viewModel';
+import { productsOf, spareRows, traceableItems, transportTiers, worldStatus } from './viewModel';
 import { SHOW_TRANSPORT } from '../flags';
 import { StatusChip } from '../ui/StatusChip';
 import type { CanvasActions } from './WorldCanvas';
@@ -45,7 +52,16 @@ import { offBuildText } from '../build/build';
 // U3: the canvas (React Flow) loads once there is a world to draw.
 const WorldCanvas = lazy(() => import('./WorldCanvas').then((m) => ({ default: m.WorldCanvas })));
 
-const TABS = ['Ledger', 'Factories', 'Links', 'Shortfalls', 'Power', 'Nodes', 'Groups'] as const;
+const TABS = [
+  'Ledger',
+  'Factories',
+  'Links',
+  'Shortfalls',
+  'Spare',
+  'Power',
+  'Nodes',
+  'Groups',
+] as const;
 type Tab = (typeof TABS)[number];
 
 /** What the empty-world start screen offers besides opening a factory (N7). */
@@ -169,11 +185,39 @@ export function WorldView(props: {
   );
 
   const names = useNames(catalog, world);
+  // BF-1 (A104): a link edit that grows a held built factory waits for a yes.
+  const [grow, setGrow] = useState<{
+    world: World;
+    id: string;
+    isNew: boolean;
+    overruns: Overrun[];
+  }>();
+  /** What a held factory's links may take of a part: the last solve's cap, else its build mark's. */
+  const capOf = (factory: string, item: string): number => {
+    const solved = summary?.factories.find((f) => f.id === factory)?.heldCaps;
+    if (solved) return solved.find((c) => c.item === item)?.rate ?? 0;
+    const f = world.factories.find((x) => x.id === factory);
+    return (f && holdCaps(f).get(item)) ?? 0;
+  };
+  /** Applies a link edit as one undo step; a new link is marked in the Links tab. */
+  const commitLink = (next: World, added: string | undefined) => {
+    store.getState().replaceWorld(next);
+    if (added !== undefined) {
+      setDrawn(added);
+      setTab('Links');
+    }
+    setGrow(undefined);
+    setDraft(undefined);
+  };
   // Miner fluid supplied from outside (A69) that no Miner support link brings in yet (A71).
   const unwired = summary ? unwiredMinerNeeds(world, summary).length : 0;
   // A new world: nothing to plan until a factory gets a target or a link.
   const unplanned =
     world.links.length === 0 && world.factories.every((f) => f.request.targets.length === 0);
+  const spare = useMemo(
+    () => (summary ? spareRows(summary, names.factory, names.item).length : 0),
+    [summary, names],
+  );
   const count = (t: Tab) =>
     t === 'Factories'
       ? world.factories.length
@@ -183,7 +227,9 @@ export function WorldView(props: {
           ? world.groups.length
           : t === 'Shortfalls' && summary?.shortfalls.length
             ? summary.shortfalls.length
-            : undefined;
+            : t === 'Spare' && spare
+              ? spare
+              : undefined;
   const fix = (f: Fix) => {
     if (f.kind === 'open-factory') onOpen(f.factory);
     else if (f.kind === 'remove-link') store.getState().removeLink(f.link);
@@ -485,14 +531,26 @@ export function WorldView(props: {
           catalog={catalog}
           draft={draft}
           onSave={(spec, id) => {
-            const s = store.getState();
-            if (id === undefined) {
-              setDrawn(s.addLink(spec));
-              setTab('Links');
-            } else s.updateLink(id, spec);
-            setDraft(undefined);
+            // Throws on a bad spec; the editor shows the message.
+            const after =
+              id === undefined ? addLink(world, spec) : { world: updateLink(world, id, spec), id };
+            const overruns = fixedOverruns(world, after.world, capOf);
+            if (overruns.length) return setGrow({ ...after, isNew: id === undefined, overruns });
+            commitLink(after.world, id === undefined ? after.id : undefined);
           }}
           onCancel={() => setDraft(undefined)}
+        />
+      )}
+      {grow && (
+        <GrowDialog
+          overruns={grow.overruns}
+          factoryName={names.factory}
+          itemName={itemName}
+          onCancel={() => setGrow(undefined)}
+          onProceed={() => {
+            const ids = grow.overruns.flatMap((o) => [o.factory, ...o.upstream]);
+            commitLink(scaleUp(grow.world, ids), grow.isNew ? grow.id : undefined);
+          }}
         />
       )}
       <div className="tabs-row">
@@ -601,6 +659,17 @@ export function WorldView(props: {
               catalog={catalog}
               itemName={itemName}
               run={props.run}
+            />
+          )}
+          {tab === 'Spare' && (
+            <SparePanel
+              world={world}
+              summary={summary}
+              itemName={itemName}
+              onLink={(from, item) => {
+                const to = world.factories.find((f) => f.id !== from);
+                if (to) setDraft({ from, to: to.id, item });
+              }}
             />
           )}
           {tab === 'Power' && (

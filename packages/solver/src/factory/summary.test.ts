@@ -1,11 +1,17 @@
+import type { Model } from '@sps/data';
 import { expect, test } from 'vitest';
+import vanillaMini from '../../../../fixtures/vanilla-mini/model.json';
+import { createHighsBackend } from '../lp/highs';
+import { solve } from './solve';
 import {
+  alternateMark,
   buildBill,
   buildingTable,
   materialTable,
   mergeBills,
   QUIET_NUMBERS,
   recipeTable,
+  summarizePlan,
   type PlanSummary,
 } from './summary';
 
@@ -181,4 +187,50 @@ test('mergeBills: several factories sum per building (A81)', () => {
     amount: 80,
     expand: 20,
   });
+});
+
+test('recipeTable marks an alternate after its name, as the page badge reads (DF-10)', () => {
+  const alt = {
+    ...smelter,
+    id: 'pure-iron-ingot',
+    name: 'Pure Iron Ingot',
+    alternate: true as const,
+    unlock: { via: 'mam' as const, tier: 5, schematic: 'Alternate: Pure Iron Ingot' },
+  };
+  expect(alternateMark({ alternate: false })).toBeUndefined();
+  expect(alternateMark(alt)).toBe('alternate · T5 MAM');
+  expect(alternateMark({ alternate: true, unlock: { ...alt.unlock, via: 'hard-drive' } })).toBe(
+    'alternate · T5 hard drive',
+  );
+  expect(alternateMark({ alternate: true })).toBe('alternate');
+  expect(recipeTable(plan([smelter, alt])).rows.map((r) => r[0])).toEqual([
+    'Iron Ingot',
+    'Pure Iron Ingot (alternate · T5 MAM)',
+  ]);
+});
+
+test("summarizePlan flags the plan's alternates with their unlock (DF-10)", async () => {
+  const model = vanillaMini as Model;
+  const withUnlock: Model = {
+    ...model,
+    recipes: model.recipes.map((r) =>
+      r.id === 'cast-screw'
+        ? { ...r, unlock: { via: 'hard-drive', tier: 2, schematic: 'Alternate: Cast Screw' } }
+        : r,
+    ),
+  };
+  const result = await solve(
+    withUnlock,
+    {
+      targets: [{ item: 'screw', rate: 50 }],
+      recipes: { include: ['cast-screw'], exclude: ['screw'] },
+    },
+    createHighsBackend(),
+  );
+  const recipes = summarizePlan(withUnlock, result).recipes;
+  expect(recipes.find((r) => r.id === 'cast-screw')).toMatchObject({
+    alternate: true,
+    unlock: { via: 'hard-drive', tier: 2, schematic: 'Alternate: Cast Screw' },
+  });
+  for (const r of recipes.filter((x) => x.id !== 'cast-screw')) expect(r.alternate).toBeUndefined();
 });
