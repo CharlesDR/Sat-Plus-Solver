@@ -3,6 +3,7 @@
  * shows, computed from the world summary and the document, so they can be
  * tested without a browser.
  */
+import { MW_ITEM_ID } from '@sps/data';
 import { countText } from '@sps/graph';
 import type { PowerSummary } from '@sps/solver';
 import {
@@ -100,6 +101,47 @@ export function spareFrom(
 
 /** A fixed rate that never asks the source for more: `spare` rounded down to 0.01/min (DF-4). */
 export const fixedDefault = (spare: number): number => Math.floor(spare * 100 + 1e-9) / 100;
+
+/** One row of the Spare tab (SC-1): what a factory makes of a part that nothing takes. */
+export interface SpareRow {
+  factory: string;
+  item: string;
+  /** Per minute, as a new link would take it (`fixedDefault`). */
+  rate: number;
+  /** A target's For links rate that no link takes (A92), or other surplus such as a byproduct. */
+  kind: 'for-links' | 'surplus';
+}
+
+/**
+ * The Spare tab (SC-1): per factory and part, what it has spare for a new
+ * link, as the link editor offers it (A102): a target's untaken For links
+ * rate, otherwise its surplus. Rows below 0.01/min are left out. Sorted by
+ * factory name, then part name.
+ */
+export function spareRows(
+  summary: WorldSummary,
+  factoryName: (id: string) => string,
+  itemName: (id: string) => string,
+): SpareRow[] {
+  const rows: SpareRow[] = [];
+  for (const f of summary.factories) {
+    const targets = new Set(f.targets?.map((t) => t.item));
+    const add = (item: string, spare: number, kind: SpareRow['kind']) => {
+      const rate = fixedDefault(spare);
+      if (rate > 0 && item !== MW_ITEM_ID) rows.push({ factory: f.id, item, rate, kind });
+    };
+    for (const t of f.targets ?? []) add(t.item, t.spare, 'for-links');
+    for (const r of f.ledger) if (!targets.has(r.item)) add(r.item, r.surplus, 'surplus');
+  }
+  const by = (a: string, b: string) => a.localeCompare(b);
+  return rows.sort(
+    (a, b) =>
+      by(factoryName(a.factory), factoryName(b.factory)) ||
+      by(a.factory, b.factory) ||
+      by(itemName(a.item), itemName(b.item)) ||
+      by(a.item, b.item),
+  );
+}
 
 export interface PowerRow {
   /** `factory:<id>`, `group:<id>` or `total`. */

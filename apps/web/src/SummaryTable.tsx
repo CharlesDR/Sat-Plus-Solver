@@ -25,6 +25,7 @@ import { StatusChip } from './ui/StatusChip';
 import { useNumbers } from './ui/numbers';
 import { useOpenPref, usePageOpen, usePlanTab, type PlanTab } from './ui/prefs';
 import { OBJECTIVE_CODES, OBJECTIVE_LABELS } from './controls/ObjectiveStack';
+import { AlternateBadge } from './controls/AlternateBadge';
 
 const MINERS_TIP =
   'Nodes the miners sit on, one per miner, at the drill this factory’s Max tier unlocks.';
@@ -281,6 +282,7 @@ function Recipes({ plan, ...pick }: { plan: PlanSummary } & Pick) {
   const recipes = useMemo(() => productionOrder(plan.recipes), [plan.recipes]);
   const table = recipeTable({ recipes }, { io: true, format: num });
   const precise = num.precise ? undefined : recipeTable({ recipes }, { io: true }).rows;
+  const alternates = useMemo(() => recipes.map((r) => r.alternate === true), [recipes]);
   return (
     <Table
       title="Recipes"
@@ -289,8 +291,16 @@ function Recipes({ plan, ...pick }: { plan: PlanSummary } & Pick) {
       keys={recipes.map((r) => recipeNodeId(r.id))}
       filterable
       filterColumns={RECIPE_FILTER}
+      only={{ label: 'Alternates', rows: alternates, help: 'recipes-alternates' }}
       render={(row, col) =>
-        col === 2 || col === 3 ? (
+        col === 0 && recipes[row]!.alternate ? (
+          // The CLI cell's "Name (alternate · T5 MAM)", with the mark as a badge (DF-10).
+          <>
+            {recipes[row]!.name} <span className="visually-hidden">(</span>
+            <AlternateBadge recipe={recipes[row]!} />
+            <span className="visually-hidden">)</span>
+          </>
+        ) : col === 2 || col === 3 ? (
           <FlowChips flows={col === 2 ? recipes[row]!.inputs : recipes[row]!.outputs} />
         ) : undefined
       }
@@ -482,6 +492,11 @@ function Table(
     titles?: string[][];
     /** Draws a cell its own way; undefined keeps the text. */
     render?: (row: number, col: number) => ReactNode;
+    /**
+     * A chip beside the filter that shows only the rows it marks, such as
+     * the alternates (DF-10). It always shows, disabled when it marks none.
+     */
+    only?: { label: string; rows: readonly boolean[]; help?: string };
   } & Pick,
 ) {
   const {
@@ -498,20 +513,27 @@ function Table(
     filterColumns,
     titles,
     render,
+    only,
   } = props;
   // Rows keep the plan's order until a heading is clicked: ascending, descending, then back.
   const [sort, setSort] = useState<Sort>();
   const [filter, setFilter] = useState('');
+  const onlyCount = only?.rows.filter(Boolean).length ?? 0;
+  const [onlyPicked, setOnly] = useState(false);
+  // A plan with none of them shows every row, whatever the chip was.
+  const onlyOn = onlyPicked && onlyCount > 0;
   const order = useMemo(() => {
     const q = filter.trim().toLowerCase();
     const shown = rows
       .map((_, k) => k)
       .filter(
         (k) =>
-          !q ||
-          rows[k]!.some(
-            (v, c) => (!filterColumns || filterColumns.includes(c)) && v.toLowerCase().includes(q),
-          ),
+          (!onlyOn || only?.rows[k] === true) &&
+          (!q ||
+            rows[k]!.some(
+              (v, c) =>
+                (!filterColumns || filterColumns.includes(c)) && v.toLowerCase().includes(q),
+            )),
       );
     if (!sort) return shown;
     const { col, dir } = sort;
@@ -524,7 +546,7 @@ function Table(
           : (numeric(value(a)) || 0) - (numeric(value(b)) || 0);
       return sign * d || a - b;
     });
-  }, [rows, sort, filter, textColumns, filterColumns]);
+  }, [rows, sort, filter, textColumns, filterColumns, onlyOn, only]);
   const cycle = (col: number) =>
     setSort((s) =>
       s?.col !== col
@@ -587,17 +609,35 @@ function Table(
   if (!filterable) return table;
   return (
     <div className="table-block">
-      <input
-        type="search"
-        className="table-filter"
-        aria-label={`Filter ${title.toLowerCase()}`}
-        placeholder={`Filter ${title.toLowerCase()}… (/)`}
-        data-shortcut={title === 'Recipes' ? 'filter-recipes' : undefined}
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-      />
+      <div className="table-tools">
+        <input
+          type="search"
+          className="table-filter"
+          aria-label={`Filter ${title.toLowerCase()}`}
+          placeholder={`Filter ${title.toLowerCase()}… (/)`}
+          data-shortcut={title === 'Recipes' ? 'filter-recipes' : undefined}
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
+        {only && (
+          <button
+            type="button"
+            className="chip toggle-chip"
+            aria-pressed={onlyOn}
+            disabled={onlyCount === 0}
+            data-help={only.help}
+            onClick={() => setOnly(!onlyOn)}
+          >
+            {only.label} ({onlyCount})
+          </button>
+        )}
+      </div>
       {table}
-      {order.length === 0 && <p className="hint">No row matches “{filter}”.</p>}
+      {order.length === 0 && (
+        <p className="hint">
+          No row matches “{filter}”{onlyOn ? ` among the ${only!.label.toLowerCase()}` : ''}.
+        </p>
+      )}
     </div>
   );
 }

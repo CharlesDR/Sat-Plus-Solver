@@ -23,6 +23,7 @@ import {
   fixedDefault,
   productsOf,
   spareFrom,
+  spareRows,
   sumPower,
   traceableItems,
   worldStatus,
@@ -231,5 +232,46 @@ describe('world status chip (B4, A75)', () => {
       label: 'Deficit 1,206 MW · 1 short',
     });
     expect(worldStatus(summary(['infeasible', 'infeasible'])).label).toBe('2 factories failed');
+  });
+});
+
+describe('the Spare tab (SC-1)', () => {
+  const summary = {
+    factories: [
+      {
+        id: 'z',
+        targets: [{ item: 'plastic', forLinks: 20, kept: 0, spare: 12.5 }],
+        ledger: [
+          // A target's surplus is its spare For links, not a second row.
+          { item: 'plastic', surplus: 12.5 },
+          { item: 'heavy-oil-residue', surplus: 10.0049 },
+          { item: 'water', surplus: 0.004 },
+          { item: 'mw', surplus: 50 },
+        ],
+      },
+      {
+        id: 'a',
+        targets: [{ item: 'rubber', forLinks: 10, kept: 0, spare: 0 }],
+        ledger: [{ item: 'rubber', surplus: 0 }],
+      },
+      { id: 'b', ledger: [{ item: 'fuel', surplus: 3 }] },
+    ],
+  } as unknown as WorldSummary;
+  const names: Record<string, string> = {
+    z: 'Alpha Refinery',
+    a: 'Zulu',
+    b: 'Bravo',
+    plastic: 'Plastic',
+    'heavy-oil-residue': 'Heavy Oil Residue',
+    fuel: 'Fuel',
+  };
+  const name = (id: string) => names[id] ?? id;
+
+  test('one row per factory and part, by factory name then part name, at the link default', () => {
+    expect(spareRows(summary, name, name)).toEqual([
+      { factory: 'z', item: 'heavy-oil-residue', rate: 10, kind: 'surplus' },
+      { factory: 'z', item: 'plastic', rate: 12.5, kind: 'for-links' },
+      { factory: 'b', item: 'fuel', rate: 3, kind: 'surplus' },
+    ]);
   });
 });

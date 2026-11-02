@@ -3,14 +3,16 @@
  * their size, one row per held factory and part. "Compare fixes" re-solves the
  * world in the worker twice, scaled up and with a new site; "Scale up" lifts
  * the hold on the factory and the held factories upstream of it, and "Add
- * site" makes a new factory that covers the remainder.
+ * site" makes a new factory that covers the remainder. A fixed link above
+ * the build (A104) offers Scale up and "Lower link to N/min" instead.
  */
 import { formatRate as fmt } from '@sps/solver';
-import type { Shortfall, World } from '@sps/world';
+import type { Link, LinkSpec, Shortfall, World } from '@sps/world';
 import { useState } from 'react';
 import type { SolveOutcome } from '../solver/client';
 import type { Catalog, ShortfallOption, WorldAction, WorldSummary } from '../solver/protocol';
 import type { WorldStore } from '../store';
+import { fixedDefault } from './viewModel';
 
 type Name = (id: string) => string;
 
@@ -23,6 +25,15 @@ const list = (names: string[]) =>
   names.length <= 2 ? names.join(' and ') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
 
 const rowKey = (s: Shortfall) => `${s.factory}\n${s.item}`;
+
+/** The link at a fixed rate, the rest as it is. */
+const fixedAt = (l: Link, rate: number): LinkSpec => ({
+  from: l.from,
+  to: l.to,
+  item: l.item,
+  mode: { kind: 'fixed', rate },
+  ...(l.transport ? { transport: l.transport } : {}),
+});
 
 export function ShortfallPanel(props: {
   world: World;
@@ -106,14 +117,16 @@ export function ShortfallPanel(props: {
                   {s.upstream.length ? ` Scaling up drags along ${names(s.upstream)}.` : ''}
                 </p>
                 <div className="row">
-                  <button
-                    type="button"
-                    data-help="shortfall-compare"
-                    disabled={c?.kind === 'solving'}
-                    onClick={() => compare(s)}
-                  >
-                    Compare fixes
-                  </button>
+                  {!s.fixed && (
+                    <button
+                      type="button"
+                      data-help="shortfall-compare"
+                      disabled={c?.kind === 'solving'}
+                      onClick={() => compare(s)}
+                    >
+                      Compare fixes
+                    </button>
+                  )}
                   <button
                     type="button"
                     data-help="shortfall-scale-up"
@@ -121,13 +134,31 @@ export function ShortfallPanel(props: {
                   >
                     Scale up
                   </button>
-                  <button
-                    type="button"
-                    data-help="shortfall-add-site"
-                    onClick={() => store.getState().addSite(s.item, s.consumers, siteName(s))}
-                  >
-                    Add site
-                  </button>
+                  {s.fixed?.map((f) => {
+                    const link = world.links.find((l) => l.id === f.link);
+                    if (!link) return null;
+                    const rate = fixedDefault(f.delivered);
+                    const to = s.fixed!.length > 1 ? ` to ${factoryName(link.to)}` : '';
+                    return (
+                      <button
+                        key={f.link}
+                        type="button"
+                        data-help="shortfall-lower"
+                        onClick={() => store.getState().updateLink(link.id, fixedAt(link, rate))}
+                      >
+                        Lower link{to} to {fmt(rate)}/min
+                      </button>
+                    );
+                  })}
+                  {!s.fixed && (
+                    <button
+                      type="button"
+                      data-help="shortfall-add-site"
+                      onClick={() => store.getState().addSite(s.item, s.consumers, siteName(s))}
+                    >
+                      Add site
+                    </button>
+                  )}
                 </div>
                 {c?.kind === 'solving' && <p className="hint">Solving both fixes…</p>}
                 {c?.kind === 'error' && <p className="hint">{c.message}</p>}

@@ -37,7 +37,16 @@ describe('hover help', () => {
       'minerFluidSupply',
     ])
       expect(HELP[`setting:${k}`], k).toBeTruthy();
-    for (const t of ['Ledger', 'Factories', 'Links', 'Shortfalls', 'Power', 'Nodes', 'Groups'])
+    for (const t of [
+      'Ledger',
+      'Factories',
+      'Links',
+      'Shortfalls',
+      'Spare',
+      'Power',
+      'Nodes',
+      'Groups',
+    ])
       expect(HELP[`tab:${t}`], t).toBeTruthy();
     for (const c of ['Spare', 'Stored', 'Short']) expect(HELP[`col:${c}`], c).toBeTruthy();
     expect(helpText(undefined)).toBeUndefined();

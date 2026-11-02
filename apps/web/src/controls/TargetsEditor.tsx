@@ -149,10 +149,12 @@ export function TargetsEditor({ catalog, targets, maxTier, onChange }: Props) {
         const above = hiddenMatches(r.itemText);
         // A Space Elevator phase is planned in its top part's rate (A84).
         const per = items.find(r.itemText)?.per;
+        // The first row's labels head the columns; later rows keep theirs for screen readers (DF-9).
+        const text = k === 0 ? undefined : 'visually-hidden';
         return (
           <div className="row" key={r.key}>
             <label>
-              Target item{n}
+              <span className={text}>Target item{n}</span>
               <input
                 list={listId}
                 value={r.itemText}
@@ -168,7 +170,7 @@ export function TargetsEditor({ catalog, targets, maxTier, onChange }: Props) {
               />
             </label>
             <label className="kept" data-help="target-kept">
-              Kept{n}
+              <span className={text}>Kept{n}</span>
               <input
                 type="number"
                 min="0"
@@ -185,7 +187,9 @@ export function TargetsEditor({ catalog, targets, maxTier, onChange }: Props) {
               />
             </label>
             <label data-help="target-for-links">
-              <span className="sub-label">For links</span> per minute{n}
+              <span className={text}>
+                <span className="sub-label">For links</span> per minute{n}
+              </span>
               <input
                 type="number"
                 min="0"

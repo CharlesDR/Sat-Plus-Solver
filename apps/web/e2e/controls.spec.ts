@@ -7,10 +7,13 @@ import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import { addFactory, openFactory } from './helpers';
 
-const recipeNames = (page: Page) =>
-  page
-    .locator('[data-testid=plan] table[aria-label=Recipes] tbody tr td:first-child')
-    .allTextContents();
+/** The plan's recipe names, without the "(alternate · …)" mark an alternate's cell carries (DF-10). */
+const recipeNames = async (page: Page) =>
+  (
+    await page
+      .locator('[data-testid=plan] table[aria-label=Recipes] tbody tr td:first-child')
+      .allTextContents()
+  ).map((t) => t.replace(/ \(alternate[^)]*\)$/, ''));
 
 async function plan(page: Page, item: string, rate: string) {
   await openFactory(page);
@@ -68,10 +71,25 @@ test('an alternate turned on is used when better; the tier filter takes it away'
   expect(await recipeNames(page)).toContain('Stitched Iron Plate');
   await expect(objective).not.toHaveAttribute('title', before!);
 
+  // The plan's alternates: a badge on the row, and a chip that lists only them (DF-10).
+  const recipes = page.locator('[data-testid=plan] table[aria-label=Recipes]');
+  await expect(
+    recipes.getByRole('row', { name: /^Stitched Iron Plate/ }).locator('.badge'),
+  ).toHaveText(/^alternate/);
+  const chip = page.getByRole('button', { name: 'Alternates (1)' });
+  await expect(chip).toHaveAttribute('aria-pressed', 'false');
+  await chip.click();
+  await expect(chip).toHaveAttribute('aria-pressed', 'true');
+  expect(await recipeNames(page)).toEqual(['Stitched Iron Plate']);
+  await chip.click();
+  expect((await recipeNames(page)).length).toBeGreaterThan(1);
+
   // Stitched Iron Plate is tier 2-1: a T1 limit leaves it out even though it is on.
   await page.getByLabel('Max tier').selectOption('T1');
   await settled(page);
   expect(await recipeNames(page)).not.toContain('Stitched Iron Plate');
+  // No alternate left: the chip stays, greyed (DF-10).
+  await expect(page.getByRole('button', { name: 'Alternates (0)' })).toBeDisabled();
   await expect(toggle).toBeDisabled();
   await expect(page.getByText('above max tier')).toBeVisible();
 
@@ -164,4 +182,34 @@ test('a new factory starts on scarcity-weighted resources, first in the list', a
   await expect(page.getByLabel('Add objective').locator('option').nth(1)).toHaveText(
     'Scarcity-weighted resources',
   );
+});
+
+test('Objectives fold like the other sections; target labels head their columns (DF-8, DF-9)', async ({
+  page,
+}) => {
+  await plan(page, 'Iron Plate', '60');
+  const summary = page.locator('details.settings > summary');
+  await expect(summary).toHaveText('Objectives and options (Scarcity)');
+  await expect(page.getByLabel('Add objective')).toBeVisible();
+  await summary.click();
+  await expect(page.getByLabel('Add objective')).toBeHidden();
+  // The closed state is remembered, as Advanced's is.
+  expect(await page.evaluate(() => localStorage.getItem('sps:pref:open:objectives:active'))).toBe(
+    'closed',
+  );
+  await summary.click();
+  await page.getByLabel('Add objective').selectOption('power');
+  await expect(page.locator('details.settings > summary')).toHaveText(
+    'Objectives and options (Scarcity, then Power)',
+  );
+
+  // A second target's labels are for screen readers only; its fields keep their names.
+  await page.getByRole('button', { name: 'Add target' }).click();
+  await page.getByLabel('Target item 2').fill('Iron Rod');
+  const rows = page.locator('fieldset.targets .row');
+  await expect(rows.nth(0).getByText('Target item', { exact: true })).toBeVisible();
+  await expect(rows.nth(1).locator('label > span.visually-hidden')).toHaveCount(3);
+  const [first, second] = [await rows.nth(0).boundingBox(), await rows.nth(1).boundingBox()];
+  // The second row is only its fields: about half the first row's height.
+  expect(second!.height).toBeLessThan(first!.height * 0.7);
 });

@@ -1,4 +1,4 @@
-import { compareTiers, type MinerFluidSupply } from '@sps/solver';
+import { compareTiers, type MinerFluidSupply, type ObjectiveId } from '@sps/solver';
 import type { ReactNode } from 'react';
 import { useStore } from 'zustand';
 import type { Catalog } from '../solver/protocol';
@@ -11,7 +11,7 @@ import {
 } from '../store';
 import { defaultWorldDefaults } from '@sps/world';
 import { useOpenPref } from '../ui/prefs';
-import { ObjectiveStack } from './ObjectiveStack';
+import { OBJECTIVE_SHORT, ObjectiveStack } from './ObjectiveStack';
 import { tierOptions } from './tiers';
 import { ToleranceInput } from './ToleranceInput';
 
@@ -61,6 +61,8 @@ export function SettingsPanel({ store, scope, catalog, simple = false }: Props) 
     factory?.areas?.by === 'parts' ||
     ADVANCED.some((k) => overridden?.[k] === true);
   const [advancedOpen, setAdvancedOpen] = useOpenPref('advanced');
+  // A card like Recipes and Imports, open until closed (DF-8).
+  const [open, setOpen] = useOpenPref('objectives', true);
 
   const meta = (k: SettingKey) => ({
     k,
@@ -69,8 +71,8 @@ export function SettingsPanel({ store, scope, catalog, simple = false }: Props) 
   });
 
   return (
-    <fieldset className="settings">
-      <legend>Objectives and options</legend>
+    <details className="card settings" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary>Objectives and options ({objectiveOrder(values.objectives)})</summary>
       <SettingField {...meta('objectives')}>
         <ObjectiveStack stack={values.objectives} onChange={(o) => set('objectives', o)} />
       </SettingField>
@@ -237,9 +239,13 @@ export function SettingsPanel({ store, scope, catalog, simple = false }: Props) 
           </div>
         )}
       </details>
-    </fieldset>
+    </details>
   );
 }
+
+/** The objective order in words, for the closed header (DF-8): "Scarcity, then Power". */
+export const objectiveOrder = (stack: readonly ObjectiveId[]): string =>
+  stack.map((o) => OBJECTIVE_SHORT[o]).join(', then ') || 'none';
 
 /** One setting; in a factory scope, with its inherit/override state. */
 function SettingField(props: {

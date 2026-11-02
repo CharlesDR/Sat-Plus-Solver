@@ -818,12 +818,14 @@ label.inline {
   padding: 2px 7px;
   box-shadow: none;
 }
-/* Kept and For links share one width; the item field takes the rest (T2). */
+/* Kept and For links share one width; the item field takes the rest (T2).
+   Rows sit 4 px apart under the first row's column labels (DF-9). */
 .targets .row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 90px 90px auto;
   align-items: end;
   gap: 8px;
+  margin-bottom: 4px;
 }
 .targets .row > label {
   display: flex;
@@ -1376,6 +1378,27 @@ th.num button.sort {
 }
 .table-filter {
   width: min(320px, 100%);
+}
+.table-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+/* A filter chip (DF-10): pressed shows only the rows it names. */
+.toggle-chip {
+  cursor: pointer;
+  box-shadow: none;
+  color: var(--fg);
+}
+.toggle-chip[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+}
+.toggle-chip:disabled {
+  cursor: default;
+  color: var(--muted);
+  opacity: 0.7;
 }
 .summary tr.selectable {
   cursor: pointer;
@@ -1996,6 +2019,25 @@ img:is(.world-icon, .flow-icon, .flow-item-icon, .cell-icon, .io-icon),
 }
 .dialog-actions {
   justify-content: flex-end;
+}
+/* BF-1: confirm before a fixed link grows a built factory. */
+.palette-dialog.grow-dialog {
+  display: grid;
+  gap: 10px;
+  width: min(480px, 100%);
+  padding: 18px;
+}
+.grow-dialog h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.grow-dialog p {
+  margin: 0;
+}
+.grow-dialog .row {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
 }
 .world-canvas .flow-canvas {
   height: 560px;

@@ -1,6 +1,7 @@
 /**
  * The world view's panels (PLAN M8, §4.5): item ledger (save-wide, per group
- * or per factory), factory table, link table, power, node pool and groups.
+ * or per factory), factory table, link table, spare output, power, node pool
+ * and groups.
  */
 import { countText } from '@sps/graph';
 import { formatRate as fmt, type PowerSummary } from '@sps/solver';
@@ -16,6 +17,7 @@ import {
   ledgerScopes,
   powerRows,
   scopeKey,
+  spareRows,
   splitFor,
   type LedgerScope,
   type PowerRow,
@@ -363,6 +365,53 @@ export function LinksPanel(props: {
         })}
       </Table>
     </div>
+  );
+}
+
+/**
+ * Spare output (SC-1): per factory and part, what nothing takes, with a
+ * "Link…" that opens the link editor from it, fixed at that amount (A102).
+ */
+export function SparePanel(props: {
+  world: World;
+  summary: WorldSummary;
+  itemName: Name;
+  onLink(from: string, item: string): void;
+}) {
+  const { world, summary, itemName, onLink } = props;
+  const factory = new Map(world.factories.map((f) => [f.id, f.name]));
+  const name = (id: string) => factory.get(id) ?? id;
+  const rows = spareRows(summary, name, itemName);
+  if (!rows.length)
+    return (
+      <p className="hint">
+        Nothing spare: links take every target’s For links rate, and no factory has a byproduct left
+        over.
+      </p>
+    );
+  return (
+    <Table label="Spare output" head={['Factory', 'Part', 'Kind', 'Spare', '']} textColumns={3}>
+      {rows.map((r) => (
+        <tr key={`${r.factory}\n${r.item}`} data-factory={r.factory} data-item={r.item}>
+          <td className="text">{name(r.factory)}</td>
+          <td className="text">{itemName(r.item)}</td>
+          <td className="text" data-help={`spare:${r.kind}`}>
+            {r.kind === 'for-links' ? 'Untaken For links' : 'Byproduct surplus'}
+          </td>
+          {num(r.rate)}
+          <td className="num actions">
+            <button
+              type="button"
+              aria-label={`Link ${itemName(r.item)} from ${name(r.factory)}`}
+              disabled={world.factories.length < 2}
+              onClick={() => onLink(r.factory, r.item)}
+            >
+              Link…
+            </button>
+          </td>
+        </tr>
+      ))}
+    </Table>
   );
 }
 

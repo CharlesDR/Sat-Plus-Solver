@@ -39,6 +39,11 @@ export const HELP: Readonly<Record<string, string>> = {
   'tab:Factories': 'Each factory with its status, targets, links and size.',
   'tab:Links': 'What each link asks for and what it actually gets.',
   'tab:Shortfalls': 'Where new demand outruns factories you have already built.',
+  'tab:Spare': 'What each factory makes that no link takes, ready to link elsewhere.',
+  'spare:for-links': 'Part of a target’s For links rate that no link takes yet.',
+  'spare:surplus': 'Made beyond what the plan uses, such as a byproduct.',
+  'recipes-alternates':
+    'Show only the alternate recipes this plan uses, with how each is unlocked.',
   'tab:Power': 'Power drawn and generated, by factory and group.',
   'tab:Nodes': 'Resource nodes in use against what the map has.',
   'tab:Groups': 'Groups of factories on the world canvas.',
@@ -80,6 +85,7 @@ export const HELP: Readonly<Record<string, string>> = {
     'What a factory marked as built does when links pull more than it was built for.',
   'built-hold': 'Built factories keep their size. Extra demand shows as a shortfall to fix.',
   'built-grow': 'Built factories grow with demand, and their build flags say what to add.',
+  'shortfall-lower': 'Set the fixed link to what the build makes for links, so nothing grows.',
   'shortfall-compare': 'Re-solve with each fix to see what it costs.',
   'shortfall-scale-up':
     'Let this factory and the built ones feeding it grow. Mark them as built again once built in game.',
