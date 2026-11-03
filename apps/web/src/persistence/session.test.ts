@@ -7,48 +7,48 @@ import { bootWorld, startAutosave } from './session';
 import { shareLink } from './share';
 import { memoryStorage } from './testing';
 
-const hashOf = (world: unknown) => {
-  const link = shareLink(world as never, 'https://example.test/');
+const hashOf = async (world: unknown) => {
+  const link = await shareLink(world as never, 'https://example.test/');
   if (!link.ok) throw new Error('expected a link');
   return new URL(link.url).hash;
 };
 
 describe('bootWorld', () => {
-  test('a new world with no factory when nothing is saved', () => {
-    const boot = bootWorld('', createSaves(memoryStorage()));
+  test('a new world with no factory when nothing is saved', async () => {
+    const boot = await bootWorld('', createSaves(memoryStorage()));
     expect(boot).toEqual({ world: emptyWorld(), source: 'new' });
   });
 
-  test('the autosave, migrated', () => {
+  test('the autosave, migrated', async () => {
     const saves = createSaves(memoryStorage());
     saves.writeAutosave(JSON.stringify(v2));
-    const boot = bootWorld('', saves);
+    const boot = await bootWorld('', saves);
     expect(boot.source).toBe('autosave');
     expect(boot.world).toStrictEqual(parseWorld(JSON.stringify(v2)));
   });
 
-  test('a share link wins and keeps the autosave as the backup', () => {
+  test('a share link wins and keeps the autosave as the backup', async () => {
     const saves = createSaves(memoryStorage());
     const mine = createWorld('mine');
     saves.writeAutosave(serializeWorld(mine));
     const theirs = createWorld('theirs');
     theirs.factories[0]!.name = 'Shared';
-    const boot = bootWorld(hashOf(theirs), saves);
+    const boot = await bootWorld(await hashOf(theirs), saves);
     expect(boot).toEqual({ world: theirs, source: 'link' });
     expect(saves.readBackup()).toBe(serializeWorld(mine));
   });
 
-  test('a bad link or autosave is reported, and the bad autosave is kept', () => {
+  test('a bad link or autosave is reported, and the bad autosave is kept', async () => {
     const saves = createSaves(memoryStorage());
     saves.writeAutosave('{"broken"');
-    const boot = bootWorld('#w=garbage', saves);
+    const boot = await bootWorld('#z=garbage', saves);
     expect(boot.source).toBe('new');
     expect(boot.problem).toMatch(/autosave could not be read/);
     expect(saves.readBackup()).toBe('{"broken"');
 
     const ok = createSaves(memoryStorage());
     ok.writeAutosave(serializeWorld(createWorld('x')));
-    const b2 = bootWorld('#w=garbage', ok);
+    const b2 = await bootWorld('#w=garbage', ok);
     expect(b2.source).toBe('autosave');
     expect(b2.problem).toMatch(/share link could not be opened/);
   });

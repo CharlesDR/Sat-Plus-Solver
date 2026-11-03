@@ -6,12 +6,14 @@
  *   pnpm world solve <world.json | share link | -> [--model <model.json>] [--json | --summary]
  *
  * The world is a saved `World` file (any version; it is migrated first), a
- * live-site share link (`…#w=<payload>`, quoted in the shell), or `-` for
+ * live-site share link (`…#z=<payload>`, or `…#w=<payload>` from before A108,
+ * quoted in the shell), or `-` for
  * either on stdin. `--summary` prints only targets, byproducts, raw inputs
  * and power. The model is data/generated/model.json, built in memory when it
  * is missing.
  */
 import { readFileSync } from 'node:fs';
+import { inflateRawSync } from 'node:zlib';
 // lz-string is CommonJS: Node's ESM loader finds no named exports in it.
 import lzString from 'lz-string';
 import { fileURLToPath } from 'node:url';
@@ -212,11 +214,21 @@ function renderWorldSummary(model: Model, world: World, result: WorldResult): st
 }
 
 /**
- * The world JSON in `source`: a share link (anything with `#w=`), else the
- * text itself when `fromStdin`, else a file path.
+ * The world JSON in `source`: a share link (anything with `#z=`, or `#w=`
+ * from before A108), else the text itself when `fromStdin`, else a file path.
  */
 function readWorldSource(source: string, stdin?: string): unknown {
   const text = source === '-' ? (stdin ?? '') : source;
+  const z = /#z=([\w-]*)/.exec(text);
+  if (z) {
+    let json: string;
+    try {
+      json = inflateRawSync(Buffer.from(z[1]!, 'base64url')).toString('utf8');
+    } catch {
+      throw new CliError('The share link is damaged or incomplete.');
+    }
+    return JSON.parse(json);
+  }
   const at = text.indexOf('#w=');
   if (at >= 0) {
     const json = lzString.decompressFromEncodedURIComponent(text.slice(at + 3).trim());

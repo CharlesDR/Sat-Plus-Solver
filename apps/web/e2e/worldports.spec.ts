@@ -14,9 +14,7 @@ const README = new URL('../../../README.md', import.meta.url);
 
 test('ports, byproduct ports, raw resources and drag-from-port (UX-D, DF-3)', async ({ page }) => {
   const readme = await readFile(README, 'utf8');
-  const hash = /https:\/\/charlesdr\.github\.io\/Sat-Plus-Solver\/(#w=[\w$+\-.]+)/.exec(
-    readme,
-  )![1]!;
+  const hash = /https:\/\/charlesdr\.github\.io\/Sat-Plus-Solver\/(#z=[\w-]+)/.exec(readme)![1]!;
   await page.goto(`/${hash}`);
   // The sample's first solve is a few seconds on a slow runner.
   await expect(page.locator('.world[aria-busy=false]')).toHaveCount(1, { timeout: 20_000 });

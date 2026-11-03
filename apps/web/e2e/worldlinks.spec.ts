@@ -41,9 +41,7 @@ test('a port dragged to empty canvas makes a new factory with the link (Cancel m
   page,
 }) => {
   const readme = await readFile(README, 'utf8');
-  const hash = /https:\/\/charlesdr\.github\.io\/Sat-Plus-Solver\/(#w=[\w$+\-.]+)/.exec(
-    readme,
-  )![1]!;
+  const hash = /https:\/\/charlesdr\.github\.io\/Sat-Plus-Solver\/(#z=[\w-]+)/.exec(readme)![1]!;
   await page.goto(`/${hash}`);
   await expect(page.locator('.world[aria-busy=false]')).toHaveCount(1, { timeout: 20_000 });
   const factories = page.getByRole('tab', { name: /^Factories/ });

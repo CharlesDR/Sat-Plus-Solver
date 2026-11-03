@@ -13,7 +13,7 @@ const LAPTOP = { width: 1366, height: 768 };
 
 async function openSample(page: Page) {
   const readme = await readFile(README, 'utf8');
-  const hash = /https:\/\/charlesdr\.github\.io\/Sat-Plus-Solver\/(#w=[\w$+\-.]+)/.exec(readme)![1];
+  const hash = /https:\/\/charlesdr\.github\.io\/Sat-Plus-Solver\/(#z=[\w-]+)/.exec(readme)![1];
   await page.goto(`/${hash}`);
   await worldSettled(page);
 }

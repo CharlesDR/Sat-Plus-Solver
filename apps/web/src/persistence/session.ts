@@ -21,11 +21,11 @@ const why = (e: unknown) => (e instanceof Error ? e.message : String(e));
  * The world to start with: the share link in `hash`, else the autosave, else
  * a new one with no factory yet (UX-8).
  */
-export function bootWorld(hash: string, saves: Saves): Boot {
+export async function bootWorld(hash: string, saves: Saves): Promise<Boot> {
   let problem: string | undefined;
   if (isShareHash(hash)) {
     try {
-      const world = readShareHash(hash);
+      const world = await readShareHash(hash);
       saves.backupAutosave();
       return { world, source: 'link' };
     } catch (e) {

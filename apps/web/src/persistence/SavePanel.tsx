@@ -112,13 +112,13 @@ export function SavePanel(props: {
   // A share link pasted into this tab changes only the fragment.
   useEffect(() => {
     const onHash = () => {
-      if (!isShareHash(window.location.hash)) return;
-      try {
-        load(readShareHash(window.location.hash), 'Opened a shared world.');
-      } catch (e) {
-        failed('The share link could not be opened', e);
-      }
+      const hash = window.location.hash;
+      if (!isShareHash(hash)) return;
       clearShareHash();
+      readShareHash(hash).then(
+        (next) => load(next, 'Opened a shared world.'),
+        (e: unknown) => failed('The share link could not be opened', e),
+      );
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);

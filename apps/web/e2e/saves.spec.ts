@@ -104,7 +104,7 @@ test('World → JSON → World and World → URL → World are deep-equal', asyn
   // Share link: open it in another fresh browser.
   await panel.getByRole('button', { name: 'Share link to world' }).click();
   const url = await panel.getByLabel(/^Share link/).inputValue();
-  expect(url).toMatch(/#w=/);
+  expect(url).toMatch(/#z=/);
   const third = await freshPage();
   await third.goto(url);
   await expect(opener(third, 'Smelter')).toBeVisible();
