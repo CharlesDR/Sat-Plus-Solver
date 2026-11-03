@@ -1,13 +1,16 @@
 /**
  * Saves and sharing for the whole world (PLAN M9): named local slots, file
  * export and import, and share links. Loading anything keeps the world it
- * replaces as the backup, which "Restore previous world" brings back.
+ * replaces as the backup, which "Restore previous world" brings back. A link,
+ * file or save that is a copy of the open world asks which to keep (A109).
  */
 import { parseWorld, serializeWorld, type ModelerReportLine, type World } from '@sps/world';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import { Field } from '../controls/Field';
 import type { WorldStore } from '../store';
+import { compareCopies, keepBothName, type CopyCheck } from './copies';
+import { CopyDialog } from './CopyDialog';
 import type { Saves, SlotInfo } from './saves';
 import type { Boot } from './session';
 import { isShareHash, readShareHash } from './share';
@@ -19,6 +22,29 @@ import { useMenuDismiss } from '../ui/Menu';
 import { useToast } from '../ui/toasts';
 
 type Notice = { kind: 'info' | 'error'; text: string; restorable?: boolean };
+
+/** A copy of the open world waiting for Replace, Keep both or Cancel (A109). */
+interface Pending {
+  world: World;
+  /** The notice once it is opened. */
+  text: string;
+  /** What is being opened, for the dialog. */
+  what: string;
+  check: CopyCheck;
+  error?: string;
+}
+
+/** Boots whose shared copy has been answered, so a remounted panel does not ask again. */
+const answered = new WeakSet<Boot>();
+
+/** The question the app opens with when its link is a copy of the autosaved world. */
+function bootPending(boot: Boot, open: World): Pending | undefined {
+  if (!boot.incoming || answered.has(boot)) return undefined;
+  const check = compareCopies(open, boot.incoming);
+  return check
+    ? { world: boot.incoming, text: 'Opened a shared world.', what: 'This share link', check }
+    : undefined;
+}
 
 const why = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -85,6 +111,9 @@ export function SavePanel(props: {
     setName(world.meta.name ?? '');
   }
   const [notice, setNotice] = useState<Notice | undefined>(() => bootNotice(boot, saves));
+  const [pending, setPending] = useState<Pending | undefined>(() =>
+    bootPending(boot, store.getState().world),
+  );
   const menu = useRef<HTMLDetailsElement>(null);
   const toast = useToast();
 
@@ -106,6 +135,15 @@ export function SavePanel(props: {
     },
     [saves, store],
   );
+  /** Opens a world, first asking which to keep when it is a copy of the open one (A109). */
+  const open = useCallback(
+    (next: World, text: string, what: string) => {
+      const check = compareCopies(store.getState().world, next);
+      if (check) setPending({ world: next, text, what, check });
+      else load(next, text);
+    },
+    [load, store],
+  );
   const failed = (what: string, e: unknown) =>
     setNotice({ kind: 'error', text: `${what}: ${why(e)}` });
 
@@ -116,13 +154,38 @@ export function SavePanel(props: {
       if (!isShareHash(hash)) return;
       clearShareHash();
       readShareHash(hash).then(
-        (next) => load(next, 'Opened a shared world.'),
+        (next) => open(next, 'Opened a shared world.', 'This share link'),
         (e: unknown) => failed('The share link could not be opened', e),
       );
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
-  }, [load]);
+  }, [open]);
+
+  const settle = () => {
+    answered.add(boot);
+    setPending(undefined);
+  };
+  const replace = (p: Pending) => {
+    settle();
+    load(p.world, p.text);
+    toast(p.text);
+  };
+  const keepBoth = (p: Pending) => {
+    const current = store.getState().world;
+    const out = saves.save(keepBothName(current), serializeWorld(current));
+    if (!out.ok) return setPending({ ...p, error: out.message });
+    setSlots(saves.list());
+    settle();
+    const text = `${p.text} The world you had open is saved as “${out.slot.name}”.`;
+    load(p.world, text);
+    toast(text);
+  };
+  const cancel = () => {
+    settle();
+    setNotice({ kind: 'info', text: 'Kept the world you have open.' });
+    toast('Kept the world you have open.');
+  };
 
   const save = () => {
     const out = saves.save(name, serializeWorld(world));
@@ -135,7 +198,7 @@ export function SavePanel(props: {
     if (text === undefined)
       return setNotice({ kind: 'error', text: `The save “${slot.name}” is missing.` });
     try {
-      load(parseWorld(text), `Loaded “${slot.name}”.`);
+      open(parseWorld(text), `Loaded “${slot.name}”.`, `The save “${slot.name}”`);
     } catch (e) {
       failed(`The save “${slot.name}” could not be read`, e);
     }
@@ -150,7 +213,7 @@ export function SavePanel(props: {
     file.text().then(
       (text) => {
         try {
-          load(parseWorld(text), `Imported “${file.name}”.`);
+          open(parseWorld(text), `Imported “${file.name}”.`, `The file “${file.name}”`);
         } catch (e) {
           failed(`“${file.name}” could not be imported`, e);
         }
@@ -368,6 +431,17 @@ export function SavePanel(props: {
           {BUILD_STAMP}
         </p>
       </div>
+      {pending && (
+        <CopyDialog
+          check={pending.check}
+          what={pending.what}
+          canKeepBoth={saves.available}
+          error={pending.error}
+          onReplace={() => replace(pending)}
+          onKeepBoth={() => keepBoth(pending)}
+          onCancel={cancel}
+        />
+      )}
     </details>
   );
 }

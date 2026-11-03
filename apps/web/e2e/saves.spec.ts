@@ -3,9 +3,11 @@
  * reload, a world exported to JSON imports back equal, a share link opens
  * the same world elsewhere, an old save migrates, a data-hash mismatch shows
  * a banner and still loads, an oversized world falls back to export, and
- * "share this factory only" shares a one-factory world.
+ * "share this factory only" shares a one-factory world. A109: opening a copy
+ * of the open world asks which to keep.
  */
 import { readFile } from 'node:fs/promises';
+import { deflateRawSync } from 'node:zlib';
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
@@ -67,6 +69,11 @@ test('save slots and the autosave survive a reload', async ({ page }) => {
   await addFactory(page, 'Later');
   const p2 = await openPanel(page);
   await p2.getByRole('button', { name: 'Load Base' }).click();
+  // The save is an older copy of the open world, so it asks first (A109).
+  await page
+    .getByRole('alertdialog', { name: 'An older copy of this world' })
+    .getByRole('button', { name: 'Replace' })
+    .click();
   await expect(p2.getByRole('status')).toContainText('Loaded “Base”.');
   await expect(opener(page, 'Later')).toHaveCount(0);
   await expect(opener(page, 'Smelter')).toBeVisible();
@@ -123,7 +130,8 @@ test('an old save migrates, and a data-hash mismatch warns but loads', async ({ 
   await upload(page, 'old.json', await readFile(V1, 'utf8'));
   await expect(page.getByRole('alert')).toContainText('different game data (abc123)');
   const w = (await autosave(page)) as { meta: { v: number; dataHash: string } };
-  expect(w.meta).toEqual({ v: 16, dataHash: 'abc123' });
+  // The app gives the world an id when it opens it (A109).
+  expect(w.meta).toEqual({ v: 17, dataHash: 'abc123', worldId: expect.any(String) as unknown });
   await page.getByRole('button', { name: 'Open Factory', exact: true }).click();
   await expect(page.getByRole('table', { name: 'Targets' })).toContainText('Iron Plate');
 
@@ -152,8 +160,13 @@ test('an oversized world falls back to export', async ({ page }) => {
     s = (s * 1103515245 + 12345) % 2147483648;
     return String.fromCharCode(33 + (s % 90));
   }).join('');
-  const world = (await autosave(page)) as { factories: { notes: string }[] };
+  const world = (await autosave(page)) as {
+    meta: { worldId?: string };
+    factories: { notes: string }[];
+  };
   world.factories[0]!.notes = noise;
+  // Another world, so it opens without asking which copy to keep (A109).
+  delete world.meta.worldId;
   await upload(page, 'big.json', world);
   const panel = await openPanel(page);
   await expect(panel.getByRole('status')).toContainText('Imported “big.json”.');
@@ -184,4 +197,57 @@ test('share this factory only', async ({ page, freshPage }) => {
   await other.goto(url);
   await expect(other.getByRole('button', { name: 'Open Plates', exact: true })).toBeVisible();
   await expect(other.getByRole('button', { name: 'Open Factory', exact: true })).toHaveCount(0);
+});
+
+/** A world document as the autosave holds it, as far as these tests look. */
+interface Saved {
+  meta: { worldId: string; savedAt: string };
+  factories: { name: string }[];
+}
+
+const zLink = (doc: unknown) =>
+  `#z=${deflateRawSync(Buffer.from(JSON.stringify(doc))).toString('base64url')}`;
+
+test('a copy of the open world asks which to keep: newer, older, same time (A109)', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await addFactory(page, 'Smelter');
+  const mine = (await autosave(page)) as Saved;
+  expect(mine.meta.worldId).toMatch(/^[0-9a-f]{16}$/);
+  expect(Number.isNaN(Date.parse(mine.meta.savedAt))).toBe(false);
+
+  // A newer copy from another computer, opened as a link: the open world stays until the pick.
+  const newer = structuredClone(mine);
+  newer.factories[0]!.name = 'Smelter v2';
+  newer.meta.savedAt = new Date(Date.parse(mine.meta.savedAt) + 3_600_000).toISOString();
+  await page.goto('about:blank');
+  await page.goto(`/${zLink(newer)}`);
+  const dialog = page.getByRole('alertdialog', { name: 'A newer copy of this world' });
+  await expect(dialog).toContainText('This share link is a copy of the world you have open.');
+  await expect(dialog.getByRole('button', { name: 'Replace' })).toBeFocused();
+  await expect(opener(page, 'Smelter')).toBeVisible();
+  expect(new URL(page.url()).hash).toBe('');
+  await dialog.getByRole('button', { name: 'Keep both' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(opener(page, 'Smelter v2')).toBeVisible();
+
+  // Keep both put the world it replaced in a local save; that save is an older copy.
+  const panel = await openPanel(page);
+  await panel.getByRole('button', { name: /^Load Unnamed world \(saved / }).click();
+  const older = page.getByRole('alertdialog', { name: 'An older copy of this world' });
+  await expect(older.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await older.getByRole('button', { name: 'Cancel' }).click();
+  await expect(opener(page, 'Smelter v2')).toBeVisible();
+  await expect(opener(page, 'Smelter')).toHaveCount(0);
+
+  // The same copy, edited elsewhere without a new time, pasted into this tab: Replace opens it.
+  const same = (await autosave(page)) as Saved;
+  same.factories[0]!.name = 'Smelter v3';
+  await page.evaluate((hash) => (window.location.hash = hash), zLink(same));
+  const twin = page.getByRole('alertdialog', { name: 'The same copy of this world' });
+  await twin.getByRole('button', { name: 'Replace' }).click();
+  await expect(opener(page, 'Smelter v3')).toBeVisible();
+  await (await openPanel(page)).getByRole('button', { name: 'Restore previous world' }).click();
+  await expect(opener(page, 'Smelter v2')).toBeVisible();
 });

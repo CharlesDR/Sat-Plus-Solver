@@ -160,6 +160,15 @@ function v15ToV16(doc: Doc): Doc {
   return { ...doc, meta: { ...(doc.meta as Doc), v: 16 } };
 }
 
+/**
+ * v16 → v17 (A109): the world may carry `worldId` and `savedAt`. Neither is
+ * made up here: an old save gets an id when the app opens it, and a saved
+ * time at its next edit.
+ */
+function v16ToV17(doc: Doc): Doc {
+  return { ...doc, meta: { ...(doc.meta as Doc), v: 17 } };
+}
+
 const MIGRATIONS: Record<number, (doc: Doc) => Doc> = {
   1: v1ToV2,
   2: v2ToV3,
@@ -176,6 +185,7 @@ const MIGRATIONS: Record<number, (doc: Doc) => Doc> = {
   13: v13ToV14,
   14: v14ToV15,
   15: v15ToV16,
+  16: v16ToV17,
 };
 
 /** Returns `doc` upgraded to the current version; throws on a newer or malformed document. */

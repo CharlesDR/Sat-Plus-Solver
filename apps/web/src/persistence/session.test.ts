@@ -3,7 +3,7 @@ import { describe, expect, test } from 'vitest';
 import v2 from '../../../../fixtures/worlds/v2-world.json';
 import { createWorldStore } from '../store';
 import { createSaves } from './saves';
-import { bootWorld, startAutosave } from './session';
+import { bootWorld, readLink, startAutosave } from './session';
 import { shareLink } from './share';
 import { memoryStorage } from './testing';
 
@@ -36,6 +36,26 @@ describe('bootWorld', () => {
     const boot = await bootWorld(await hashOf(theirs), saves);
     expect(boot).toEqual({ world: theirs, source: 'link' });
     expect(saves.readBackup()).toBe(serializeWorld(mine));
+  });
+
+  test('a link to a copy of the autosaved world starts from the autosave and holds the link (A109)', async () => {
+    const saves = createSaves(memoryStorage());
+    const mine = createWorld('h');
+    mine.meta.worldId = 'w1';
+    mine.meta.savedAt = '2026-11-03T09:00:00.000Z';
+    saves.writeAutosave(serializeWorld(mine));
+    const theirs = createWorld('h');
+    theirs.meta = { ...mine.meta, savedAt: '2026-11-03T10:00:00.000Z' };
+    theirs.factories[0]!.name = 'Later';
+    const boot = await bootWorld(await hashOf(theirs), saves);
+    expect(boot).toEqual({ world: mine, source: 'autosave', incoming: theirs });
+    expect(readLink(boot)).toBe(true);
+    // Nothing is replaced until the user picks, so the backup is not touched.
+    expect(saves.readBackup()).toBeUndefined();
+    // Another world's link opens as before.
+    const other = { ...theirs, meta: { ...theirs.meta, worldId: 'w2' } };
+    expect(await bootWorld(await hashOf(other), saves)).toEqual({ world: other, source: 'link' });
+    expect(readLink(await bootWorld('', saves))).toBe(false);
   });
 
   test('a bad link or autosave is reported, and the bad autosave is kept', async () => {

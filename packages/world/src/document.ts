@@ -32,7 +32,7 @@ import type {
   SolveRequest,
 } from '@sps/solver';
 
-export const WORLD_VERSION = 16;
+export const WORLD_VERSION = 17;
 
 /** Lexicographic tolerance bounds (CLAUDE.md): 0.01%–90%, default 0.01%. */
 export const TOLERANCE_MIN = 0.0001;
@@ -48,6 +48,14 @@ export interface WorldMeta {
   dataHash: string;
   /** The world's name, shown in the top bar and offered as its save name (N8). */
   name?: string;
+  /**
+   * Shared by every copy of one world (A109), so opening a copy can say
+   * whether it is newer or older than the open one. Given once, by the app,
+   * when a world without one is opened or started; a fresh world has none.
+   */
+  worldId?: string;
+  /** When the world was last edited, as an ISO 8601 UTC time (A109); none until its first edit. */
+  savedAt?: string;
 }
 
 /** Settings every factory inherits unless it overrides them. */

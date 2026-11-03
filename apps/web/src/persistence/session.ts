@@ -1,10 +1,13 @@
 /**
  * Where the app's first world comes from, and keeping the autosave current.
  * A share link wins over the autosave; the autosave it replaces is kept as
- * the backup, so opening someone's link never loses your own world.
+ * the backup, so opening someone's link never loses your own world. A link
+ * to a copy of the autosaved world (A109) starts from the autosave, and the
+ * app asks which copy to keep.
  */
 import { emptyWorld, parseWorld, serializeWorld, type World } from '@sps/world';
 import type { WorldStore } from '../store';
+import { compareCopies } from './copies';
 import type { Saves } from './saves';
 import { isShareHash, readShareHash } from './share';
 
@@ -13,6 +16,13 @@ export interface Boot {
   source: 'link' | 'autosave' | 'new';
   /** Something could not be read, said for the user. */
   problem?: string;
+  /** The shared world, when it is a copy of the autosaved one (A109): not opened yet. */
+  incoming?: World;
+}
+
+/** True when the boot read the share link in the address bar, so it can be dropped from there. */
+export function readLink(boot: Boot): boolean {
+  return boot.source === 'link' || boot.incoming !== undefined;
 }
 
 const why = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -26,6 +36,9 @@ export async function bootWorld(hash: string, saves: Saves): Promise<Boot> {
   if (isShareHash(hash)) {
     try {
       const world = await readShareHash(hash);
+      const mine = readAutosave(saves);
+      if (mine && compareCopies(mine, world))
+        return { world: mine, source: 'autosave', incoming: world };
       saves.backupAutosave();
       return { world, source: 'link' };
     } catch (e) {
@@ -43,6 +56,16 @@ export async function bootWorld(hash: string, saves: Saves): Promise<Boot> {
     }
   }
   return { world: emptyWorld(), source: 'new', ...(problem ? { problem } : {}) };
+}
+
+/** The autosaved world, if there is one and it can be read. */
+function readAutosave(saves: Saves): World | undefined {
+  const text = saves.readAutosave();
+  try {
+    return text === undefined ? undefined : parseWorld(text);
+  } catch {
+    return undefined;
+  }
 }
 
 /** Writes the world to the autosave now and whenever it changes. Returns the unsubscribe. */

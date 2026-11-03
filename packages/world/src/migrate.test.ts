@@ -14,6 +14,7 @@ import v13 from '../../../fixtures/worlds/v13-world.json';
 import v14 from '../../../fixtures/worlds/v14-world.json';
 import v15 from '../../../fixtures/worlds/v15-world.json';
 import v16 from '../../../fixtures/worlds/v16-world.json';
+import v17 from '../../../fixtures/worlds/v17-world.json';
 import v9 from '../../../fixtures/worlds/v9-world.json';
 import { WORLD_VERSION, createWorld, factorySolveRequest } from './document';
 import { WorldMigrationError, migrateWorld } from './migrate';
@@ -375,6 +376,7 @@ describe('migrateWorld', () => {
     // The v16 fixture is the migrated v15 one with Grow picked and a Kept rate.
     expect({
       ...v16,
+      meta: { ...v16.meta, v: WORLD_VERSION },
       defaults: (({ builtFactories: _, ...d }) => d)(v16.defaults),
       factories: v16.factories.map((f) =>
         f.id === 'factory-4'
@@ -385,6 +387,19 @@ describe('migrateWorld', () => {
     expect(factorySolveRequest(migrateWorld(v16), { nodes: [] }, 'factory-4').targets).toEqual([
       { item: 'iron-plate', rate: 15 },
     ]);
+  });
+
+  test('a v16 save carries over unchanged but for its version, with no id or saved time (A109)', () => {
+    const before = JSON.stringify(v16);
+    const w = migrateWorld(v16);
+    expect(w).toEqual({ ...v16, meta: { ...v16.meta, v: WORLD_VERSION } });
+    expect(JSON.stringify(v16)).toBe(before);
+    expect(w.meta.worldId).toBeUndefined();
+    expect(w.meta.savedAt).toBeUndefined();
+    // The v17 fixture is the migrated v16 one with an id and a saved time.
+    const meta = (({ worldId: _, savedAt: __, ...rest }) => rest)(v17.meta);
+    expect({ ...v17, meta }).toEqual(w);
+    expect(migrateWorld(v17)).toEqual(v17);
   });
 
   test('a current world passes through unchanged', () => {

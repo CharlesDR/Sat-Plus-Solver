@@ -149,8 +149,14 @@ const HISTORY_LIMIT = 100;
 const COALESCE_MS = 600;
 
 export interface StoreOptions {
-  /** Clock for coalescing undo steps, injected so tests are deterministic. */
+  /** Clock for coalescing undo steps and for `meta.savedAt`, injected so tests are deterministic. */
   now?: () => number;
+  /**
+   * Turns on world identity (A109): a world without `meta.worldId` gets one
+   * from this when the store takes it, and every edit stamps `meta.savedAt`
+   * from `now`. Left out (most tests), worlds are kept as given.
+   */
+  newWorldId?: () => string;
 }
 
 export type WorldStore = ReturnType<typeof createWorldStore>;
@@ -182,6 +188,14 @@ function toggled(
 
 export function createWorldStore(initial: World = createWorld(), options: StoreOptions = {}) {
   const now = options.now ?? (() => Date.now());
+  const { newWorldId } = options;
+  /** The world with an id, when identity is on (A109). */
+  const owned = (w: World): World =>
+    !newWorldId || w.meta.worldId !== undefined
+      ? w
+      : { ...w, meta: { ...w.meta, worldId: newWorldId() } };
+  /** Set while a change of the world is not an edit: loads, data-hash bookkeeping. */
+  let keepTime = false;
   /** Set while an edit must not become an undo step: data-hash bookkeeping, undo and redo themselves. */
   let quiet = false;
   let last = -Infinity;
@@ -199,7 +213,30 @@ export function createWorldStore(initial: World = createWorld(), options: StoreO
         };
     return out as unknown as WorldState;
   };
-  const store = createStore<WorldState>()((set) => {
+  const store = createStore<WorldState>()((rawSet) => {
+    /** Every change goes through here, so each edit stamps the world's saved time (A109). */
+    const set = (
+      partial: Partial<WorldState> | ((state: WorldState) => Partial<WorldState>),
+    ): void =>
+      rawSet((state) => {
+        const out = typeof partial === 'function' ? partial(state) : partial;
+        if (!newWorldId || !out.world || out.world === state.world) return out;
+        const world = owned(out.world);
+        return {
+          ...out,
+          world: keepTime
+            ? world
+            : { ...world, meta: { ...world.meta, savedAt: new Date(now()).toISOString() } },
+        };
+      });
+    const untimed = (f: () => void) => {
+      keepTime = true;
+      try {
+        f();
+      } finally {
+        keepTime = false;
+      }
+    };
     const silently = (f: () => void) => {
       quiet = true;
       try {
@@ -239,7 +276,7 @@ export function createWorldStore(initial: World = createWorld(), options: StoreO
     };
 
     return named({
-      world: initial,
+      world: owned(initial),
       setTargets: (factoryId, targets) =>
         set(({ world }) => {
           const f = world.factories.find((x) => x.id === factoryId);
@@ -293,13 +330,18 @@ export function createWorldStore(initial: World = createWorld(), options: StoreO
         })),
       attachData: (dataHash) =>
         silently(() =>
-          set(({ world }) => ({ modelHash: dataHash, ...checkData(world, dataHash) })),
+          untimed(() =>
+            set(({ world }) => ({ modelHash: dataHash, ...checkData(world, dataHash) })),
+          ),
         ),
+      // A loaded world keeps its saved time (A109).
       loadWorld: (world) =>
-        set(({ modelHash }) =>
-          modelHash === undefined
-            ? { world, dataHashMismatch: undefined }
-            : checkData(world, modelHash),
+        untimed(() =>
+          set(({ modelHash }) =>
+            modelHash === undefined
+              ? { world, dataHashMismatch: undefined }
+              : checkData(world, modelHash),
+          ),
         ),
       useCurrentData: () =>
         silently(() =>
