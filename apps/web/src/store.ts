@@ -144,9 +144,9 @@ export interface WorldState {
 }
 
 /** Most world documents kept for undo (U1). */
-export const HISTORY_LIMIT = 100;
+const HISTORY_LIMIT = 100;
 /** Edits closer together than this (ms) are one undo step: a drag, typing (U1). */
-export const COALESCE_MS = 600;
+const COALESCE_MS = 600;
 
 export interface StoreOptions {
   /** Clock for coalescing undo steps, injected so tests are deterministic. */

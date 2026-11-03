@@ -41,7 +41,7 @@ export const OBJECTIVE_ORDER: readonly ObjectiveId[] = [
 ];
 
 /** Stack rules the solver enforces, applied before an edit is made. */
-export function canAdd(stack: readonly ObjectiveId[], o: ObjectiveId): boolean {
+function canAdd(stack: readonly ObjectiveId[], o: ObjectiveId): boolean {
   return !stack.includes(o);
 }
 

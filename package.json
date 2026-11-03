@@ -21,8 +21,7 @@
     "e2e": "pnpm --filter @sps/web e2e",
     "world": "tsx tooling/world.ts",
     "layout-score": "tsx tooling/layout-score.ts",
-    "scarcity-sweep": "tsx tooling/all-parts.ts --sweep",
-    "measure:parallel": "tsx tooling/parallel.ts"
+    "scarcity-sweep": "tsx tooling/all-parts.ts --sweep"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

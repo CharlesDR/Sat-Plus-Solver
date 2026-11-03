@@ -27,8 +27,8 @@ export interface GoldenCase {
   };
 }
 
-export const GOLDEN_DIR = join(ROOT, 'fixtures', 'golden');
-export const REL_TOL = 1e-6;
+const GOLDEN_DIR = join(ROOT, 'fixtures', 'golden');
+const REL_TOL = 1e-6;
 
 export function loadVanillaMini(): Model {
   return JSON.parse(readFileSync(join(ROOT, 'fixtures', 'vanilla-mini', 'model.json'), 'utf8'));

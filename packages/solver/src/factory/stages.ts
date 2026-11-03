@@ -217,7 +217,7 @@ async function solveLex(
  * An objective whose LP fails is left out, so the consumer falls back to a
  * standalone plan for it.
  */
-export async function marginalCosts(
+async function marginalCosts(
   p: Problem,
   plan: SolveResult,
   sol: LpSolution,

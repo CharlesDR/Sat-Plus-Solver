@@ -29,9 +29,7 @@ export interface LayoutScore {
 export const COST_WEIGHTS = { crossings: 10, backEdges: 4, bends: 1, edgeLength: 0.001 };
 
 /** The blended cost of a score: lower is an easier chart to follow. */
-export function layoutCost(
-  s: Pick<LayoutScore, 'crossings' | 'backEdges' | 'bends' | 'edgeLength'>,
-) {
+function layoutCost(s: Pick<LayoutScore, 'crossings' | 'backEdges' | 'bends' | 'edgeLength'>) {
   const w = COST_WEIGHTS;
   return (
     Math.round(

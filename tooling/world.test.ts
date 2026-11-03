@@ -1,5 +1,5 @@
 import type { Model } from '@sps/data';
-import { createHighsBackend, solve, type SolveRequest } from '@sps/solver';
+import { createHighsBackend, createSolver, type SolveRequest, type Solver } from '@sps/solver';
 import {
   createFactory,
   createWorld,
@@ -75,11 +75,13 @@ describe('pnpm world solve', () => {
 
 describe('full SF+ model', () => {
   let model: Model;
+  let solver: Solver;
   const backend = createHighsBackend();
-  const solveFactory = (r: SolveRequest) => solve(model, r, backend);
+  const solveFactory = (r: SolveRequest) => solver.solve(r);
   beforeAll(async () => {
     const { result } = await runPipeline();
     model = result.model!;
+    solver = createSolver(model, backend);
   }, 120_000);
 
   /**

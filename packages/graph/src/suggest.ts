@@ -22,8 +22,8 @@ export interface ImportSuggestion {
 }
 
 /** A suggestion takes at least this share of the plan's boxes, or `SUGGEST_MIN_RESOURCES` resources. */
-export const SUGGEST_MIN_SHARE = 0.2;
-export const SUGGEST_MIN_RESOURCES = 2;
+const SUGGEST_MIN_SHARE = 0.2;
+const SUGGEST_MIN_RESOURCES = 2;
 
 /**
  * Each intermediate part's exclusive upstream: its makers, when they make

@@ -57,7 +57,7 @@ export interface ModelerFiles {
 }
 
 /** One report line as the File menu lists it. */
-export function reportText(l: ModelerReportLine): string {
+function reportText(l: ModelerReportLine): string {
   const where = [l.factory, l.node].filter(Boolean).join(': ');
   return where ? `${where} ${l.message}` : l.message;
 }

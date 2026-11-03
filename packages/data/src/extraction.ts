@@ -93,7 +93,7 @@ const CRUSHER_SMELTER = /^(.+?) - (.+?) \((?:MM )?(Crusher|Smelter) Module\)$/;
 const FLUID_ROW =
   /^(.+?) \/ (.+?) - (impure|normal|pure) Mk\.(\d+) \(MM Fluid(\/Crusher)? Module\)$/;
 
-export function nodeKey(resource: string, purity: Purity | 'site'): string {
+function nodeKey(resource: string, purity: Purity | 'site'): string {
   return `${resource}|${purity}`;
 }
 

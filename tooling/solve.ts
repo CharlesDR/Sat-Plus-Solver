@@ -33,12 +33,12 @@ import { MW_ITEM_ID, type Model } from '@sps/data';
 import { productionOrder } from '@sps/graph';
 import {
   compareAlternates,
+  createSolver,
   createHighsBackend,
   formatExact,
   formatRate,
   parseTier,
   recipeTable,
-  solve,
   starterNote,
   summarizePlan,
   buildingTable,
@@ -57,7 +57,7 @@ import {
 } from '@sps/solver';
 import { ROOT, runPipeline } from './build-data';
 
-export const USAGE = `Usage: pnpm solve --target "Item:rate" [--target ...] [--import "Item[:cap]"]
+const USAGE = `Usage: pnpm solve --target "Item:rate" [--target ...] [--import "Item[:cap]"]
                   [--objective resources,machines,...] [--tolerance <percent>] [--min-branch <machines>] [--min-flow <per-minute>] [--farm-cap <percent>]
                   [--whole-machines] [--cost-imports] [--avoid-fluid-byproducts] [--simplicity] [--miner-fluids any|water|none]
                   [--miner-fluid-supply local|outside] [--alternates] [--compare-alternates] [--exclude <recipe-id>]
@@ -378,7 +378,7 @@ export function renderPlan(model: Model, result: SolveResult): string {
 }
 
 /** The compact summary (scenario tooling): targets, byproducts, raw inputs and power, one line each. */
-export function renderPlanSummary(model: Model, result: SolveResult): string {
+function renderPlanSummary(model: Model, result: SolveResult): string {
   const plan = summarizePlan(model, result);
   const line = (rows: SummaryFlow[]) =>
     rows.length ? rows.map((r) => `${r.name} ${fmt(r.rate)}`).join(', ') : '-';
@@ -395,7 +395,7 @@ export function renderPlanSummary(model: Model, result: SolveResult): string {
 }
 
 /** Renders the alternates report: the alternates that help, then the plan that uses them. */
-export function renderAlternates(model: Model, report: AlternatesReport): string {
+function renderAlternates(model: Model, report: AlternatesReport): string {
   const recipe = new Map(model.recipes.map((r) => [r.id, r.name]));
   const out: string[] = [];
   if (report.without.status !== 'ok' && report.with.status === 'ok')
@@ -443,14 +443,15 @@ export async function runCli(
     const modelArg = argv.findIndex((a) => a === '--model');
     const model = await loadModel(modelArg >= 0 ? argv[modelArg + 1] : undefined);
     const args = parseCli(argv, model);
+    const solver = createSolver(model, backend);
     if (args.compareAlternates) {
-      const report = await compareAlternates(model, args.request, backend);
+      const report = await compareAlternates(solver, args.request);
       const stdout = args.json
         ? JSON.stringify(report, null, 2) + '\n'
         : renderAlternates(model, report);
       return { code: report.with.status === 'ok' ? 0 : 1, stdout, stderr: '' };
     }
-    const result = await solve(model, args.request, backend);
+    const result = await solver.solve(args.request);
     const stdout = args.json
       ? JSON.stringify(result, null, 2) + '\n'
       : args.summary

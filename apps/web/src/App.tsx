@@ -428,7 +428,7 @@ function Shell(props: {
 }
 
 /** What shows while a lazily loaded view downloads (U3). */
-export function Loading() {
+function Loading() {
   return (
     <p aria-busy="true" role="status" className="loading">
       Loading…

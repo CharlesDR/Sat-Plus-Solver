@@ -12,11 +12,12 @@
  * is missing.
  */
 import { readFileSync } from 'node:fs';
-import { decompressFromEncodedURIComponent } from 'lz-string';
+// lz-string is CommonJS: Node's ESM loader finds no named exports in it.
+import lzString from 'lz-string';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { MW_ITEM_ID, type Model } from '@sps/data';
-import { createHighsBackend, formatRate, solve, type LpBackend } from '@sps/solver';
+import { createHighsBackend, createSolver, formatRate, type LpBackend } from '@sps/solver';
 import {
   WorldMigrationError,
   migrateWorld,
@@ -26,7 +27,7 @@ import {
 } from '@sps/world';
 import { CliError, loadModel } from './solve';
 
-export const USAGE = `Usage: pnpm world solve <world.json | share link | -> [--model <model.json>] [--json | --summary]`;
+const USAGE = `Usage: pnpm world solve <world.json | share link | -> [--model <model.json>] [--json | --summary]`;
 
 const fmt = formatRate;
 
@@ -42,7 +43,7 @@ function table(head: string[], rows: string[][], textColumns = 1): string {
 }
 
 /** Renders a resolved world as plain-text tables. */
-export function renderWorld(model: Model, world: World, result: WorldResult): string {
+function renderWorld(model: Model, world: World, result: WorldResult): string {
   const itemName = new Map(model.items.map((i) => [i.id, i.name]));
   const item = (id: string) => itemName.get(id) ?? id;
   const factoryName = new Map(world.factories.map((f) => [f.id, f.name]));
@@ -173,7 +174,7 @@ export function renderWorld(model: Model, world: World, result: WorldResult): st
  * The compact summary (scenario tooling): world targets, byproducts left over,
  * raw inputs (extraction plus unmet demand) and power, one line per item.
  */
-export function renderWorldSummary(model: Model, world: World, result: WorldResult): string {
+function renderWorldSummary(model: Model, world: World, result: WorldResult): string {
   const itemName = new Map(model.items.map((i) => [i.id, i.name]));
   const item = (id: string) => itemName.get(id) ?? id;
   const line = (rows: { item: string; rate: number }[]) =>
@@ -214,11 +215,11 @@ export function renderWorldSummary(model: Model, world: World, result: WorldResu
  * The world JSON in `source`: a share link (anything with `#w=`), else the
  * text itself when `fromStdin`, else a file path.
  */
-export function readWorldSource(source: string, stdin?: string): unknown {
+function readWorldSource(source: string, stdin?: string): unknown {
   const text = source === '-' ? (stdin ?? '') : source;
   const at = text.indexOf('#w=');
   if (at >= 0) {
-    const json = decompressFromEncodedURIComponent(text.slice(at + 3).trim());
+    const json = lzString.decompressFromEncodedURIComponent(text.slice(at + 3).trim());
     if (!json) throw new CliError('The share link is damaged or incomplete.');
     return JSON.parse(json);
   }
@@ -265,7 +266,8 @@ export async function runWorldCli(
       world.meta.dataHash && world.meta.dataHash !== model.meta.dataHash
         ? `warning: ${file} was saved against game data ${world.meta.dataHash}; the model is ${model.meta.dataHash}.\n`
         : '';
-    const result = await resolveWorld(world, model, (r) => solve(model, r, backend));
+    const solver = createSolver(model, backend);
+    const result = await resolveWorld(world, model, (r) => solver.solve(r));
     const stdout = parsed.values.json
       ? JSON.stringify(result, (_, v: unknown) => (v === Infinity ? 'Infinity' : v), 2) + '\n'
       : parsed.values.summary

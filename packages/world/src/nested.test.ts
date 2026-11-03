@@ -1,5 +1,5 @@
 import type { Model } from '@sps/data';
-import { createHighsBackend, solve } from '@sps/solver';
+import { createHighsBackend, createSolver } from '@sps/solver';
 import { describe, expect, test } from 'vitest';
 import vanillaMini from '../../../fixtures/vanilla-mini/model.json';
 import { surplusLinkId } from './analytics';
@@ -23,7 +23,8 @@ import type { LedgerRow, SolveFactory, WorldResult } from './types';
 
 const model = vanillaMini as Model;
 const backend = createHighsBackend();
-const solveFactory: SolveFactory = (r) => solve(model, r, backend);
+const solver = createSolver(model, backend);
+const solveFactory: SolveFactory = (r) => solver.solve(r);
 const resolve = (w: World) => resolveWorld(w, model, solveFactory);
 const of = (r: WorldResult, id: string) => r.factories.find((f) => f.id === id)!;
 const row = (rows: readonly LedgerRow[], item: string) => rows.find((x) => x.item === item);

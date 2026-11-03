@@ -13,7 +13,13 @@ import { availableParallelism } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { isMainThread, parentPort, Worker, workerData } from 'node:worker_threads';
 import { MW_ITEM_ID, type Model } from '@sps/data';
-import { createHighsBackend, solve, type ObjectiveId, type SolveRequest } from '@sps/solver';
+import {
+  createHighsBackend,
+  createSolver,
+  type ObjectiveId,
+  type SolveRequest,
+  type Solver,
+} from '@sps/solver';
 import { createWorld, factorySolveRequest } from '@sps/world';
 import { runPipeline } from './build-data';
 
@@ -33,7 +39,7 @@ export function partTargets(model: Model): string[] {
 }
 
 /** The least-restrictive request for 1/min of `item`, as a fresh world plans it. */
-export function partRequest(model: Model, item: string, objectives?: ObjectiveId[]): SolveRequest {
+function partRequest(model: Model, item: string, objectives?: ObjectiveId[]): SolveRequest {
   const world = createWorld();
   world.defaults.alternates = true;
   world.defaults.avoidFluidByproducts = false;
@@ -83,12 +89,12 @@ export interface PartResult {
 
 /** Solves 1/min of `item` and reports what failed and what the plan draws. */
 export async function solvePart(
-  model: Model,
+  solver: Solver,
   item: string,
   objectives?: ObjectiveId[],
-  backend = createHighsBackend(),
 ): Promise<PartResult> {
-  const r = await solve(model, partRequest(model, item, objectives), backend);
+  const { model } = solver;
+  const r = await solver.solve(partRequest(model, item, objectives));
   const resource = new Map(model.nodes.map((n) => [n.id, n.resource]));
   const nne: Record<string, number> = {};
   for (const n of r.nodes) {
@@ -126,7 +132,7 @@ async function solveAll(job: Job): Promise<PartResult[]> {
 }
 
 /** Likely usage per node resource: summed share of each plan's NNE over the mean share. */
-export function usageSeed(model: Model, results: readonly PartResult[]) {
+function usageSeed(model: Model, results: readonly PartResult[]) {
   const share = new Map<string, { sum: number; parts: number }>();
   for (const r of [...new Set(model.nodes.map((n) => n.resource))].sort())
     share.set(r, { sum: 0, parts: 0 });
@@ -184,9 +190,9 @@ async function main() {
 
 if (!isMainThread) {
   const job = workerData as Job;
-  const backend = createHighsBackend();
+  const solver = createSolver(job.model, createHighsBackend());
   const out: PartResult[] = [];
-  for (const item of job.items) out.push(await solvePart(job.model, item, job.objectives, backend));
+  for (const item of job.items) out.push(await solvePart(solver, item, job.objectives));
   parentPort!.postMessage(out);
 } else if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   await main();

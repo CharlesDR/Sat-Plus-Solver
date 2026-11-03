@@ -56,7 +56,7 @@ const largest = (flows: readonly { item: string; rate: number }[]) =>
  * no targets area); imports and missing inputs with
  * their largest consumer; byproducts with their largest producer.
  */
-export function defaultAreas(graph: FactoryGraph, catalog: AreaCatalog): Map<string, string> {
+function defaultAreas(graph: FactoryGraph, catalog: AreaCatalog): Map<string, string> {
   const ids = new Set(catalog.areas.map((a) => a.id));
   const targets = catalog.areas.find((a) => a.rule === 'targets')?.id;
   const fallback = catalog.areas.find((a) => a.rule === 'fallback')?.id ?? catalog.areas[0]?.id;

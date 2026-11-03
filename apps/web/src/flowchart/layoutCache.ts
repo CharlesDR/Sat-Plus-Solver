@@ -12,10 +12,10 @@ import type { FactoryGraph, FactoryLayout } from '@sps/graph';
 declare const __LAYOUT_CODE__: string | undefined;
 
 /** The layout code's version: the build's hash of packages/graph, or `dev`. */
-export const LAYOUT_CODE = typeof __LAYOUT_CODE__ === 'string' ? __LAYOUT_CODE__ : 'dev';
+const LAYOUT_CODE = typeof __LAYOUT_CODE__ === 'string' ? __LAYOUT_CODE__ : 'dev';
 /** Layouts kept in memory and in IndexedDB. */
-export const MEMORY_LAYOUTS = 30;
-export const SAVED_LAYOUTS = 200;
+const MEMORY_LAYOUTS = 30;
+const SAVED_LAYOUTS = 200;
 
 const DB = 'sps-layout';
 const STORE = 'layouts';

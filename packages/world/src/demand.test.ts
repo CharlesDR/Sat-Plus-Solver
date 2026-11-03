@@ -1,5 +1,5 @@
 import type { Model } from '@sps/data';
-import { createHighsBackend, solve } from '@sps/solver';
+import { createHighsBackend, createSolver } from '@sps/solver';
 import { describe, expect, test } from 'vitest';
 import vanillaMini from '../../../fixtures/vanilla-mini/model.json';
 import { markBuilt, restoreBuild } from './built';
@@ -12,7 +12,8 @@ import type { SolveFactory, WorldResult } from './types';
 
 const model = vanillaMini as Model;
 const backend = createHighsBackend();
-const solveFactory: SolveFactory = (r) => solve(model, r, backend);
+const solver = createSolver(model, backend);
+const solveFactory: SolveFactory = (r) => solver.solve(r);
 const resolve = (w: World) => resolveWorld(w, model, solveFactory);
 const link = (r: WorldResult, id: string) => r.links.find((l) => l.id === id)!;
 const factory = (r: WorldResult, id: string) => r.factories.find((f) => f.id === id)!;

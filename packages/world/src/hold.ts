@@ -98,7 +98,7 @@ export function fixedOverruns(
 }
 
 /** The held factories upstream of `id` on pull links, as "Scale up" lifts them (A92), sorted. */
-export function heldUpstream(world: World, id: string): string[] {
+function heldUpstream(world: World, id: string): string[] {
   const seen = new Set([id]);
   const queue = [id];
   while (queue.length) {

@@ -42,7 +42,7 @@ export function allocateRemaining(
 }
 
 /** Most re-solves "size power plant" makes while the plant's own draw moves the balance. */
-export const SIZE_POWER_ITERATIONS = 10;
+const SIZE_POWER_ITERATIONS = 10;
 /** Net power within this fraction of the draw (at least 1 MW) of zero counts as balanced. */
 const POWER_TOL = 1e-9;
 

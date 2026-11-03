@@ -1,5 +1,5 @@
 import type { Model } from '@sps/data';
-import { createHighsBackend, OBJECTIVE_IDS, solve } from '@sps/solver';
+import { createHighsBackend, createSolver, OBJECTIVE_IDS } from '@sps/solver';
 import fc from 'fast-check';
 import { describe, expect, test } from 'vitest';
 import vanillaMini from '../../../fixtures/vanilla-mini/model.json';
@@ -289,7 +289,8 @@ describe('extractFactory (share this factory only)', () => {
   test('the shared factory plans what it planned in the world', async () => {
     const model = vanillaMini as Model;
     const backend = createHighsBackend();
-    const solveFactory: SolveFactory = (r) => solve(model, r, backend);
+    const solver = createSolver(model, backend);
+    const solveFactory: SolveFactory = (r) => solver.solve(r);
     const w = buildWorld(
       [{ id: 'a' }, { id: 'b' }, { id: 'c', targets: [{ item: 'modular-frame', rate: 2 }] }],
       [pull('ab', 'a', 'b', 'iron-plate'), pull('bc', 'b', 'c', 'reinforced-iron-plate')],

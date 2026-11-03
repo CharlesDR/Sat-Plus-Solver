@@ -98,7 +98,7 @@ export const ICON_GAP = 6;
 /** Space between a label's item icon and its rate. */
 export const LABEL_ICON_GAP = 3;
 /** Padding either side of a line label's icon and rate, inside its box (A93). */
-export const LABEL_PAD = 3;
+const LABEL_PAD = 3;
 
 /** Estimated text metrics of the world graph's 12px UI font. */
 export const CHAR_WIDTH = 7;

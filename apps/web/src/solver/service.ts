@@ -13,16 +13,13 @@ import {
 import {
   bestNodeRates,
   compareTiers,
-  costCacheEntries,
   producible,
   rawResources,
-  seedCostCache,
   sizeNetwork,
-  solve,
   summarizePlan,
   buildBill,
   wholeBuildings,
-  type LpBackend,
+  type Solver,
 } from '@sps/solver';
 import {
   addSite,
@@ -81,7 +78,7 @@ export interface SolverService {
 }
 
 /** Memoized factory solves kept between world solves; the oldest go first. */
-export const CACHE_LIMIT = 500;
+const CACHE_LIMIT = 500;
 
 /**
  * `layout` lays out flowcharts for the Modeler export (A58); the worker
@@ -89,14 +86,14 @@ export const CACHE_LIMIT = 500;
  * solves run side by side on its workers (S2); results are the same.
  */
 export function createSolverService(
-  model: Model,
-  backend: LpBackend,
+  solver: Solver,
   layout?: LayoutEngine,
   pool?: FactoryPool,
 ): SolverService {
+  const { model, backend } = solver;
   const labels = modelLabels(model);
   const cache = createSolveCache();
-  const solveFactory: SolveFactory = pool ? (r) => pool.solve(r) : (r) => solve(model, r, backend);
+  const solveFactory: SolveFactory = pool ? (r) => pool.solve(r) : (r) => solver.solve(r);
   const concurrency = pool?.size ?? 1;
   return {
     dataHash: model.meta.dataHash,
@@ -107,12 +104,12 @@ export function createSolverService(
       const now = [...cache];
       cache.clear();
       for (const [k, v] of [...saved.solves, ...now]) cache.set(k, v);
-      seedCostCache(model, saved.costs);
+      solver.seedCosts(saved.costs);
     },
     snapshot: () => ({
       dataHash: model.meta.dataHash,
       solves: [...cache],
-      costs: costCacheEntries(model),
+      costs: solver.costEntries(),
     }),
     async solve({ world, focus, action }, onProgress) {
       // The pool starts once a world has factories that can solve side by side.
@@ -319,7 +316,7 @@ export function focusPlan(
 }
 
 /** A factory's build mark as whole buildings per recipe group (A44), for To expand (TI-1). */
-export function builtCounts(factory: Factory | undefined): Map<string, number> | undefined {
+function builtCounts(factory: Factory | undefined): Map<string, number> | undefined {
   if (!factory?.built) return undefined;
   const counts = new Map<string, number>();
   for (const e of factory.built.entries)
@@ -331,7 +328,7 @@ export function builtCounts(factory: Factory | undefined): Map<string, number> |
  * The world result without each factory's full solve result (it stays in
  * the worker), with each factory's buildings to place (TI-1).
  */
-export function summarizeWorld(
+function summarizeWorld(
   result: WorldResult,
   model: Pick<Model, 'machines' | 'items'>,
   built: (id: string) => ReadonlyMap<string, number> | undefined = () => undefined,
@@ -401,7 +398,7 @@ export function targetCatalog(model: Model): CatalogItem[] {
 }
 
 /** Raw resources for the resource-limits editor (A33). */
-export function resourceCatalog(model: Model): CatalogResource[] {
+function resourceCatalog(model: Model): CatalogResource[] {
   const item = new Map(model.items.map((i) => [i.id, i]));
   const best = bestNodeRates(model);
   return rawResources(model)

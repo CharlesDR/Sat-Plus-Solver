@@ -22,7 +22,7 @@ export const PINCH_MIN = 4;
 /** Areas hold at most this many recipe boxes, where the plan allows it. */
 export const PINCH_MAX = 15;
 /** Prefix of a pinch-point area's id, so it never meets a catalog area's id. */
-export const PINCH_PREFIX = 'pp:';
+const PINCH_PREFIX = 'pp:';
 
 const SINK = '\u0000sink';
 

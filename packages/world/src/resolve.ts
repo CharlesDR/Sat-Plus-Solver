@@ -26,9 +26,9 @@ import type { SolveFactory, WorldDiagnostic, WorldResult } from './types';
 /** §4.3 step 3: most sweeps of a pull cycle before it is reported. */
 export const CYCLE_ITERATION_LIMIT = 25;
 /** §4.3 step 3: a cycle has converged when every pull rate moves less than this, relative. */
-export const CYCLE_TOLERANCE = 1e-6;
+const CYCLE_TOLERANCE = 1e-6;
 /** Most resolution passes while linked import costs settle (as `solveCosted` in the solver). */
-export const COST_PASSES = 4;
+const COST_PASSES = 4;
 
 /** Default pipe capacity per tier, m³/min (A10): Mk1 300, Mk2 600. */
 export const DEFAULT_PIPE_CAPACITIES: Readonly<Record<number, number>> = { 1: 300, 2: 600 };

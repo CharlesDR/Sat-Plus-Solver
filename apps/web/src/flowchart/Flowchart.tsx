@@ -728,7 +728,7 @@ function Canvas(props: {
  * A line's weight, 0–1: its rate on a log scale against the plan's largest,
  * so a 1000th of the largest is the thinnest line (A48).
  */
-export function lineWeight(rate: number, max: number): number {
+function lineWeight(rate: number, max: number): number {
   if (!(rate > 0) || !(max > 0)) return 0;
   return Math.min(1, Math.max(0, 1 + Math.log10(rate / max) / 3));
 }

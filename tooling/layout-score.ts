@@ -20,7 +20,7 @@ import {
   type GraphLabels,
   type LayoutScore,
 } from '@sps/graph';
-import { createHighsBackend, solve, type SolveRequest } from '@sps/solver';
+import { createHighsBackend, createSolver, type SolveRequest } from '@sps/solver';
 import { createWorld, factorySolveRequest } from '@sps/world';
 import ELK from 'elkjs/lib/elk.bundled.js';
 import { ROOT, runPipeline } from './build-data';
@@ -76,7 +76,7 @@ export function areaCatalog(model: Model): AreaCatalog | undefined {
 const ICON_SIZE = 32;
 const LABEL_ICON_SIZE = 16;
 
-export const BASELINE = join(ROOT, 'fixtures', 'layout', 'scores.json');
+const BASELINE = join(ROOT, 'fixtures', 'layout', 'scores.json');
 
 export interface Baseline {
   /** No layout may bring a gap between two boxes closer than this, px. */
@@ -94,10 +94,10 @@ export async function scorePlans(
   const item = new Map(model.items.map((i) => [i.id, i.name]));
   const machine = new Map(model.machines.map((m) => [m.id, m.name]));
   const labels: GraphLabels = { item: (id) => item.get(id), machine: (id) => machine.get(id) };
-  const backend = createHighsBackend();
+  const solver = createSolver(model, createHighsBackend());
   const out: Record<string, LayoutScore & { nodes: number }> = {};
   for (const [name, request] of Object.entries(SCORE_PLANS)) {
-    const result = await solve(model, request(model), backend);
+    const result = await solver.solve(request(model));
     if (result.status !== 'ok') throw new Error(`${name} did not solve: ${result.status}`);
     const flat = factoryGraph(result, labels);
     const graph = grouped(name) ? groupAreas(flat, areaCatalog(model), { by: by(name) }) : flat;

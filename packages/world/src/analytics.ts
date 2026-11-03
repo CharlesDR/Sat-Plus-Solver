@@ -542,7 +542,7 @@ const BUILD_ORDER: Record<BuildCheck['state'], number> = {
 };
 
 /** The worst of some build states (A52). */
-export function worstBuild(states: readonly BuildCheck['state'][]): BuildCheck['state'] {
+function worstBuild(states: readonly BuildCheck['state'][]): BuildCheck['state'] {
   return states.reduce((a, b) => (BUILD_ORDER[b] > BUILD_ORDER[a] ? b : a), 'matches');
 }
 
