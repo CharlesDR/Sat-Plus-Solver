@@ -66,7 +66,8 @@ const by = (name: string) => (name.endsWith('-areas') ? 'parts' : 'pinch');
 export function areaCatalog(model: Model): AreaCatalog | undefined {
   if (!model.areas) return undefined;
   const at = new Map(model.items.map((i) => [i.id, i.area]));
-  return { areas: model.areas, itemArea: (id) => at.get(id) };
+  const fluids = new Set(model.items.filter((i) => i.form === 'fluid').map((i) => i.id));
+  return { areas: model.areas, itemArea: (id) => at.get(id), isFluid: (id) => fluids.has(id) };
 }
 
 /**

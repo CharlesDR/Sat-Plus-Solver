@@ -95,6 +95,8 @@ export interface GraphArea {
   ins: number;
   outs: number;
   collapsed?: true;
+  /** Preferred vertical place, lowest first, among areas that do not feed each other (A107). */
+  rank?: number;
 }
 
 /** Display names; ids are shown where a name is missing. */

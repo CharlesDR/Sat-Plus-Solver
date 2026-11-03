@@ -24,7 +24,7 @@ export type {
   GraphLabels,
   SubFactoryFlow,
 } from './factory';
-export { areaNodeId, groupAreas, type AreaCatalog, type AreaSettings } from './areas';
+export { areaNodeId, baseNodeId, groupAreas, type AreaCatalog, type AreaSettings } from './areas';
 export { importSuggestions, type ImportSuggestion } from './suggest';
 
 export {

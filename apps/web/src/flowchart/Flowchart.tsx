@@ -6,6 +6,7 @@
 import {
   AREA_TITLE,
   areaStats,
+  baseNodeId,
   flowForm,
   nodeLines,
   type FlowForm,
@@ -201,11 +202,14 @@ function NodeTip({
         <label className="flow-tip-area">
           Area
           <select
-            value={areas.moves[node.id] ?? ''}
-            onChange={(e) => areas.move(node.id, e.target.value || undefined)}
+            value={areas.moves[baseNodeId(node.id)] ?? ''}
+            onChange={(e) => areas.move(baseNodeId(node.id), e.target.value || undefined)}
           >
             <option value="">
-              Own area{areas.moves[node.id] === undefined ? ` (${areaName(areas, node.area)})` : ''}
+              Own area
+              {areas.moves[baseNodeId(node.id)] === undefined
+                ? ` (${areaName(areas, node.area)})`
+                : ''}
             </option>
             {areas.choices.map((a) => (
               <option key={a.id} value={a.id}>
@@ -554,9 +558,15 @@ function Canvas(props: {
     if (line) return { nodes: new Set([line.source, line.target]), edges: new Set([line.id]) };
     const at = hoverNode ?? selected;
     if (at === undefined) return undefined;
-    const touching = layout.edges.filter((e) => e.source === at || e.target === at);
+    // A box drawn in pieces (fresh fluids, A107) lights up as one.
+    const box = baseNodeId(at);
+    const own = (id: string) => baseNodeId(id) === box;
+    const touching = layout.edges.filter((e) => own(e.source) || own(e.target));
     return {
-      nodes: new Set([at, ...touching.flatMap((e) => [e.source, e.target])]),
+      nodes: new Set([
+        ...layout.nodes.filter((n) => own(n.id)).map((n) => n.id),
+        ...touching.flatMap((e) => [e.source, e.target]),
+      ]),
       edges: new Set(touching.map((e) => e.id)),
     };
   }, [layout, hoverNode, hoverEdge, selected]);
@@ -600,7 +610,7 @@ function Canvas(props: {
           form,
           name,
         },
-        selected: n.id === selected,
+        selected: baseNodeId(n.id) === selected,
         draggable: false,
         connectable: false,
         ariaLabel: `${KIND_LABEL[n.kind]}: ${nodeLines(n, props.rate).join(', ')}`,
@@ -613,7 +623,10 @@ function Canvas(props: {
   );
   const edges = useMemo<FlowchartEdge[]>(() => {
     return layout.edges.map((e) => {
-      const hot = e.source === selected || e.target === selected || e.id === hoverEdge;
+      const hot =
+        baseNodeId(e.source) === selected ||
+        baseNodeId(e.target) === selected ||
+        e.id === hoverEdge;
       const secondary = mains.get(e.source) !== e.item;
       return {
         id: e.id,
@@ -655,8 +668,8 @@ function Canvas(props: {
             nodesConnectable={false}
             onNodeClick={(_, n) => {
               if (n.type !== 'flow') return;
-              const again = n.id === selected;
-              onSelect(again ? undefined : n.id);
+              const again = baseNodeId(n.id) === selected;
+              onSelect(again ? undefined : baseNodeId(n.id));
               setTip(again ? undefined : n.id);
             }}
             onNodeDoubleClick={(_, n) => {
@@ -744,7 +757,8 @@ function useTooltip(
   selected: string | undefined,
 ) {
   useEffect(() => {
-    if (tip !== undefined && tip !== selected) setTip(undefined);
+    // The tooltip is on one piece of a box drawn in pieces; the selection is the box (A107).
+    if (tip !== undefined && baseNodeId(tip) !== selected) setTip(undefined);
   }, [tip, selected, setTip]);
   useEffect(() => {
     if (tip === undefined) return;
@@ -911,7 +925,7 @@ function Follow({
   }, [flow, layout, box, full, inset]);
   useEffect(() => {
     if (selection?.from !== 'table') return;
-    const n = layout.nodes.find((x) => x.id === selection.id);
+    const n = layout.nodes.find((x) => baseNodeId(x.id) === selection.id);
     if (n)
       void flow.setCenter(n.x + n.width / 2, n.y + n.height / 2, {
         zoom: Math.max(flow.getZoom(), 0.8),

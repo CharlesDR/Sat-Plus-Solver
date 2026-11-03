@@ -507,9 +507,19 @@ async function layoutWith(
   const shut = new Set(
     graph.nodes.flatMap((n) => (n.kind === 'area' && n.area !== undefined ? [n.area] : [])),
   );
+  // Areas with a rank (A107) go in rank order: ELK prefers it (model order)
+  // but may break it to save crossings.
+  const ranked = (graph.areas ?? []).some((a) => a.rank !== undefined);
   const blockIds = (graph.areas ?? [])
     .map((a) => a.id)
     .filter((id) => open.has(id) || shut.has(id));
+  if (ranked) {
+    // Unranked areas after the ranked ones, in their own order (the sort is stable).
+    const rank = new Map((graph.areas ?? []).map((a) => [a.id, a.rank ?? Infinity]));
+    blockIds.sort((a, b) =>
+      rank.get(a)! === rank.get(b)! ? 0 : rank.get(a)! < rank.get(b)! ? -1 : 1,
+    );
+  }
   const ROOT = '';
   const containerOf = new Map<string, string>();
   for (const n of graph.nodes)
@@ -741,6 +751,7 @@ async function layoutWith(
             layoutOptions: {
               ...(blocks.length ? AREA_ROOT_OPTIONS : elkOptions(graph.nodes.length)),
               ...(orders ? {} : ORDER_ONLY),
+              ...(ranked ? { 'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES' } : {}),
             },
             children: [...blocks, ...roots],
             edges: strip(edgesIn.get(ROOT)!, orders),

@@ -7,6 +7,9 @@
  * each border, and collapses areas to one box each.
  */
 import type { FactoryGraph, FlowEdge, FlowNode, GraphArea } from './factory';
+import { allocate } from './factory';
+import { bandAreas, metalRanks, oreBand } from './band';
+import { productLines } from './lines';
 import { areaFlows, isBox, pinchAreas } from './pinch';
 
 /** The areas the data build defines, in production order. */
@@ -14,6 +17,8 @@ export interface AreaCatalog {
   areas: readonly { id: string; name: string; rule?: 'raw' | 'targets' | 'fallback' }[];
   /** The area of an item's recipes; undefined for items without one. */
   itemArea: (item: string) => string | undefined;
+  /** Liquids and gases: their extraction is not ore processing, and is drawn where it is used (A107). */
+  isFluid?: (item: string) => boolean;
 }
 
 /** A factory's own area settings (World `Factory.areas`). */
@@ -125,20 +130,46 @@ export function groupAreas(
   if (!pinch && !catalog) return graph;
   let at: Map<string, string>;
   let list: readonly { id: string; name: string }[];
+  let rankOf: Map<string, number> | undefined;
+  let band: ReadonlyMap<string, boolean> | undefined;
+  const isFluid = catalog?.isFluid ?? (() => false);
   if (pinch) {
-    const p = pinchAreas(graph);
-    at = placeEnds(graph, p.at, p.areas[0]?.id);
-    list = p.areas;
+    // The ore band first (A107), then product lines or pinch points group the rest.
+    const raw = catalog?.areas.find((a) => a.rule === 'raw')?.id;
+    band =
+      raw === undefined ? undefined : oreBand(graph, (i) => catalog!.itemArea(i) === raw, isFluid);
+    const b = band ? bandAreas(graph, band) : { at: new Map<string, string>(), areas: [] };
+    // Fresh fluid extraction is drawn with the areas it feeds (localFluids).
+    const fresh = band ? graph.nodes.filter((n) => isFresh(n, isFluid)).map((n) => n.id) : [];
+    const apart = new Set([...b.at.keys(), ...fresh]);
+    const lines = band ? productLines(graph, apart) : undefined;
+    const p = lines ?? pinchAreas(graph, apart);
+    list = [...b.areas, ...p.areas];
+    at = placeEnds(graph, new Map([...b.at, ...p.at]), list[0]?.id);
+    if (lines) {
+      rankOf = lines.rank;
+      for (const a of b.areas) rankOf.set(a.id, lines.middle);
+    }
   } else {
     at = defaultAreas(graph, catalog!);
     list = catalog!.areas;
   }
   const known = new Set(list.map((a) => a.id));
-  for (const [node, area] of Object.entries(settings.moves ?? {}))
-    if (at.has(node) && known.has(area)) at.set(node, area);
+  // A move of one fresh-fluid piece moves its whole box, which then stays whole.
+  const moved = new Set<string>();
+  for (const [node, area] of Object.entries(settings.moves ?? {})) {
+    const id = baseNodeId(node);
+    if (at.has(id) && known.has(area)) {
+      at.set(id, area);
+      moved.add(id);
+    }
+  }
   const used = new Set(at.values());
   if (used.size < 2) return graph;
 
+  graph = localFluids(graph, at, isFluid, moved);
+  graph = reallocate(graph, at, list);
+  if (band && !rankOf) rankOf = metalRanks(graph, at, list);
   const boxes = new Set(graph.nodes.filter(counted).map((n) => n.id));
   const flows = areaFlows(graph.edges, at, boxes);
   const areas: GraphArea[] = list
@@ -153,6 +184,7 @@ export function groupAreas(
         ins: flows.get(a.id)?.ins.size ?? 0,
         outs: flows.get(a.id)?.outs.size ?? 0,
         ...(collapsed.has(a.id) ? { collapsed: true as const } : {}),
+        ...(rankOf?.has(a.id) ? { rank: rankOf.get(a.id)! } : {}),
       };
     });
   const nodes = graph.nodes.map((n) => ({ ...n, area: at.get(n.id)! }));
@@ -199,4 +231,113 @@ function collapse(graph: FactoryGraph, areas: readonly GraphArea[]): FactoryGrap
   }));
   const nodes = [...graph.nodes.filter((n) => box(n) === undefined), ...boxes];
   return { nodes, edges, ...(graph.areas ? { areas: graph.areas } : {}) };
+}
+
+/** Separator of a fresh-fluid piece's id from its box's id (A107). */
+export const PIECE = '@';
+
+/** The box a node id belongs to: itself, or the box a fresh-fluid piece was cut from. */
+export const baseNodeId = (id: string) => {
+  const k = id.indexOf(PIECE);
+  return k < 0 ? id : id.slice(0, k);
+};
+
+/** Fresh fluid extraction: a box making a fluid from nothing but power (water extractors, wells). */
+function isFresh(n: FlowNode, isFluid: (item: string) => boolean): boolean {
+  return (
+    (n.kind === 'resource' || n.kind === 'recipe') &&
+    n.main !== undefined &&
+    isFluid(n.main) &&
+    n.inputs.every((f) => f.item === 'mw')
+  );
+}
+
+/**
+ * Rule 2 (A107): fresh fluid extraction is drawn in each area it feeds, as
+ * one piece per area with that area's share of the machines, power and
+ * flows, so water does not run in long lines from one place. The pieces'
+ * ids are the box's id, `PIECE` and the area. A box the user moved stays whole.
+ */
+function localFluids(
+  graph: FactoryGraph,
+  at: Map<string, string>,
+  isFluid: (item: string) => boolean,
+  moved: ReadonlySet<string>,
+): FactoryGraph {
+  const nodes: FlowNode[] = [];
+  for (const n of graph.nodes) {
+    const share = new Map<string, number>();
+    if (isFresh(n, isFluid) && !moved.has(n.id))
+      for (const e of graph.edges)
+        if (e.source === n.id) {
+          const area = at.get(e.target) ?? '';
+          share.set(area, (share.get(area) ?? 0) + e.rate);
+        }
+    const total = [...share.values()].reduce((a, b) => a + b, 0);
+    if (share.size < 2 || !(total > 0)) {
+      nodes.push(n);
+      continue;
+    }
+    for (const [area, rate] of [...share].sort(([a], [b]) => cmp(a, b))) {
+      const f = rate / total;
+      const id = `${n.id}${PIECE}${area}`;
+      at.set(id, area);
+      nodes.push({
+        ...n,
+        id,
+        ...(n.machines !== undefined ? { machines: n.machines * f } : {}),
+        ...(n.power !== undefined ? { power: n.power * f } : {}),
+        inputs: n.inputs.map((x) => ({ ...x, rate: x.rate * f })),
+        outputs: n.outputs.map((x) => ({ ...x, rate: x.rate * f })),
+      });
+    }
+    at.delete(n.id);
+  }
+  return { ...graph, nodes };
+}
+
+/**
+ * Rule 2 (A107): each item's supply is split over its consumers in area
+ * order, then node order, so the earliest producers feed the earliest
+ * consumers and a byproduct runs back only when no later area takes it.
+ * The plan is unchanged; only which producer feeds which consumer is.
+ */
+function reallocate(
+  graph: FactoryGraph,
+  at: ReadonlyMap<string, string>,
+  list: readonly { id: string }[],
+): FactoryGraph {
+  const order = new Map(list.map((a, k) => [a.id, k]));
+  const place = new Map(graph.nodes.map((n, k) => [n.id, k]));
+  const rank = (id: string) => order.get(at.get(id) ?? '') ?? list.length;
+  const byArea = (a: { node: string }, b: { node: string }) =>
+    rank(a.node) - rank(b.node) || place.get(a.node)! - place.get(b.node)!;
+  const supply = new Map<string, { node: string; rate: number }[]>();
+  const take = new Map<string, { node: string; rate: number }[]>();
+  const push = (m: typeof supply, item: string, node: string, rate: number) => {
+    const list = m.get(item);
+    if (list) list.push({ node, rate });
+    else m.set(item, [{ node, rate }]);
+  };
+  for (const n of graph.nodes) {
+    for (const f of n.outputs) push(supply, f.item, n.id, f.rate);
+    for (const f of n.inputs) push(take, f.item, n.id, f.rate);
+  }
+  const name = new Map(graph.edges.map((e) => [e.item, e.itemName]));
+  const edges: FlowEdge[] = [];
+  for (const [item, producers] of supply) {
+    const consumers = take.get(item);
+    if (!consumers) continue;
+    for (const { source, target, rate } of allocate(producers.sort(byArea), consumers.sort(byArea)))
+      edges.push({
+        id: `${source}→${target}:${item}`,
+        source,
+        target,
+        item,
+        itemName: name.get(item) ?? item,
+        rate,
+      });
+  }
+  edges.sort((a, b) => cmp(a.id, b.id));
+  return { ...graph, edges };
 }
