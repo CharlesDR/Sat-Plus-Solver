@@ -3,9 +3,9 @@
  * world solve requests one at a time (CLAUDE.md: the main thread never runs the LP).
  */
 import type { Model } from '@sps/data';
-import { costCacheEntries, createHighsBackend, seedCostCache, solve } from '@sps/solver';
-import ELK from 'elkjs/lib/elk-api.js';
+import { createHighsBackend, createSolver } from '@sps/solver';
 import modelUrl from '../../../../data/generated/model.json?url';
+import { lazyLayoutWorker } from '../flowchart/engine';
 import { loadCaches, saveCaches } from './cacheStore';
 import { createFactoryPool, poolSize } from './pool';
 import type { FromWorker, ToWorker } from './protocol';
@@ -18,14 +18,12 @@ async function init(): Promise<SolverService> {
   if (!res.ok) throw new Error(`Could not load the model (${res.status}).`);
   const model = (await res.json()) as Model;
   // highs.mjs finds highs.wasm next to itself; the bundler emits it as an asset.
-  // ELK lays out flowcharts for the Modeler export (A58), in a worker of its own.
-  const layout = new ELK({
-    workerFactory: () =>
-      new Worker(new URL('../flowchart/layout.worker.ts', import.meta.url), { type: 'module' }),
-  });
+  // ELK lays out flowcharts for the Modeler export (A58), in a worker of its
+  // own that starts on the first export (BR-2).
+  const layout = lazyLayoutWorker();
   // S2: factory solves run on a pool of workers when the device has the cores.
   const size = poolSize(globalThis.navigator?.hardwareConcurrency);
-  const backend = createHighsBackend();
+  const solver = createSolver(model, createHighsBackend());
   const pool =
     size > 1
       ? createFactoryPool({
@@ -35,12 +33,12 @@ async function init(): Promise<SolverService> {
               { length: size },
               () => new Worker(new URL('./factory.worker.ts', import.meta.url), { type: 'module' }),
             ),
-          onCosts: (costs) => seedCostCache(model, costs),
-          costs: () => costCacheEntries(model),
-          local: (request) => solve(model, request, backend),
+          onCosts: (costs) => solver.seedCosts(costs),
+          costs: () => solver.costEntries(),
+          local: (request) => solver.solve(request),
         })
       : undefined;
-  const service = createSolverService(model, backend, layout, pool);
+  const service = createSolverService(solver, layout, pool);
   // Solves and import costs from the last visit with this data (A90).
   const saved = await loadCaches(service.dataHash);
   if (saved) service.seed(saved);

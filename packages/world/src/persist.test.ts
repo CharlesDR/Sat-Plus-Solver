@@ -1,11 +1,11 @@
 import type { Model } from '@sps/data';
-import { createHighsBackend, OBJECTIVE_IDS, solve } from '@sps/solver';
+import { createHighsBackend, createSolver, OBJECTIVE_IDS } from '@sps/solver';
 import fc from 'fast-check';
 import { describe, expect, test } from 'vitest';
 import vanillaMini from '../../../fixtures/vanilla-mini/model.json';
 import mini from '../../../fixtures/worlds/mini-world.json';
 import v1 from '../../../fixtures/worlds/v1-world.json';
-import v16 from '../../../fixtures/worlds/v16-world.json';
+import v17 from '../../../fixtures/worlds/v17-world.json';
 import { WORLD_VERSION, createWorld, type World } from './document';
 import { migrateWorld } from './migrate';
 import { WorldLoadError, extractFactory, loadWorld, parseWorld, serializeWorld } from './persist';
@@ -136,10 +136,15 @@ const worldArb: fc.Arbitrary<World> = (() => {
   return (
     fc
       .record({
-        meta: fc.record({
-          v: fc.constant(WORLD_VERSION),
-          dataHash: fc.stringMatching(/^[0-9a-f]{0,16}$/),
-        }),
+        meta: fc.record(
+          {
+            v: fc.constant(WORLD_VERSION),
+            dataHash: fc.stringMatching(/^[0-9a-f]{0,16}$/),
+            worldId: fc.stringMatching(/^[0-9a-f]{16}$/),
+            savedAt: fc.integer({ min: 0, max: 4e12 }).map((t) => new Date(t).toISOString()),
+          },
+          { requiredKeys: ['v', 'dataHash'] },
+        ),
         factories: fc.uniqueArray(factory, byId),
         groups: fc.uniqueArray(group, byId),
         links: fc.uniqueArray(link, byId),
@@ -175,9 +180,9 @@ describe('World → JSON → World', () => {
   });
 
   test('is deep-equal for the current-version fixture, and the fixture is current', () => {
-    expect(v16.meta.v).toBe(WORLD_VERSION);
-    const w = parseWorld(JSON.stringify(v16));
-    expect(w).toStrictEqual(v16);
+    expect(v17.meta.v).toBe(WORLD_VERSION);
+    const w = parseWorld(JSON.stringify(v17));
+    expect(w).toStrictEqual(v17);
     expect(parseWorld(serializeWorld(w, true))).toStrictEqual(w);
   });
 
@@ -219,6 +224,13 @@ describe('parseWorld rejects what it cannot read', () => {
     );
     const manual = { enabled: true, frozen: [{ recipe: 'x', machines: -1 }], edits: [] };
     expect(bad({ ...w, factories: [{ ...f, manual }] })).toThrow(/factories\[0\] is malformed/);
+    // A109's identity and saved time are strings.
+    expect(bad({ ...w, meta: { ...w.meta, worldId: 7 } })).toThrow(
+      /"meta.worldId" is not a string/,
+    );
+    expect(bad({ ...w, meta: { ...w.meta, savedAt: 0 } })).toThrow(
+      /"meta.savedAt" is not a string/,
+    );
   });
   test('dangling references still load (resolution reports them)', () => {
     const w = buildWorld([{ id: 'a', group: 'nowhere' }], [pull('l', 'a', 'ghost', 'iron-plate')]);
@@ -289,7 +301,8 @@ describe('extractFactory (share this factory only)', () => {
   test('the shared factory plans what it planned in the world', async () => {
     const model = vanillaMini as Model;
     const backend = createHighsBackend();
-    const solveFactory: SolveFactory = (r) => solve(model, r, backend);
+    const solver = createSolver(model, backend);
+    const solveFactory: SolveFactory = (r) => solver.solve(r);
     const w = buildWorld(
       [{ id: 'a' }, { id: 'b' }, { id: 'c', targets: [{ item: 'modular-frame', rate: 2 }] }],
       [pull('ab', 'a', 'b', 'iron-plate'), pull('bc', 'b', 'c', 'reinforced-iron-plate')],

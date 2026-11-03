@@ -3,7 +3,7 @@
  * vanilla-mini model, DAGs and cycles alike. Fixed seed keeps CI deterministic.
  */
 import type { Model } from '@sps/data';
-import { createHighsBackend, solve, type PowerSummary } from '@sps/solver';
+import { createHighsBackend, createSolver, type PowerSummary } from '@sps/solver';
 import fc from 'fast-check';
 import { describe, expect, test } from 'vitest';
 import vanillaMini from '../../../fixtures/vanilla-mini/model.json';
@@ -14,6 +14,7 @@ import type { LedgerRow, ScopeTotals, WorldResult } from './types';
 
 const model = vanillaMini as Model;
 const backend = createHighsBackend();
+const solver = createSolver(model, backend);
 const SEED = 20261001;
 const RUNS = 40;
 const TOL = 1e-6;
@@ -97,7 +98,7 @@ function conserves(rows: readonly LedgerRow[]): string[] {
 
 const property = (check: (r: WorldResult, world: World) => void) =>
   fc.asyncProperty(worldArb, async (world) => {
-    const r = await resolveWorld(world, model, (req) => solve(model, req, backend));
+    const r = await resolveWorld(world, model, (req) => solver.solve(req));
     check(r, world);
   });
 

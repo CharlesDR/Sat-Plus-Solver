@@ -1,5 +1,5 @@
 import type { Model, Recipe } from '@sps/data';
-import { createHighsBackend, solve } from '@sps/solver';
+import { createHighsBackend, createSolver } from '@sps/solver';
 import { describe, expect, test } from 'vitest';
 import { MINER_SUPPORT_NAME, unwiredMinerNeeds, wireMinerSupport } from './helpers';
 import { resolveWorld } from './resolve';
@@ -43,7 +43,8 @@ const model: Model = {
   beltCapacities: [],
 };
 const backend = createHighsBackend();
-const solveFactory: SolveFactory = (r) => solve(model, r, backend);
+const solver = createSolver(model, backend);
+const solveFactory: SolveFactory = (r) => solver.solve(r);
 
 describe('Miner support (A71)', () => {
   test('one click makes the factory and pulls the supplied fluid, so nothing is unmet', async () => {

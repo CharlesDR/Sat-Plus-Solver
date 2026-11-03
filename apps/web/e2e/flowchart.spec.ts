@@ -58,9 +58,11 @@ test('Reinforced Iron Plate 5/min: multi-stage Water, a fan-out labelled per lin
   const chart = page.getByTestId('flowchart');
   await chart.getByRole('button', { name: 'Fit the whole plan' }).click();
 
-  // Water feeds recipes at three stages, so it is marked; it sits in the chart.
+  // Water feeds recipes at four stages, so it is marked; it sits in the chart.
+  // (Three before A107: drawn in area order, byproduct water now feeds the
+  // later stages and the extractor the earlier ones.)
   await expect(node(page, 'recipe:water').locator('.flow-node')).toHaveClass(/multi-stage/);
-  await expect(node(page, 'recipe:water')).toContainText('3 stages');
+  await expect(node(page, 'recipe:water')).toContainText('4 stages');
 
   // Iron Ingot feeds Iron Plate and Iron Rod: each line carries its own
   // rate, with no total on the shared stretch.
@@ -99,7 +101,7 @@ test('hover focus, and the click tooltip with exact values closes on Esc first (
   await clickFlowNode(page, 'recipe:water');
   const tip = page.getByRole('dialog', { name: 'Water: exact values' });
   await expect(tip).toBeVisible();
-  await expect(tip).toContainText('Used at 3 stages of the plan');
+  await expect(tip).toContainText('Used at 4 stages of the plan');
   await expect(tip).toContainText(/\(\d+ ?\d*\/\d+\)/);
   await page.keyboard.press('Escape');
   await expect(tip).toBeHidden();

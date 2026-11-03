@@ -8,7 +8,7 @@
 export const MAX_SLOTS = 10;
 
 /** The full planner's keys; simple mode (A72) keeps its own under `SIMPLE_PREFIX`. */
-export const MAIN_PREFIX = 'sps:';
+const MAIN_PREFIX = 'sps:';
 export const SIMPLE_PREFIX = 'sps:simple:';
 
 const keys = (p: string) => ({

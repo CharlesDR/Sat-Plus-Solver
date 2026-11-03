@@ -1,5 +1,5 @@
 import type { Model } from '@sps/data';
-import { createHighsBackend, solve } from '@sps/solver';
+import { createHighsBackend, createSolver } from '@sps/solver';
 import { describe, expect, test } from 'vitest';
 import vanillaMini from '../../../fixtures/vanilla-mini/model.json';
 import { factorySolveRequest, recipeFilter, tweakedImports, type World } from './document';
@@ -10,7 +10,8 @@ import type { SolveFactory } from './types';
 
 const model = vanillaMini as Model;
 const backend = createHighsBackend();
-const solveFactory: SolveFactory = (r) => solve(model, r, backend);
+const solver = createSolver(model, backend);
+const solveFactory: SolveFactory = (r) => solver.solve(r);
 const nodes = { nodes: [] };
 
 /** Factory "a" making 40 Screw/min, with alternates off. */

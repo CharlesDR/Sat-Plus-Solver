@@ -320,3 +320,66 @@ describe('undo and redo (U1)', () => {
     expect(s().past).toEqual([]);
   });
 });
+
+describe('world identity and saved time (A109)', () => {
+  /** A store with identity on, a hand-driven clock and numbered ids. */
+  function identified(initial = createWorld()) {
+    let t = Date.UTC(2026, 10, 3, 17, 0);
+    let n = 0;
+    const store = createWorldStore(initial, {
+      now: () => t,
+      newWorldId: () => `id-${++n}`,
+    });
+    return { store, s: () => store.getState(), tick: (ms: number) => (t += ms) };
+  }
+
+  test('a world without an id gets one; one with an id keeps it', () => {
+    expect(identified().s().world.meta.worldId).toBe('id-1');
+    const w = createWorld();
+    w.meta.worldId = 'mine';
+    expect(identified(w).s().world.meta.worldId).toBe('mine');
+    // Off by default: the world is kept as given.
+    expect(createWorldStore(createWorld()).getState().world.meta).toEqual(createWorld().meta);
+  });
+
+  test('every edit, undo and redo stamps the saved time; the id stays', () => {
+    const { s, tick } = identified();
+    expect(s().world.meta.savedAt).toBeUndefined();
+    s().renameFactory(F, 'A');
+    expect(s().world.meta).toMatchObject({ worldId: 'id-1', savedAt: '2026-11-03T17:00:00.000Z' });
+    tick(60_000);
+    s().setSetting(everywhere, 'alternates', true);
+    expect(s().world.meta.savedAt).toBe('2026-11-03T17:01:00.000Z');
+    tick(60_000);
+    s().undo();
+    expect(s().world.defaults.alternates).toBe(false);
+    expect(s().world.meta.savedAt).toBe('2026-11-03T17:02:00.000Z');
+    tick(60_000);
+    s().redo();
+    expect(s().world.meta.savedAt).toBe('2026-11-03T17:03:00.000Z');
+    expect(s().world.meta.worldId).toBe('id-1');
+  });
+
+  test('a loaded world keeps its saved time, and gets an id only if it has none', () => {
+    const { s, tick } = identified();
+    tick(60_000);
+    const theirs = createWorld();
+    theirs.meta.worldId = 'theirs';
+    theirs.meta.savedAt = '2026-11-02T09:00:00.000Z';
+    s().loadWorld(theirs);
+    expect(s().world.meta).toMatchObject({
+      worldId: 'theirs',
+      savedAt: '2026-11-02T09:00:00.000Z',
+    });
+    s().loadWorld(createWorld('old'));
+    expect(s().world.meta.worldId).toBe('id-2');
+    expect(s().world.meta.savedAt).toBeUndefined();
+  });
+
+  test('adopting the data hash is not an edit', () => {
+    const { s } = identified();
+    s().attachData('model');
+    expect(s().world.meta.dataHash).toBe('model');
+    expect(s().world.meta.savedAt).toBeUndefined();
+  });
+});

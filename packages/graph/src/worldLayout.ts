@@ -55,21 +55,21 @@ const PADDING_Y = 8;
 const MIN_NODE_WIDTH = 150;
 const MAX_NODE_CHARS = 40;
 /** Room above a group frame's members for its title bar. */
-export const GROUP_HEADER = 36;
+const GROUP_HEADER = 36;
 /** Room below a factory's or collapsed group's text for its Open/Expand button. */
-export const ACTION_ROW = 24;
+const ACTION_ROW = 24;
 /** The room an icon takes beside an edge label line. */
-export const LABEL_ICON = 20;
+const LABEL_ICON = 20;
 /** A port's row on a card's side (A80), and the room above the first one. */
 export const PORT_ROW = 22;
-export const PORT_TOP = 8;
+const PORT_TOP = 8;
 /** The column of port icons inside a card's edge. */
-export const PORT_COL = 22;
+const PORT_COL = 22;
 /** Longest fan from a port to its edge's trunk. */
 const FAN = 12;
 
 /** A port's ELK id. */
-export const portId = (node: string, side: 'in' | 'out', item: string) => `${node}|${side}|${item}`;
+const portId = (node: string, side: 'in' | 'out', item: string) => `${node}|${side}|${item}`;
 /** A port's centre below its card's top. */
 export const portY = (slot: number) => PORT_TOP + slot * PORT_ROW + PORT_ROW / 2;
 

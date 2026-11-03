@@ -1,5 +1,5 @@
 import type { Model } from '@sps/data';
-import { createHighsBackend, solve } from '@sps/solver';
+import { createHighsBackend, createSolver, solve, type Solver } from '@sps/solver';
 import { beforeAll, describe, expect, test } from 'vitest';
 import { KNOWN_GAPS, partSeed, partTargets, seededSample, solvePart } from './all-parts';
 import { runPipeline } from './build-data';
@@ -7,10 +7,12 @@ import { runPipeline } from './build-data';
 const backend = createHighsBackend();
 const seed = partSeed();
 let model: Model;
+let solver: Solver;
 let sample: string[] = [];
 
 beforeAll(async () => {
   model = (await runPipeline()).result.model!;
+  solver = createSolver(model, backend);
   sample = seededSample(partTargets(model), 10, seed);
 }, 120_000);
 
@@ -28,7 +30,7 @@ describe(`every part solves: a sample of 10 (SPS_PART_SEED=${seed}; pnpm test:al
 
   test('each sampled part solves at 1/min with no error', async () => {
     for (const item of sample) {
-      const r = await solvePart(model, item, undefined, backend);
+      const r = await solvePart(solver, item);
       expect({ item, status: r.status, errors: r.errors }, `seed ${seed}`).toEqual({
         item,
         status: 'ok',

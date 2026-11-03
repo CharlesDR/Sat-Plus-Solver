@@ -64,10 +64,11 @@ export async function pruneBranches(
   /** The LP of the last drop kept, which the kept plan is tidied on. */
   let kept: LpModel | undefined;
   const run = (plan: LpSolution, id: string) => plan.values!.get(recipeVar(id)) ?? 0;
+  // Every attempt solves this LP with other bounds, so it is built once (BR-1).
+  const lp = buildLp(p, 'normal', last, locks);
   /** Re-solves with only `keep` allowed to run, or undefined when it fails. */
   const attempt = async (plan: LpSolution, keep: ReadonlySet<string>) => {
     attempts++;
-    const lp = buildLp(p, 'normal', last, locks);
     const off = new Set(
       p.recipes.filter((r) => !keep.has(r.id)).flatMap((r) => [recipeVar(r.id), machinesVar(r.id)]),
     );

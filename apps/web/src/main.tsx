@@ -3,7 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { startLayoutWorker } from './flowchart/engine';
 import { browserStorage, createSaves } from './persistence/saves';
-import { bootWorld, startAutosave } from './persistence/session';
+import { randomWorldId } from './persistence/copies';
+import { bootWorld, readLink, startAutosave } from './persistence/session';
 import { startSolverWorker } from './solver/client';
 import { createWorldStore } from './store';
 import { HelpTip } from './ui/HelpTip';
@@ -18,15 +19,18 @@ if (!root) throw new Error('Missing #root element');
 
 const client = startSolverWorker();
 const saves = createSaves(browserStorage());
-const boot = bootWorld(window.location.hash, saves);
-if (boot.source === 'link') history.replaceState(null, '', location.pathname + location.search);
-const store = createWorldStore(boot.world);
-startAutosave(store, saves);
 const layout = startLayoutWorker();
 
-createRoot(root).render(
-  <StrictMode>
-    <App client={client} store={store} layout={layout} saves={saves} boot={boot} />
-    <HelpTip />
-  </StrictMode>,
-);
+// Reading a share link is async (A108), so the app renders once the world is known.
+void bootWorld(window.location.hash, saves).then((boot) => {
+  if (readLink(boot)) history.replaceState(null, '', location.pathname + location.search);
+  // Each world gets an id once, so its copies on other computers can be recognised (A109).
+  const store = createWorldStore(boot.world, { newWorldId: randomWorldId });
+  startAutosave(store, saves);
+  createRoot(root).render(
+    <StrictMode>
+      <App client={client} store={store} layout={layout} saves={saves} boot={boot} />
+      <HelpTip />
+    </StrictMode>,
+  );
+});

@@ -18,13 +18,13 @@ export function itemIcon(id: string | undefined): string | undefined {
 }
 
 /** Machine ids are the slugs of their names (the data build's rule). */
-export const machineSlug = (name: string) =>
+const machineSlug = (name: string) =>
   name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
 
-export function machineIcon(name: string | undefined): string | undefined {
+function machineIcon(name: string | undefined): string | undefined {
   const id = name === undefined ? undefined : machineSlug(name);
   return id !== undefined && machines.has(id) ? `${base}/machines/${id}.webp` : undefined;
 }

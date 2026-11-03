@@ -56,7 +56,7 @@ export function planEntries(result: SolveResult): ManualEntry[] {
 export type BuildSource = Pick<FactoryResult, 'id' | 'status' | 'plan' | 'request' | 'ledger'>;
 
 /** Hashes of what a build mark is checked against: the factory's own settings, the world's, and its link boundary. */
-export function buildFingerprint(
+function buildFingerprint(
   world: World,
   factory: Factory,
   request: Pick<SolveRequest, 'demand' | 'imports'>,

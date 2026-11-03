@@ -10,13 +10,13 @@ import { readShareHash, shareLink } from './share';
 const root = new URL('../../../../', import.meta.url);
 const PAGES_URL = 'https://charlesdr.github.io/Sat-Plus-Solver/';
 
-test('the README sample-world link opens examples/world.json', () => {
+test('the README sample-world link opens examples/world.json', async () => {
   const sample = parseWorld(readFileSync(new URL('examples/world.json', root), 'utf8'));
-  const link = shareLink(sample, PAGES_URL);
+  const link = await shareLink(sample, PAGES_URL);
   expect(link.ok).toBe(true);
   const readme = readFileSync(new URL('README.md', root), 'utf8');
-  const found = readme.match(/https:\/\/charlesdr\.github\.io\/Sat-Plus-Solver\/#w=[\w$+\-.]+/g);
+  const found = readme.match(/https:\/\/charlesdr\.github\.io\/Sat-Plus-Solver\/#z=[\w-]+/g);
   // When this fails after editing the sample, paste the expected link into the README.
   expect(found).toEqual([link.ok && link.url]);
-  expect(readShareHash(new URL(found![0]!).hash)).toEqual(sample);
+  expect(await readShareHash(new URL(found![0]!).hash)).toEqual(sample);
 });

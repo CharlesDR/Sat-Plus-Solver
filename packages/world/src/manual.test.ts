@@ -1,5 +1,5 @@
 import type { Model } from '@sps/data';
-import { createHighsBackend, solve } from '@sps/solver';
+import { createHighsBackend, createSolver } from '@sps/solver';
 import { describe, expect, test } from 'vitest';
 import vanillaMini from '../../../fixtures/vanilla-mini/model.json';
 import type { World } from './document';
@@ -20,7 +20,8 @@ import type { SolveFactory } from './types';
 
 const model = vanillaMini as Model;
 const backend = createHighsBackend();
-const solveFactory: SolveFactory = (r) => solve(model, r, backend);
+const solver = createSolver(model, backend);
+const solveFactory: SolveFactory = (r) => solver.solve(r);
 
 /** Factory "a" making 60 Iron Plate/min. */
 const plates = (): World => buildWorld([{ id: 'a', targets: [{ item: 'iron-plate', rate: 60 }] }]);

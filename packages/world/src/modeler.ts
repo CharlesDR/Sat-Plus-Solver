@@ -221,9 +221,9 @@ export function countText(n: number, tolerance = 0): string {
 
 // ---------------------------------------------------------------- reading
 
-export const OUTPOST = 'Outpost';
+const OUTPOST = 'Outpost';
 /** Belt and pipe logistics: they carry what comes in, and are not kept as nodes (A24 wires belts). */
-export const MODELER_LOGISTICS = new Set([
+const MODELER_LOGISTICS = new Set([
   'Splurger',
   'Splitter',
   'Merger',
@@ -233,7 +233,7 @@ export const MODELER_LOGISTICS = new Set([
   'Pipeline Junction',
 ]);
 /** Sinks: they take what comes in. */
-export const MODELER_SINKS = new Set([
+const MODELER_SINKS = new Set([
   'Dimensional Depot',
   'Storage Container',
   'Industrial Storage Container',
@@ -261,7 +261,7 @@ export interface ModelerNames {
   itemNames: Map<string, string>;
 }
 
-export function modelerNames(model: Pick<Model, 'recipes' | 'items'>): ModelerNames {
+function modelerNames(model: Pick<Model, 'recipes' | 'items'>): ModelerNames {
   const recipes = new Map<string, Recipe[]>();
   for (const r of [...model.recipes].sort((a, b) => (a.id < b.id ? -1 : 1))) {
     const list = recipes.get(r.name);
@@ -277,7 +277,7 @@ export function modelerNames(model: Pick<Model, 'recipes' | 'items'>): ModelerNa
 }
 
 /** What each node is, by name. */
-export function nodeRoles(save: ModelerSave, names: ModelerNames): NodeRole[] {
+function nodeRoles(save: ModelerSave, names: ModelerNames): NodeRole[] {
   return save.nodes.map((n): NodeRole => {
     if (n.name === OUTPOST) return { kind: 'outpost' };
     if (MODELER_LOGISTICS.has(n.name)) return { kind: 'logistics' };

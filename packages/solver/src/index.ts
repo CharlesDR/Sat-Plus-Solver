@@ -15,43 +15,24 @@ export type {
   LpTerm,
   LpVariable,
 } from './lp/types';
-export { toLpText } from './lp/lpFormat';
 export { createHighsBackend } from './lp/highs';
 export { findFreeLunch } from './checks/freeLunch';
 export type { FreeLunchResult } from './checks/freeLunch';
 export {
-  clampTolerance,
-  costCacheEntries,
-  DEFAULT_TOLERANCE,
-  DUMPABLE_FLUIDS,
   FARM_CAP,
-  LEX_EPSILON,
-  MAX_TOLERANCE,
-  MILP_TIME_LIMIT_SECONDS,
-  MIN_BRANCH,
-  MIN_FLOW,
   MIN_RATE,
-  MIN_TOLERANCE,
   objectiveStack,
-  seedCostCache,
+  createSolver,
   solve,
   usageWeights,
 } from './factory/solve';
-export type { CostCacheEntry } from './factory/solve';
+export type { CostCacheEntry, Solver } from './factory/solve';
 export { OBJECTIVE_IDS } from './factory/types';
-export { filterMinerRoutes, minerFluidOptions, minerSupplyItem } from './factory/minerFluids';
+export { filterMinerRoutes, minerFluidOptions } from './factory/minerFluids';
 export type { MinerFluidOptions, MinerFluids, MinerFluidSupply } from './factory/minerFluids';
-export {
-  aboveTier,
-  isSuperseded,
-  compareTiers,
-  DEFAULT_ALTERNATES,
-  filterRecipes,
-  parseTier,
-  recipeExclusion,
-} from './factory/recipes';
+export { aboveTier, compareTiers, parseTier, recipeExclusion } from './factory/recipes';
 export { producible } from './factory/reachability';
-export { bestNodeRates, extractionOf, rawResources } from './factory/resources';
+export { bestNodeRates, rawResources } from './factory/resources';
 export type { RawResource } from './factory/resources';
 export { compareAlternates } from './factory/alternates';
 export type { AlternatesReport } from './factory/alternates';
@@ -69,17 +50,7 @@ export {
   PRECISE_NUMBERS,
   QUIET_NUMBERS,
 } from './factory/summary';
-export {
-  exactFraction,
-  exactText,
-  formatExact,
-  formatQuiet,
-  formatRate,
-  groupThousands,
-  mixedText,
-  MAX_DENOMINATOR,
-  type MixedNumber,
-} from './factory/numbers';
+export { formatExact, formatQuiet, formatRate, groupThousands } from './factory/numbers';
 export type {
   BuildBill,
   NumberFormat,

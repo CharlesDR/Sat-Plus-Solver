@@ -36,7 +36,7 @@ function write(key: string, value: string): void {
   }
 }
 
-export const isTheme = (x: unknown): x is Theme => x === 'system' || x === 'light' || x === 'dark';
+const isTheme = (x: unknown): x is Theme => x === 'system' || x === 'light' || x === 'dark';
 
 export function readTheme(): Theme {
   const t = read(KEY.theme);
@@ -126,7 +126,7 @@ export function usePlanView(): [PlanView, (v: PlanView) => void] {
 }
 
 /** How many recent targets the Targets editor offers as chips (UX-12). */
-export const RECENT_TARGETS = 6;
+const RECENT_TARGETS = 6;
 
 /** Item ids, most recent first. */
 export function readRecentTargets(): string[] {
@@ -195,7 +195,7 @@ export interface Viewport {
 }
 
 /** How many factories' flowchart views are remembered (UX-13); the oldest go first. */
-export const VIEWPORTS = 50;
+const VIEWPORTS = 50;
 
 const isViewport = (v: unknown): v is Viewport =>
   typeof v === 'object' &&

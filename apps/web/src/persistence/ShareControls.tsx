@@ -50,8 +50,8 @@ export function ShareControls(props: {
   const [copied, setCopied] = useState<boolean>();
   const toast = useToast();
   const exportFile = () => downloadText(fileName(name), serializeWorld(world(), true));
-  const share = () => {
-    const out = shareLink(world(), window.location.href);
+  const share = async () => {
+    const out = await shareLink(world(), window.location.href);
     setLink(out);
     setCopied(undefined);
     if (!out.ok) return;
@@ -71,7 +71,7 @@ export function ShareControls(props: {
         <button type="button" onClick={exportFile} disabled={disabled}>
           Export {what}
         </button>
-        <button type="button" onClick={share} disabled={disabled}>
+        <button type="button" onClick={() => void share()} disabled={disabled}>
           Share link to {what}
         </button>
       </div>

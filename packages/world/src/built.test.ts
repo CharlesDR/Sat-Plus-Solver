@@ -1,5 +1,5 @@
 import type { Model } from '@sps/data';
-import { createHighsBackend, solve } from '@sps/solver';
+import { createHighsBackend, createSolver } from '@sps/solver';
 import { describe, expect, test } from 'vitest';
 import vanillaMini from '../../../fixtures/vanilla-mini/model.json';
 import {
@@ -19,7 +19,8 @@ import type { BuildFlag, SolveFactory, WorldResult } from './types';
 
 const model = vanillaMini as Model;
 const backend = createHighsBackend();
-const solveFactory: SolveFactory = (r) => solve(model, r, backend);
+const solver = createSolver(model, backend);
+const solveFactory: SolveFactory = (r) => solver.solve(r);
 const AT = '2026-10-07T12:00:00.000Z';
 
 const resolve = (w: World) => resolveWorld(w, model, solveFactory);

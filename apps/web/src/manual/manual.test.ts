@@ -1,6 +1,6 @@
 import type { Model } from '@sps/data';
 import { missingNodeId } from '@sps/graph';
-import { createHighsBackend, solve } from '@sps/solver';
+import { createHighsBackend, createSolver } from '@sps/solver';
 import { createWorld, DEFAULT_FACTORY_ID, enterManual, resolveWorld } from '@sps/world';
 import { describe, expect, test } from 'vitest';
 import miniJson from '../../../../fixtures/vanilla-mini/model.json';
@@ -70,7 +70,8 @@ describe('manual mode view (A36)', () => {
     const w = createWorld('vanilla-mini');
     w.factories[0]!.request.targets.push({ item: 'iron-plate', rate: 20 });
     const manual = enterManual(w, DEFAULT_FACTORY_ID, [{ recipe: 'iron-plate', machines: 1 }]);
-    const r = await resolveWorld(manual, mini, (q) => solve(mini, q, backend));
+    const solver = createSolver(mini, backend);
+    const r = await resolveWorld(manual, mini, (q) => solver.solve(q));
     const p = focusPlan(mini, modelLabels(mini), r.factories[0]!);
     expect(p.manual).toEqual({ missing: [{ item: 'iron-ingot', name: 'Iron Ingot', rate: 30 }] });
     expect(p.plan.imports).toEqual([]);

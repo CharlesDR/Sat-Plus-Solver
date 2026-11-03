@@ -70,7 +70,7 @@ export const div = (a: Rational, b: Rational): Rational => {
   if (b.n === 0n) throw new RangeError('Division by zero');
   return rat(a.n * b.d, a.d * b.n);
 };
-export const neg = (a: Rational): Rational => rat(-a.n, a.d);
+const neg = (a: Rational): Rational => rat(-a.n, a.d);
 export const abs = (a: Rational): Rational => (a.n < 0n ? neg(a) : a);
 export const cmp = (a: Rational, b: Rational): number => {
   const diff = a.n * b.d - b.n * a.d;

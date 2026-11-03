@@ -6,13 +6,7 @@
  * the solver worker's saved caches stay whole.
  */
 import type { Model } from '@sps/data';
-import {
-  costCacheEntries,
-  createHighsBackend,
-  seedCostCache,
-  solve,
-  type CostCacheEntry,
-} from '@sps/solver';
+import { createHighsBackend, createSolver, type CostCacheEntry } from '@sps/solver';
 import modelUrl from '../../../../data/generated/model.json?url';
 import type { FromFactoryWorker, ToFactoryWorker } from './pool';
 
@@ -21,7 +15,7 @@ const post = (msg: FromFactoryWorker) => globalThis.postMessage(msg);
 const ready = (async () => {
   const res = await fetch(modelUrl);
   if (!res.ok) throw new Error(`Could not load the model (${res.status}).`);
-  return { model: (await res.json()) as Model, backend: createHighsBackend() };
+  return createSolver((await res.json()) as Model, createHighsBackend());
 })();
 /** Cost keys the solver worker already has: seeded, or sent back with a solve. */
 const known = new Set<string>();
@@ -31,14 +25,14 @@ globalThis.addEventListener('message', (e: MessageEvent<ToFactoryWorker>) => {
   const msg = e.data;
   void (async () => {
     try {
-      const { model, backend } = await ready;
+      const solver = await ready;
       if (msg.type === 'seed') {
-        seedCostCache(model, msg.costs);
+        solver.seedCosts(msg.costs);
         for (const [key] of msg.costs) known.add(key);
         return;
       }
-      const result = await solve(model, msg.request, backend);
-      const costs: CostCacheEntry[] = costCacheEntries(model).filter(([key]) => !known.has(key));
+      const result = await solver.solve(msg.request);
+      const costs: CostCacheEntry[] = solver.costEntries().filter(([key]) => !known.has(key));
       for (const [key] of costs) known.add(key);
       post({ type: 'solved', id: msg.id, result, costs });
     } catch (err) {

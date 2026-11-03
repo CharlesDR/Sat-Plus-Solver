@@ -3,7 +3,7 @@ import { factoryGraph } from '@sps/graph';
 import {
   compareTiers,
   createHighsBackend,
-  seedCostCache,
+  createSolver,
   solve,
   summarizePlan,
   type CostCacheEntry,
@@ -81,7 +81,7 @@ describe('solver service', () => {
   });
 
   test("solves the world's factory and returns the same summary as the CLI path", async () => {
-    const service = createSolverService(mini, backend);
+    const service = createSolverService(createSolver(mini, backend));
     expect(service.dataHash).toBe('vanilla-mini');
     const world = createWorld('vanilla-mini');
     world.factories[0]!.request.targets.push({ item: 'iron-plate', rate: 60 });
@@ -111,7 +111,7 @@ describe('solver service', () => {
   test('its caches survive a reload: a seeded service answers from them (A90)', async () => {
     const world = createWorld('vanilla-mini');
     world.factories[0]!.request.targets.push({ item: 'iron-plate', rate: 60 });
-    const first = createSolverService(mini, backend);
+    const first = createSolverService(createSolver(mini, backend));
     const solved = await first.solve({ world, focus: DEFAULT_FACTORY_ID });
     const saved = first.snapshot();
     expect(saved.dataHash).toBe('vanilla-mini');
@@ -120,19 +120,19 @@ describe('solver service', () => {
     const reloaded = structuredClone(saved);
     // A solver that would fail shows the second service never solves.
     const broken = { ...backend, solve: () => Promise.reject(new Error('solved again')) };
-    const second = createSolverService(mini, broken as typeof backend);
+    const second = createSolverService(createSolver(mini, broken as typeof backend));
     second.seed(reloaded);
     const again = (await second.solve({ world, focus: DEFAULT_FACTORY_ID })).world;
     expect(again.stats).toMatchObject({ solves: 0, cacheHits: 1 });
     expect(again.factories).toEqual(solved.world.factories);
     // Caches of other data are ignored.
-    const third = createSolverService(mini, backend);
+    const third = createSolverService(createSolver(mini, backend));
     third.seed({ ...reloaded, dataHash: 'other' });
     expect(third.snapshot().solves).toEqual([]);
   });
 
   test('solver diagnostics come back in the summary', async () => {
-    const service = createSolverService(mini, backend);
+    const service = createSolverService(createSolver(mini, backend));
     const world = createWorld();
     world.factories[0]!.request.targets.push({ item: 'iron-plate', rate: 60 });
     world.defaults.recipes = Object.fromEntries(
@@ -178,7 +178,7 @@ function linked(): { world: World; a: string; b: string } {
 
 describe('world solves', () => {
   test("a focused factory's plan is solved in the world: link demand is part of it", async () => {
-    const service = createSolverService(mini, backend);
+    const service = createSolverService(createSolver(mini, backend));
     const { world, a } = linked();
     const solved = await service.solve({ world, focus: a });
     const f = solved.world.factories.find((x) => x.id === a)!;
@@ -193,7 +193,7 @@ describe('world solves', () => {
   });
 
   test('factory solves are memoized across world solves', async () => {
-    const service = createSolverService(mini, backend);
+    const service = createSolverService(createSolver(mini, backend));
     const { world } = linked();
     const first = await service.solve({ world });
     expect(first.world.stats.solves).toBeGreaterThan(0);
@@ -202,7 +202,7 @@ describe('world solves', () => {
   });
 
   test('"size power plant" returns the edited world, its MW target closing the deficit', async () => {
-    const service = createSolverService(mini, backend);
+    const service = createSolverService(createSolver(mini, backend));
     const { world } = linked();
     const plant = addFactory(world, 'Power');
     const solved = await service.solve({
@@ -216,7 +216,7 @@ describe('world solves', () => {
   });
 
   test('swap previews solve the factory once per candidate, leaving the world as it is (A35)', async () => {
-    const service = createSolverService(mini, backend);
+    const service = createSolverService(createSolver(mini, backend));
     const world = createWorld('vanilla-mini');
     world.factories[0]!.request.targets.push({ item: 'screw', rate: 40 });
     const solved = await service.solve({
@@ -241,7 +241,7 @@ describe('world solves', () => {
   });
 
   test('a shortfall previews scaling up and a new site (A92)', async () => {
-    const service = createSolverService(mini, backend);
+    const service = createSolverService(createSolver(mini, backend));
     const { world, a, b } = linked();
     const solved = await service.solve({ world });
     const built = solved.world.factories.find((f) => f.id === a)!;
@@ -271,7 +271,7 @@ describe('world solves', () => {
   });
 
   test('progress names each factory as it starts (M10)', async () => {
-    const service = createSolverService(mini, backend);
+    const service = createSolverService(createSolver(mini, backend));
     const world = createWorld('vanilla-mini');
     world.factories[0]!.request.targets.push({ item: 'iron-plate', rate: 60 });
     const heard: unknown[] = [];
@@ -307,31 +307,38 @@ describe('factory solve pool (S2)', () => {
       };
     });
     let local = 0;
+    const solver = createSolver(mini, backend);
     const options = {
       size: 3,
       spawn: () => workers,
-      onCosts: (costs: CostCacheEntry[]) => seedCostCache(mini, costs),
-      costs: () => [],
+      onCosts: (costs: CostCacheEntry[]) => solver.seedCosts(costs),
+      costs: () => solver.costEntries(),
       local: (request: SolveRequest) => {
         local++;
-        return solve(mini, request, backend);
+        return solver.solve(request);
       },
     };
     const pool = createFactoryPool(options);
     const world = createWorld('vanilla-mini');
     world.factories[0]!.request.targets.push({ item: 'iron-plate', rate: 60 });
     // Before the pool warms up (a one-factory world), solves run locally.
-    const one = await createSolverService(mini, backend, undefined, pool).solve({ world });
+    const one = await createSolverService(createSolver(mini, backend), undefined, pool).solve({
+      world,
+    });
     expect(local).toBe(1);
     expect(sent).toBe(0);
     // A world of two factories starts it; ready workers take the solves.
     pool.warm();
     await Promise.resolve();
     const two = linked().world;
-    const pooled = await createSolverService(mini, backend, undefined, pool).solve({ world: two });
-    const alone = await createSolverService(mini, backend).solve({ world: two });
+    const pooled = await createSolverService(createSolver(mini, backend), undefined, pool).solve({
+      world: two,
+    });
+    const alone = await createSolverService(createSolver(mini, backend)).solve({ world: two });
     expect(pooled.world).toEqual(alone.world);
-    expect(one.world).toEqual((await createSolverService(mini, backend).solve({ world })).world);
+    expect(one.world).toEqual(
+      (await createSolverService(createSolver(mini, backend)).solve({ world })).world,
+    );
     expect(sent).toBeGreaterThan(0);
     expect(local).toBe(1);
   });

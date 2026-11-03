@@ -9,20 +9,16 @@ export * from './editing';
 export * from './migrate';
 export * from './persist';
 export {
-  COST_PASSES,
-  CYCLE_ITERATION_LIMIT,
-  CYCLE_TOLERANCE,
   DEFAULT_PIPE_CAPACITIES,
   resolveWorld,
   type ResolveOptions,
   type ResolveProgress,
 } from './resolve';
-export { createSolveCache, hashString, solveKey, stableStringify, type SolveCache } from './hash';
+export { createSolveCache, type SolveCache } from './hash';
 export {
   allocateRemaining,
   MINER_SUPPORT_NAME,
   sizePowerPlant,
-  SIZE_POWER_ITERATIONS,
   unwiredMinerNeeds,
   wireMinerSupport,
   type MinerNeeds,
@@ -34,23 +30,17 @@ export {
   enterManual,
   leaveManual,
   manualEntries,
-  manualOutcome,
   revertManual,
   setManualCount,
   undoManual,
-  type ManualOutcome,
 } from './manual';
 export {
   BUILD_FLAG_LABELS,
-  buildFingerprint,
-  checkBuild,
   clearBuilt,
   markAllBuilt,
   markBuilt,
-  planEntries,
   restoreBuild,
-  type BuildNow,
   type BuildSource,
 } from './built';
 export * from './modeler';
-export { fixedOverruns, heldUpstream, holdCaps, isHeld, type Overrun } from './hold';
+export { fixedOverruns, holdCaps, type Overrun } from './hold';

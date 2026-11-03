@@ -9,7 +9,7 @@ import {
   MIN_TOLERANCE,
   MINER_SUPPLY_COST_RATE,
 } from './constants';
-import { embodiedCost, solveCosted } from './costs';
+import { embodiedCost, solveCosted, type CostCacheEntry, type SolverContext } from './costs';
 import { filterMinerRoutes, minerSupplyItem } from './minerFluids';
 import { closestFixes, prune, reachableFor } from './reachability';
 import { filterRecipes } from './recipes';
@@ -31,19 +31,75 @@ export function objectiveStack(request: SolveRequest): ObjectiveId[] {
 }
 
 /**
- * Solves one factory (docs/ARCHITECTURE.md §3): filters and prunes recipes,
- * builds the LP or MILP (item balance, node capacity, imports, surplus, whole
- * machines, resource-type indicators), solves the objective stack
- * lexicographically, handles every backend status with the §3.5 diagnostics,
- * and checks the plan before returning it. Deterministic: identical input
- * gives identical output.
+ * A factory solver for one model (BR-3). It keeps what every solve reads from
+ * the model (recipes in id order, item names, fluids, nodes) and the
+ * embodied-cost cache of standalone import plans (A31, A90), so the app's
+ * workers, the pool and the CLI each make one and reuse it.
  */
-export async function solve(
+export interface Solver {
+  readonly model: Model;
+  /** The backend it solves on, for other LPs on the same thread (network sizing). */
+  readonly backend: LpBackend;
+  /**
+   * Solves one factory (docs/ARCHITECTURE.md §3): filters and prunes recipes,
+   * builds the LP or MILP (item balance, node capacity, imports, surplus,
+   * whole machines, resource-type indicators), solves the objective stack
+   * lexicographically, handles every backend status with the §3.5
+   * diagnostics, and checks the plan before returning it. Deterministic:
+   * identical input gives identical output, whatever the cache holds.
+   */
+  solve(request: SolveRequest, options?: LpOptions): Promise<SolveResult>;
+  /** The embodied-cost cache (A90), oldest first, as plain data the app keeps across reloads. */
+  costEntries(): CostCacheEntry[];
+  /** Adds cost entries saved by `costEntries` for the same model data (A90); entries already cached win. */
+  seedCosts(entries: readonly CostCacheEntry[]): void;
+}
+
+export function createSolver(model: Model, backend: LpBackend): Solver {
+  const names = new Map(model.items.map((i) => [i.id, i.name]));
+  const resources = new Map(model.nodes.map((n) => [n.id, n.resource]));
+  const ctx: SolverContext = {
+    model,
+    backend,
+    recipes: [...model.recipes].sort(byId),
+    itemName: (id) => names.get(id) ?? id,
+    fluids: new Set(model.items.filter((i) => i.form === 'fluid').map((i) => i.id)),
+    nodes: new Map(model.nodes.map((n) => [n.id, n])),
+    resourceOf: (node) => resources.get(node) ?? node,
+    costs: new Map(),
+    solve: (request, options = {}) => solveFactory(ctx, request, options),
+  };
+  return {
+    model,
+    backend,
+    solve: ctx.solve,
+    costEntries: () => [...ctx.costs],
+    seedCosts(entries) {
+      for (const [key, cost] of entries) if (!ctx.costs.has(key)) ctx.costs.set(key, cost);
+    },
+  };
+}
+
+/**
+ * One solve on a solver of its own (`Solver.solve`), for a one-off solve. A
+ * caller that solves again with the same model makes one `createSolver` and
+ * reuses it, so its indexes and import costs carry over.
+ */
+export function solve(
   model: Model,
   request: SolveRequest,
   backend: LpBackend,
   options: LpOptions = {},
 ): Promise<SolveResult> {
+  return createSolver(model, backend).solve(request, options);
+}
+
+async function solveFactory(
+  ctx: SolverContext,
+  request: SolveRequest,
+  options: LpOptions,
+): Promise<SolveResult> {
+  const { model, backend, itemName, fluids, nodes } = ctx;
   const stack = objectiveStack(request);
   const invalid = validate(model, request, stack);
   if (invalid) return failed('error', stack, [invalid]);
@@ -71,7 +127,7 @@ export async function solve(
   }
 
   // Recipe filter, then reachability (§3.5) and pruning.
-  const filtered = filterRecipes([...model.recipes].sort(byId), request.recipes);
+  const filtered = filterRecipes(ctx.recipes, request.recipes);
   const { disabled } = filtered;
   // Miner fluid modules (A69): leave out the ones not allowed, and with the
   // fluid supplied from outside, route it through a supply item of its own.
@@ -103,12 +159,11 @@ export async function solve(
     ).filter((f) => plain.has(f));
     for (const fluid of used) {
       const c = await embodiedCost(
-        model,
+        ctx,
         { ...request, minerFluidSupply: 'local' },
         stack,
         fluid,
         MINER_SUPPLY_COST_RATE,
-        backend,
         options,
       );
       if ('cost' in c) supply.set(minerSupplyItem(fluid), { fluid, cost: c.cost });
@@ -118,8 +173,6 @@ export async function solve(
   const sources = sourcesOf([...supply.values()].map((s) => s.fluid));
   const { have: available, bred } = reachableFor(enabled, sources, wanted);
   const unreachable = wanted.filter((i) => !available.has(i)).sort();
-  const names = new Map(model.items.map((i) => [i.id, i.name]));
-  const itemName = (id: string) => names.get(id) ?? id;
   if (unreachable.length) {
     return failed(
       'unreachable',
@@ -152,7 +205,6 @@ export async function solve(
       importFree.delete(item);
     }
 
-  const fluids = new Set(model.items.filter((i) => i.form === 'fluid').map((i) => i.id));
   for (const item of [...supply.keys()]) if (!itemSet.has(item)) supply.delete(item);
   const noSurplus = new Set([
     ...(request.avoidFluidByproducts
@@ -162,7 +214,6 @@ export async function solve(
     ...supply.keys(),
   ]);
 
-  const nodes = new Map(model.nodes.map((n) => [n.id, n]));
   const budget = request.nodeBudget ?? 'pool';
   const nodeCaps = new Map<string, number>();
   for (const r of recipes) {
@@ -245,7 +296,7 @@ export async function solve(
   };
   if (!request.costImports || !importCaps.size)
     return solveStack(problem, backend, options, itemName, []);
-  return solveCosted(problem, request, backend, options, itemName);
+  return solveCosted(ctx, problem, request, options);
 }
 export {
   DUMPABLE_FLUIDS,
@@ -260,6 +311,5 @@ export {
   FARM_CAP,
   MILP_TIME_LIMIT_SECONDS,
 } from './constants';
-export { costCacheEntries, seedCostCache } from './costs';
-export type { CostCacheEntry } from './costs';
 export { usageWeights } from './rows';
+export type { CostCacheEntry } from './costs';

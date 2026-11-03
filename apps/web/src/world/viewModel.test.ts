@@ -1,6 +1,6 @@
 import type { Model } from '@sps/data';
 import { worldGraph } from '@sps/graph';
-import { createHighsBackend } from '@sps/solver';
+import { createHighsBackend, createSolver } from '@sps/solver';
 import {
   addFactory,
   addGroup,
@@ -56,7 +56,7 @@ let world: World;
 let summary: WorldSummary;
 beforeAll(async () => {
   world = sample();
-  const service = createSolverService(mini, createHighsBackend());
+  const service = createSolverService(createSolver(mini, createHighsBackend()));
   summary = (await service.solve({ world })).world;
 });
 

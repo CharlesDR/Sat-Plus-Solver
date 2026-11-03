@@ -9,7 +9,7 @@
 import type { CostCacheEntry, SolveRequest, SolveResult } from '@sps/solver';
 
 /** Most factory solves in flight. */
-export const POOL_LIMIT = 4;
+const POOL_LIMIT = 4;
 
 export type ToFactoryWorker =
   { type: 'solve'; id: number; request: SolveRequest } | { type: 'seed'; costs: CostCacheEntry[] };

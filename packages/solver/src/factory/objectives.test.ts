@@ -6,6 +6,7 @@ import type { LpBackend, LpSolution } from '../lp/types';
 import { compareAlternates } from './alternates';
 import {
   clampTolerance,
+  createSolver,
   DEFAULT_TOLERANCE,
   MAX_TOLERANCE,
   MILP_TIME_LIMIT_SECONDS,
@@ -631,11 +632,10 @@ describe('power', () => {
 
 describe('alternates report', () => {
   test('lists the alternates that improve the plan', async () => {
-    const r = await compareAlternates(
-      model,
-      { targets: [{ item: 'screw', rate: 40 }], objectives: ['resources', 'power'] },
-      backend,
-    );
+    const r = await compareAlternates(createSolver(model, backend), {
+      targets: [{ item: 'screw', rate: 40 }],
+      objectives: ['resources', 'power'],
+    });
     expect(ids(r.without)).not.toContain('cast-screw');
     expect(r.used).toEqual(['cast-screw']);
     expect(r.stages.map((s) => s.objective)).toEqual(['resources', 'power']);

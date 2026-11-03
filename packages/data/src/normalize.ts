@@ -162,7 +162,7 @@ export function normalizeOne(ctx: Ctx, r: RawRecipe): DraftRecipe | undefined {
  * those flows stay separate. Records an error and returns false when the
  * recipe does not fit the shape.
  */
-export function classifyHeater(ctx: Ctx, draft: DraftRecipe): boolean {
+function classifyHeater(ctx: Ctx, draft: DraftRecipe): boolean {
   const where = `heater recipe "${draft.name}"`;
   const pairs = ctx.overrides.boilerPairs.filter(
     (p) =>

@@ -7,7 +7,7 @@ import type { Recipe } from '@sps/data';
 import type { RecipeFilter } from './types';
 
 /** Default of `RecipeFilter.alternates`: standard recipes only (alternates are opt-in). */
-export const DEFAULT_ALTERNATES = false;
+const DEFAULT_ALTERNATES = false;
 
 /** A dataset tier `"<major>-<minor>"` as numbers; `undefined` when it isn't one. */
 export function parseTier(tier: string): [number, number] | undefined {
@@ -38,10 +38,7 @@ export function aboveTier(tier: string, maxTier: string | undefined): boolean {
  * Whether a better drill has replaced this miner route at `maxTier` (DF-1,
  * A98): at its `supersededAt` tier and above, and with no max tier.
  */
-export function isSuperseded(
-  recipe: Pick<Recipe, 'supersededAt'>,
-  maxTier: string | undefined,
-): boolean {
+function isSuperseded(recipe: Pick<Recipe, 'supersededAt'>, maxTier: string | undefined): boolean {
   if (recipe.supersededAt === undefined) return false;
   return maxTier === undefined || compareTiers(maxTier, recipe.supersededAt) >= 0;
 }

@@ -1,5 +1,11 @@
 import type { Model } from '@sps/data';
-import { createHighsBackend, rawResources, solve, type SolveRequest } from '@sps/solver';
+import {
+  createHighsBackend,
+  createSolver,
+  rawResources,
+  solve,
+  type SolveRequest,
+} from '@sps/solver';
 import { describe, expect, test } from 'vitest';
 import vanillaMini from '../../../fixtures/vanilla-mini/model.json';
 import { createSolveCache } from './hash';
@@ -21,7 +27,8 @@ function counting(): SolveFactory & { calls: SolveRequest[] } {
   f.calls = calls;
   return f;
 }
-const solveFactory: SolveFactory = (r) => solve(model, r, backend);
+const solver = createSolver(model, backend);
+const solveFactory: SolveFactory = (r) => solver.solve(r);
 
 const link = (r: WorldResult, id: string) => r.links.find((l) => l.id === id)!;
 const factory = (r: WorldResult, id: string) => r.factories.find((f) => f.id === id)!;

@@ -30,7 +30,7 @@ export const RawMultiMachine = z.looseObject({
   Capacities: z.array(RawMultiMachineEntry).optional(),
 });
 
-export const RawPart = z.looseObject({
+const RawPart = z.looseObject({
   Name: z.string().min(1),
   Tier: z.string(),
   SinkPoints: z.number(),

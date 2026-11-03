@@ -1,5 +1,5 @@
 import type { Model } from '@sps/data';
-import { createHighsBackend } from '@sps/solver';
+import { createHighsBackend, createSolver } from '@sps/solver';
 import {
   addFactory,
   createWorld,
@@ -14,7 +14,7 @@ import miniJson from '../../../../fixtures/vanilla-mini/model.json';
 import { createSolverService } from './service';
 
 const mini = miniJson as unknown as Model;
-const service = createSolverService(mini, createHighsBackend(), new ELK());
+const service = createSolverService(createSolver(mini, createHighsBackend()), new ELK());
 const AT = '2026-10-08T00:00:00.000Z';
 
 /** A world whose main factory makes Reinforced Iron Plate, with a sub-factory making Wire. */

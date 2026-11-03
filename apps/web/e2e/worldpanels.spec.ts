@@ -28,7 +28,7 @@ test('a new world starts empty, with one way to add a factory (UX-8)', async ({ 
 
 test('world actions menu and the read-only Factories table (UX-10, UX-11)', async ({ page }) => {
   const readme = await readFile(README, 'utf8');
-  const hash = /https:\/\/charlesdr\.github\.io\/Sat-Plus-Solver\/(#w=[\w$+\-.]+)/.exec(readme)![1];
+  const hash = /https:\/\/charlesdr\.github\.io\/Sat-Plus-Solver\/(#z=[\w-]+)/.exec(readme)![1];
   await page.goto(`/${hash}`);
   await worldSettled(page);
 
@@ -95,7 +95,7 @@ test('under 1100 px the settings are a drawer over the plan (UX-14)', async ({ p
 test('table headers stay below the top bar while the table scrolls by (DF-7)', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 768 });
   const readme = await readFile(README, 'utf8');
-  const hash = /https:\/\/charlesdr\.github\.io\/Sat-Plus-Solver\/(#w=[\w$+\-.]+)/.exec(readme)![1];
+  const hash = /https:\/\/charlesdr\.github\.io\/Sat-Plus-Solver\/(#z=[\w-]+)/.exec(readme)![1];
   await page.goto(`/${hash}`);
   await worldSettled(page);
   const bar = await page.locator('.topbar').evaluate((e) => e.getBoundingClientRect().bottom);

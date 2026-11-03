@@ -153,8 +153,14 @@ describe('factory flowchart on the SF+ model', () => {
       const plain = { ...model, scarcityUsage: {} };
       const flat = await graphOf(factorySolveRequest(world, plain, world.factories[0]!.id));
       const catalog = areaCatalog(model);
-      // Part-type areas (A63), the grouping this was written for.
-      const parts = { by: 'parts' } as const;
+      // Part-type areas (A63), the grouping this was written for. Since A107
+      // fresh water is drawn in pieces in each area it feeds; moved to its own
+      // part type, it stays one box whose lines fan out, as when this was written.
+      const own = catalog?.itemArea('water');
+      const parts = {
+        by: 'parts',
+        ...(own !== undefined ? { moves: { 'recipe:water': own } } : {}),
+      } as const;
       const areas = groupAreas(flat, catalog, parts).areas ?? [];
       expect(areas.length).toBeGreaterThan(1);
       let splits = 0;

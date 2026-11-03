@@ -1,64 +1,12 @@
 import { describe, expect, test } from 'vitest';
 import { createHighsBackend } from './highs';
-import { toLpArrays, toLpText } from './lpFormat';
+import { toLpArrays } from './lpFormat';
 import type { LpModel } from './types';
 
 const backend = createHighsBackend();
 
-describe('toLpText', () => {
-  test('uses safe generated names, merges terms and splits ranged rows', () => {
-    const { text, columns, rows } = toLpText({
-      sense: 'max',
-      objective: [
-        { var: 'recipe:a b', coef: 2 },
-        { var: 'recipe:a b', coef: 1 },
-        { var: 'y', coef: 0 },
-      ],
-      variables: [
-        { name: 'recipe:a b', hi: 4 },
-        { name: 'y', lo: -Infinity, integer: true },
-      ],
-      constraints: [
-        {
-          name: 'iron plate',
-          terms: [
-            { var: 'recipe:a b', coef: 1 },
-            { var: 'y', coef: -0.5 },
-          ],
-          lo: 1,
-          hi: 3,
-        },
-        { name: 'eq', terms: [{ var: 'y', coef: 1 }], lo: 2, hi: 2 },
-      ],
-    });
-    expect(text).toContain('obj: + 3 x0');
-    expect(text).toContain('c0: + 1 x0 - 0.5 x1 >= 1');
-    expect(text).toContain('c1: + 1 x0 - 0.5 x1 <= 3');
-    expect(text).toContain('c2: + 1 x1 = 2');
-    expect(text).toContain('0 <= x0 <= 4');
-    expect(text).toContain(' x1 free');
-    expect(text).toMatch(/Generals\n x1/);
-    expect(columns.get('x0')).toBe('recipe:a b');
-    expect(rows.get('c0')).toBe('iron plate');
-    expect(rows.get('c1')).toBe('iron plate');
-  });
-
-  test('rejects unknown variables and non-finite coefficients', () => {
-    const base: LpModel = {
-      sense: 'min',
-      objective: [],
-      variables: [{ name: 'x' }],
-      constraints: [],
-    };
-    expect(() => toLpText({ ...base, objective: [{ var: 'nope', coef: 1 }] })).toThrow(
-      /Unknown LP variable/,
-    );
-    expect(() => toLpText({ ...base, objective: [{ var: 'x', coef: NaN }] })).toThrow(/Non-finite/);
-  });
-});
-
 describe('toLpArrays', () => {
-  test('orders columns as the LP reader would and splits ranged rows like the text', () => {
+  test('orders columns as the LP reader did, merges terms and splits ranged rows', () => {
     const a = toLpArrays({
       sense: 'min',
       objective: [{ var: 'b', coef: 1 }],
@@ -97,7 +45,31 @@ describe('toLpArrays', () => {
     expect([...a.integrality]).toEqual([0, 1, 0]);
   });
 
-  test('rejects what the text rejects', () => {
+  test('sums duplicate terms and keeps an integer free column', () => {
+    const a = toLpArrays({
+      sense: 'max',
+      objective: [
+        { var: 'x', coef: 2 },
+        { var: 'x', coef: 1 },
+        { var: 'y', coef: 0 },
+      ],
+      variables: [
+        { name: 'x', hi: 4 },
+        { name: 'y', lo: -Infinity, integer: true },
+      ],
+      constraints: [{ name: 'eq', terms: [{ var: 'y', coef: 1 }], lo: 2, hi: 2 }],
+    });
+    expect(a.sense).toBe('max');
+    expect(a.columns).toEqual(['x', 'y']);
+    expect([...a.colCost]).toEqual([3, 0]);
+    expect([...a.colLower]).toEqual([0, -Infinity]);
+    expect([...a.integrality]).toEqual([0, 1]);
+    expect([...a.rowLower]).toEqual([2]);
+    expect([...a.indices]).toEqual([1]);
+    expect([...a.values]).toEqual([1]);
+  });
+
+  test('rejects unknown variables, non-finite coefficients and duplicates', () => {
     const base: LpModel = {
       sense: 'min',
       objective: [],

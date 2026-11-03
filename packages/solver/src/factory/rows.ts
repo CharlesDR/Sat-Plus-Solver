@@ -17,7 +17,7 @@ export const supplyVar = (item: string) => `supply:${item}`;
 export const nodeSlackVar = (node: string) => `slack:node:${node}`;
 export const importSlackVar = (item: string) => `slack:import:${item}`;
 /** The free part of a costed import (DF-5, A99): what fixed links already ship. */
-export const importFreeVar = (item: string) => `importfree:${item}`;
+const importFreeVar = (item: string) => `importfree:${item}`;
 export const resourceSlackVar = (item: string) => `slack:resource:${item}`;
 export const surplusSlackVar = (item: string) => `slack:surplus:${item}`;
 export const balanceRow = (item: string) => `balance:${item}`;
@@ -71,7 +71,7 @@ export interface Problem {
   importFree: Map<string, number>;
   /** Caps of the node classes the kept recipes use. */
   nodeCaps: Map<string, number>;
-  nodes: Map<string, ResourceNode>;
+  nodes: ReadonlyMap<string, ResourceNode>;
   /** Raw resource extracted per machine of each kept extraction recipe (A33). */
   extracts: Map<string, { item: string; rate: number }>;
   /** `request.resourceLimits`, on the resources the kept recipes extract. */
@@ -388,7 +388,7 @@ export function objectiveCosts(
   objective: ObjectiveId,
   weights: Readonly<Record<string, number>> | undefined,
   recipes: readonly Recipe[],
-  nodes: Map<string, ResourceNode>,
+  nodes: ReadonlyMap<string, ResourceNode>,
   creditTurbines = false,
 ): Map<string, number> {
   const cost = new Map<string, number>();

@@ -12,7 +12,7 @@ import type { SolveOutcome } from '../solver/client';
 import { useOpenPref } from '../ui/prefs';
 
 /** Suggestions shown, best first. */
-export const SUGGESTIONS = 3;
+const SUGGESTIONS = 3;
 
 type Previews =
   | { kind: 'done'; previews: ImportPreviews }

@@ -2039,6 +2039,37 @@ img:is(.world-icon, .flow-icon, .flow-item-icon, .cell-icon, .io-icon),
   gap: 8px;
   margin-top: 6px;
 }
+/* A109: opening a copy of the open world. */
+.palette-dialog.copy-dialog {
+  display: grid;
+  gap: 10px;
+  width: min(480px, 100%);
+  padding: 18px;
+}
+.copy-dialog h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.copy-dialog p {
+  margin: 0;
+}
+.copy-times {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 0;
+}
+.copy-times dt {
+  font-weight: 600;
+}
+.copy-times dd {
+  margin: 0;
+}
+.copy-dialog .row {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
 .world-canvas .flow-canvas {
   height: 560px;
 }

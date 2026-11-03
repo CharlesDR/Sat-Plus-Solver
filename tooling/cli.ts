@@ -11,12 +11,10 @@ import { fileURLToPath } from 'node:url';
 import { runCli } from './solve';
 import { runWorldCli } from './world';
 
-export const CLI_USAGE = `Usage: sps solve <pnpm solve options>
+const CLI_USAGE = `Usage: sps solve <pnpm solve options>
        sps world solve <world.json | share link | -> [--json | --summary]`;
 
-export async function runSps(
-  argv: string[],
-): Promise<{ code: number; stdout: string; stderr: string }> {
+async function runSps(argv: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
   const [command, ...rest] = argv;
   if (command === 'solve') return runCli(rest);
   if (command === 'world') return runWorldCli(rest);

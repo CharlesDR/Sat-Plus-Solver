@@ -6,7 +6,7 @@ import type { Scope, WorldStore } from '../store';
 import { AlternateBadge } from './AlternateBadge';
 
 /** Rows rendered at once; a search narrows the rest. */
-export const RECIPE_PAGE = 100;
+const RECIPE_PAGE = 100;
 
 const VIEWS: [RecipeView, string][] = [
   ['all', 'All'],

@@ -96,8 +96,8 @@ function ItemIcon({ item, name }: { item: string; name: string }) {
 }
 
 /** The handles that start or take a link with no part picked yet. */
-export const NEW_OUT = 'new-out';
-export const NEW_IN = 'new-in';
+const NEW_OUT = 'new-out';
+const NEW_IN = 'new-in';
 const handleId = (side: 'in' | 'out', item: string) => `${side}:${item}`;
 /** A handle's part, if it is a part's port. */
 const handleItem = (id: string | null | undefined) =>
@@ -568,7 +568,7 @@ const FIT_PAD = 16;
  * The view that shows the whole drawing (B3): ELK's own bounds, edge labels
  * included, centred in the canvas and never zoomed past 1.
  */
-export function fitLayout(
+function fitLayout(
   layout: Pick<WorldLayout, 'width' | 'height'>,
   width: number,
   height: number,
@@ -589,14 +589,14 @@ export function fitLayout(
 }
 
 /** The zoom a new layout never opens below (UX-9): 12 px card text stays 9 px. */
-export const TEXT_FLOOR = 0.75;
+const TEXT_FLOOR = 0.75;
 
 /**
  * The view a new layout opens at (UX-9): fitted, but never so far out that
  * its text drops below the floor. A world too big for that opens at its
  * top-left (inputs) corner; the Fit button still shows it all.
  */
-export function openingView(
+function openingView(
   layout: Pick<WorldLayout, 'width' | 'height'>,
   width: number,
   height: number,

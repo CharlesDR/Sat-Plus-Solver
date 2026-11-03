@@ -14,8 +14,8 @@ export interface SavedCaches {
 }
 
 /** Most entries kept of each cache, the newest. */
-export const SAVED_SOLVES = 100;
-export const SAVED_COSTS = 2000;
+const SAVED_SOLVES = 100;
+const SAVED_COSTS = 2000;
 
 const DB = 'sps-solver';
 const STORE = 'caches';

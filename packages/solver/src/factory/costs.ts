@@ -2,10 +2,28 @@
 import type { LpBackend, LpOptions } from '../lp/types';
 import { MAX_COST_ROUNDS, MIN_RATE } from './constants';
 import { byItem, type Problem } from './rows';
-import { solve } from './solve';
 import { solveStack } from './stages';
 import type { Diagnostic, ImportCost, ObjectiveId, SolveRequest, SolveResult } from './types';
-import type { Model } from '@sps/data';
+import type { Model, Recipe, ResourceNode } from '@sps/data';
+
+/** One embodied-cost cache entry: the standalone request's key and its cost. */
+export type CostCacheEntry = [key: string, cost: ImportCost | Diagnostic];
+
+/** What a solver keeps per model (BR-3, `createSolver`), and its own solve. */
+export interface SolverContext {
+  model: Model;
+  backend: LpBackend;
+  /** Every recipe, sorted by id. */
+  recipes: readonly Recipe[];
+  itemName: (id: string) => string;
+  fluids: ReadonlySet<string>;
+  nodes: ReadonlyMap<string, ResourceNode>;
+  /** A node class's resource. */
+  resourceOf: (node: string) => string;
+  /** Embodied costs of standalone import plans by request key (A31, A90), oldest first. */
+  costs: Map<string, ImportCost | Diagnostic>;
+  solve(request: SolveRequest, options?: LpOptions): Promise<SolveResult>;
+}
 
 /**
  * Costed imports (§3.3, A18): each unassigned import is costed at the rate the
@@ -19,12 +37,12 @@ import type { Model } from '@sps/data';
  * best plan seen is returned, re-costed at its own import rates, with a warning.
  */
 export async function solveCosted(
+  ctx: SolverContext,
   base: Problem,
   request: SolveRequest,
-  backend: LpBackend,
   options: LpOptions,
-  itemName: (id: string) => string,
 ): Promise<SolveResult> {
+  const { backend, itemName } = ctx;
   // Given costs (linked imports, from the world layer) are used as they are.
   const given = new Map<string, ImportCost>();
   for (const c of request.importCosts ?? [])
@@ -60,15 +78,7 @@ export async function solveCosted(
     const warnings: Diagnostic[] = [];
     const costs = new Map<string, ImportCost>(given);
     for (const item of items) {
-      const c = await embodiedCost(
-        base.model,
-        request,
-        base.stack,
-        item,
-        rates.get(item)!,
-        backend,
-        options,
-      );
+      const c = await embodiedCost(ctx, request, base.stack, item, rates.get(item)!, options);
       if ('cost' in c) costs.set(item, c);
       else warnings.push(c);
     }
@@ -186,41 +196,17 @@ function sameCosts(a: Map<string, ImportCost>, b: Map<string, ImportCost>): bool
   return true;
 }
 
-const embodiedCache = new WeakMap<Model, Map<string, ImportCost | Diagnostic>>();
-
-/** One embodied-cost cache entry: the standalone request's key and its cost. */
-export type CostCacheEntry = [key: string, cost: ImportCost | Diagnostic];
-
-/**
- * The embodied-cost cache for `model` (A90), oldest first, so the app can
- * keep it across reloads. Entries are plain data.
- */
-export function costCacheEntries(model: Model): CostCacheEntry[] {
-  return [...(embodiedCache.get(model) ?? [])];
-}
-
-/**
- * Seeds the embodied-cost cache for `model` with entries saved by
- * `costCacheEntries` for the same model data (A90). Entries already cached win.
- */
-export function seedCostCache(model: Model, entries: readonly CostCacheEntry[]): void {
-  let cache = embodiedCache.get(model);
-  if (!cache) embodiedCache.set(model, (cache = new Map()));
-  for (const [key, cost] of entries) if (!cache.has(key)) cache.set(key, cost);
-}
-
 /**
  * Embodied cost per 1/min of an unassigned import at `rate` (§3.3, A18): the
  * stack's values on a standalone plan that makes `rate`/min of it from the
- * map pool, with no imports, divided by `rate`. Cached per model and settings.
+ * map pool, with no imports, divided by `rate`. Cached per solver and settings.
  */
 export async function embodiedCost(
-  model: Model,
+  ctx: SolverContext,
   request: SolveRequest,
   stack: readonly ObjectiveId[],
   item: string,
   rate: number,
-  backend: LpBackend,
   options: LpOptions,
 ): Promise<ImportCost | Diagnostic> {
   const standalone: SolveRequest = {
@@ -233,12 +219,9 @@ export async function embodiedCost(
   };
   if (!standalone.objectives!.length) return { item, rate, cost: {}, resourceTypes: [] };
   const key = JSON.stringify(standalone);
-  let cache = embodiedCache.get(model);
-  if (!cache) embodiedCache.set(model, (cache = new Map()));
-  const hit = cache.get(key);
+  const hit = ctx.costs.get(key);
   if (hit) return hit;
-  const r = await solve(model, standalone, backend, options);
-  const nodes = new Map(model.nodes.map((n) => [n.id, n.resource]));
+  const r = await ctx.solve(standalone, options);
   const out: ImportCost | Diagnostic =
     r.status === 'ok'
       ? {
@@ -249,7 +232,7 @@ export async function embodiedCost(
               .filter((s) => s.objective !== 'resourceTypes')
               .map((s) => [s.objective, s.value / rate]),
           ),
-          resourceTypes: [...new Set(r.nodes.map((n) => nodes.get(n.node) ?? n.node))].sort(),
+          resourceTypes: [...new Set(r.nodes.map((n) => ctx.resourceOf(n.node)))].sort(),
         }
       : {
           code: 'import-cost',
@@ -258,6 +241,6 @@ export async function embodiedCost(
           message: `Could not cost imported ${item}: its standalone plan is ${r.status}. The import is treated as free.`,
         };
   // Time-limited plans are not cached: a later solve may do better.
-  if (r.diagnostics.every((d) => d.code !== 'time-limit')) cache.set(key, out);
+  if (r.diagnostics.every((d) => d.code !== 'time-limit')) ctx.costs.set(key, out);
   return out;
 }

@@ -6,6 +6,7 @@ import type { Model } from '@sps/data';
 import {
   compareTiers,
   createHighsBackend,
+  createSolver,
   solve,
   type SolveRequest,
   type SolveResult,
@@ -96,7 +97,8 @@ describe('miner output follows the Max tier (DF-1)', () => {
     const f = createFactory('t2', 'T2 mine');
     f.request = { targets: [{ item: 'siterite-ore', rate: 480 }], maxTier: tierFor(2) };
     w.factories = [f];
-    const r = await resolveWorld(w, model, (q: SolveRequest) => solve(model, q, backend));
+    const solver = createSolver(model, backend);
+    const r = await resolveWorld(w, model, (q: SolveRequest) => solver.solve(q));
     const plan = r.factories[0]!;
     expect(plan.status).toBe('ok');
     const used = r.nodePool.filter((n) => n.used > 0);

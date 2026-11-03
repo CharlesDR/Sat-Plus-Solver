@@ -14,6 +14,11 @@
  * named after what it sends out, and its id is made from those parts, so a
  * rename or a move sticks while the plan keeps them. Deterministic: every
  * choice follows the graph's own sorted order.
+ *
+ * The ore band (A107, band.ts) is grouped apart first, and product lines
+ * (lines.ts) may cut the rest before pinch points do: those boxes come in
+ * `apart` and count as the plan's border here. A small piece only the band
+ * feeds joins the area it shares most parts with, or the other such pieces.
  */
 import type { FactoryGraph, FlowEdge, FlowNode } from './factory';
 
@@ -63,13 +68,18 @@ export function areaFlows(
 
 /**
  * Each box's area and the areas in production order. Plan ends (imports,
- * targets, byproducts) are left for the caller to place.
+ * targets, byproducts) are left for the caller to place. Boxes in `apart`
+ * (the ore band, A107) are grouped elsewhere: here they count as the plan's
+ * border, as imports do.
  */
-export function pinchAreas(graph: FactoryGraph): {
+export function pinchAreas(
+  graph: FactoryGraph,
+  apart: ReadonlySet<string> = new Set(),
+): {
   at: Map<string, string>;
   areas: PinchArea[];
 } {
-  const boxes = graph.nodes.filter(isBox).map((n) => n.id);
+  const boxes = graph.nodes.filter((n) => isBox(n) && !apart.has(n.id)).map((n) => n.id);
   const boxSet = new Set(boxes);
   const index = new Map(boxes.map((b, k) => [b, k]));
   const byIndex = (a: string, b: string) => index.get(a)! - index.get(b)!;
@@ -242,9 +252,16 @@ export function pinchAreas(graph: FactoryGraph): {
     const small = [...m].filter(([, list]) => list.length < PINCH_MIN).sort(([p], [q]) => p - q);
     let done = true;
     for (const [a, list] of small) {
-      const near = links(list);
-      if (!near.length) continue;
       const own = border(list);
+      // An island (no lines to other areas, as when only the ore band feeds
+      // it) joins the area it shares most parts with, if any.
+      const near = links(list).length
+        ? links(list)
+        : [...m.keys()]
+            .filter((b) => b !== a)
+            .filter((b) => own + border(m.get(b)!) - border([...m.get(b)!, ...list]) > 0)
+            .map((b): [number, number] => [b, 0]);
+      if (!near.length) continue;
       const score = near.map(([b, lines]) => {
         const there = m.get(b)!;
         return {
@@ -263,6 +280,15 @@ export function pinchAreas(graph: FactoryGraph): {
       break;
     }
     if (done) break;
+  }
+  // Islands still below PINCH_MIN share one area.
+  {
+    const m = members();
+    const islands = [...m]
+      .filter(([, list]) => list.length < PINCH_MIN && !links(list).length)
+      .map(([a]) => a)
+      .sort((p, q) => p - q);
+    for (const a of islands.slice(1)) move(a, islands[0]!);
   }
   // Single boxes move to a neighbouring area while that takes parts off the borders.
   for (let round = 0; round < 3; round++) {
@@ -375,7 +401,9 @@ export function pinchAreas(graph: FactoryGraph): {
     ids.add(id);
     named.set(a, id);
     const parts = out.map(([, x]) => x.name);
-    const ground = out.length > 0 && out.filter(([, x]) => x.basic).length * 2 >= out.length;
+    // With the ore band apart (A107), no other area is named Ore Processing.
+    const ground =
+      !apart.size && out.length > 0 && out.filter(([, x]) => x.basic).length * 2 >= out.length;
     const label = ground
       ? 'Ore Processing'
       : parts.length === 0

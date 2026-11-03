@@ -96,6 +96,8 @@ function shapeProblems(w: World): string[] {
   };
   if (!isStr(w.meta.dataHash)) out.push('"meta.dataHash" is not a string');
   if (!isOpt(w.meta.name, isStr)) out.push('"meta.name" is not a string');
+  if (!isOpt(w.meta.worldId, isStr)) out.push('"meta.worldId" is not a string');
+  if (!isOpt(w.meta.savedAt, isStr)) out.push('"meta.savedAt" is not a string');
   list(
     'factories',
     (f) =>

@@ -6,9 +6,16 @@ import type { AreaCatalog, AreaSettings, FactoryGraph } from '@sps/graph';
 import type { Catalog } from '../solver/protocol';
 
 /** The catalog's areas as the graph package groups by them. */
-export function areaCatalog(catalog: Pick<Catalog, 'areas' | 'itemAreas'>): AreaCatalog {
+export function areaCatalog(
+  catalog: Pick<Catalog, 'areas' | 'itemAreas'> & Partial<Pick<Catalog, 'fluids'>>,
+): AreaCatalog {
   const at = new Map(Object.entries(catalog.itemAreas));
-  return { areas: catalog.areas, itemArea: (item) => at.get(item) };
+  const fluids = new Set(catalog.fluids ?? []);
+  return {
+    areas: catalog.areas,
+    itemArea: (item) => at.get(item),
+    isFluid: (item) => fluids.has(item),
+  };
 }
 
 /** Every area a box can move to, by the factory's names, in production order. */

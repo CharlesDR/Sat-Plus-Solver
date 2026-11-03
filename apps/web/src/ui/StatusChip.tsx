@@ -11,7 +11,7 @@ const TONE: Record<string, Tone> = {
   error: 'error',
 };
 
-export const toneOf = (status: string): Tone => TONE[status] ?? 'neutral';
+const toneOf = (status: string): Tone => TONE[status] ?? 'neutral';
 
 export function StatusChip({ status, label = status }: { status: string; label?: string }) {
   return <span className={`status-chip ${toneOf(status)}`}>{label}</span>;

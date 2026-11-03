@@ -8,7 +8,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { helpText } from '../help';
 
 /** Show delay, ms. */
-export const HELP_DELAY = 400;
+const HELP_DELAY = 400;
 /** Gap between the element and the tip, px. */
 const GAP = 6;
 

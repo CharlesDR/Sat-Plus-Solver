@@ -167,7 +167,7 @@ const POWER_ITEM = 'mw';
 const byKey = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 const SEVERITY: Record<FactoryStatus, number> = { empty: 0, ok: 1, short: 2, infeasible: 3 };
 
-export const groupNodeId = (id: string) => `group:${id}`;
+const groupNodeId = (id: string) => `group:${id}`;
 export const factoryNodeId = (id: string) => `factory:${id}`;
 export const nestNodeId = (id: string) => `nest:${id}`;
 
