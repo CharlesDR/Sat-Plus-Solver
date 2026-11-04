@@ -58,6 +58,8 @@
   --shadow-lg: 0 16px 32px -8px rgb(16 24 40 / 22%), 0 4px 8px -4px rgb(16 24 40 / 10%);
   --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
   --topbar-h: 56px;
+  /* UV-8: anything scrolled into view stops below the sticky top bar. */
+  scroll-padding-top: calc(var(--topbar-h) + 8px);
   font-family:
     Inter,
     'Segoe UI Variable',
@@ -2073,6 +2075,10 @@ img:is(.world-icon, .flow-icon, .flow-item-icon, .cell-icon, .io-icon),
 .world-canvas .flow-canvas {
   height: 560px;
 }
+.canvas-pending {
+  display: grid;
+  place-items: center;
+}
 .world-node {
   position: relative;
   width: 100%;
@@ -2843,6 +2849,21 @@ details.more-menu > summary {
 }
 
 /* Shortfall panel (A92). */
+.shortfalls .row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+/* UV-9: the Built factories radios, clear of the tab row. */
+.shortfalls > .row {
+  margin-top: 10px;
+}
+.shortfalls label.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .shortfall-list {
   margin: 6px 0 0;
   padding: 0;
