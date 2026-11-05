@@ -410,7 +410,7 @@ export function WorldCanvas(props: {
   const state = useWorldLayout(props.engine, props.graph);
   return (
     <section className="flowchart world-canvas" aria-label="World canvas">
-      {state.kind === 'pending' && <p className="hint">Laying out the world…</p>}
+      {state.kind === 'pending' && <Pending />}
       {state.kind === 'error' && (
         <p className="error" role="alert">
           The world layout failed: {state.message}
@@ -424,6 +424,21 @@ export function WorldCanvas(props: {
         </Actions.Provider>
       )}
     </section>
+  );
+}
+
+/**
+ * The canvas's place while the world is laid out: the canvas's own height, so
+ * the tab row, an open panel and a link editor below don't jump when the
+ * drawing arrives (UV-10).
+ */
+function Pending() {
+  const box = useRef<HTMLDivElement>(null);
+  const height = useCanvasHeight(box);
+  return (
+    <div ref={box} className="flow-canvas canvas-pending" style={{ height }}>
+      <p className="hint">Laying out the world…</p>
+    </div>
   );
 }
 
