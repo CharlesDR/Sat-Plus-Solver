@@ -10,6 +10,19 @@ export async function openFactory(page: Page, name = 'Factory') {
   await expect(page.getByLabel('Target item')).toBeVisible();
 }
 
+/**
+ * Moves the open world to an SF+ mod version (A111). A test whose numbers come
+ * from one version's data names it, as the golden fixtures stay on 2026.3.489.
+ */
+export async function pickModVersion(page: Page, version: string) {
+  const chip = page.getByRole('combobox', { name: 'SF+ mod version' });
+  if ((await chip.inputValue()) === version) return;
+  await chip.selectOption(version);
+  await expect(page.getByRole('region', { name: 'Notifications' })).toContainText(
+    `Now on SF+ ${version}`,
+  );
+}
+
 /** The world canvas node of a factory or group, by graph id (`factory:<id>`). */
 export const canvasNode = (page: Page, id: string) =>
   page.getByTestId('world-canvas').locator(`.react-flow__node[data-id="${id}"]`);

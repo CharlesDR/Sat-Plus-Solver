@@ -4,7 +4,7 @@
  *   pnpm solve --target "Iron Plate:60" [--target ...] [--import "Iron Ingot:30"]
  *              [--objective resources,machines,...] [--tolerance 0.01%] [--min-branch 0.01] [--min-flow 0.001] [--farm-cap 5%] [--whole-machines]
  *              [--cost-imports] [--avoid-fluid-byproducts] [--simplicity] [--miner-fluids any|water|none] [--miner-fluid-supply local|outside]
- *              [--alternates] [--compare-alternates] [--exclude <recipe-id>] [--enable <recipe-id>] [--max-tier <major-minor>] [--budget "<node-id>=<count>"] [--model <model.json>] [--json | --summary]
+ *              [--alternates] [--compare-alternates] [--exclude <recipe-id>] [--enable <recipe-id>] [--max-tier <major-minor>] [--budget "<node-id>=<count>"] [--mod-version <version> | --model <model.json>] [--json | --summary]
  *
  * Items are matched by id or by name (case-insensitive). An import without a
  * rate is unlimited. `--budget` overrides the map pool for one node class.
@@ -23,13 +23,14 @@
  * imports miner fluid at its cost (A69);
  * `--compare-alternates` solves both ways and lists the alternates that help;
  * `--summary` prints only targets, byproducts, raw inputs and power.
- * The model is data/generated/model.json, built in memory when it is missing.
+ * The model is the newest mod version's (A111), or `--mod-version`'s, from
+ * data/generated/<version>/model.json, built in memory when it is missing.
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { MW_ITEM_ID, type Model } from '@sps/data';
+import { compareModVersions, MW_ITEM_ID, type Model } from '@sps/data';
 import { productionOrder } from '@sps/graph';
 import {
   compareAlternates,
@@ -55,13 +56,13 @@ import {
   type SummaryFlow,
   usageWeights,
 } from '@sps/solver';
-import { ROOT, runPipeline } from './build-data';
+import { generatedDir, modVersions, readInputs, runPipeline } from './build-data';
 
 const USAGE = `Usage: pnpm solve --target "Item:rate" [--target ...] [--import "Item[:cap]"]
                   [--objective resources,machines,...] [--tolerance <percent>] [--min-branch <machines>] [--min-flow <per-minute>] [--farm-cap <percent>]
                   [--whole-machines] [--cost-imports] [--avoid-fluid-byproducts] [--simplicity] [--miner-fluids any|water|none]
                   [--miner-fluid-supply local|outside] [--alternates] [--compare-alternates] [--exclude <recipe-id>]
-                  [--enable <recipe-id>] [--max-tier <major-minor>] [--budget "<node-id>=<count>"] [--model <model.json>] [--json | --summary]
+                  [--enable <recipe-id>] [--max-tier <major-minor>] [--budget "<node-id>=<count>"] [--mod-version <version> | --model <model.json>] [--json | --summary]
 Objectives: resources (o1), scarcity (o2), machines (o3), power (o4), output (o5), types (o6).`;
 
 export class CliError extends Error {}
@@ -119,6 +120,7 @@ export function parseCli(argv: string[], model: Model): CliArgs {
         'max-tier': { type: 'string' },
         budget: { type: 'string', multiple: true },
         model: { type: 'string' },
+        'mod-version': { type: 'string' },
         json: { type: 'boolean' },
         summary: { type: 'boolean' },
       },
@@ -417,17 +419,34 @@ function renderAlternates(model: Model, report: AlternatesReport): string {
   return out.join('\n') + '\n';
 }
 
-export function loadModel(path?: string): Promise<Model> | Model {
-  // The prebuilt CLI bundle (tooling/cli.ts) ships the model beside itself.
-  const file =
-    path ??
-    (process.env.SPS_CLI_BUNDLE
-      ? fileURLToPath(new URL('./model.json', import.meta.url))
-      : join(ROOT, 'data', 'generated', 'model.json'));
+/** The mod versions this CLI can load, oldest first (A111). */
+export function availableVersions(): string[] {
+  // The prebuilt CLI bundle (tooling/cli.ts) ships each version's model beside itself.
+  return process.env.SPS_CLI_BUNDLE
+    ? readdirSync(fileURLToPath(new URL('./models/', import.meta.url))).sort(compareModVersions)
+    : modVersions();
+}
+
+/** A model file (`path`), or a mod version's model (default: the newest). */
+export function loadModel(
+  source: { path?: string; version?: string } = {},
+): Promise<Model> | Model {
+  if (source.path !== undefined) {
+    if (!existsSync(source.path)) throw new CliError(`Model file not found: ${source.path}`);
+    return JSON.parse(readFileSync(source.path, 'utf8')) as Model;
+  }
+  const versions = availableVersions();
+  const version = source.version ?? versions.at(-1)!;
+  if (!versions.includes(version))
+    throw new CliError(`Unknown mod version ${version}; this CLI has ${versions.join(', ')}.`);
+  const file = process.env.SPS_CLI_BUNDLE
+    ? fileURLToPath(new URL(`./models/${version}/model.json`, import.meta.url))
+    : join(generatedDir(version), 'model.json');
   if (existsSync(file)) return JSON.parse(readFileSync(file, 'utf8')) as Model;
-  if (path) throw new CliError(`Model file not found: ${path}`);
-  process.stderr.write('data/generated/model.json is missing; building the model in memory…\n');
-  return runPipeline().then(({ result }) => {
+  process.stderr.write(
+    `data/generated/${version}/model.json is missing; building the model in memory…\n`,
+  );
+  return runPipeline(readInputs(version)).then(({ result }) => {
     if (!result.model)
       throw new CliError('The data build failed. Run `pnpm build:data` for details.');
     return result.model;
@@ -440,8 +459,16 @@ export async function runCli(
   backend: LpBackend = createHighsBackend(),
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   try {
-    const modelArg = argv.findIndex((a) => a === '--model');
-    const model = await loadModel(modelArg >= 0 ? argv[modelArg + 1] : undefined);
+    const flag = (name: string) => {
+      const at = argv.indexOf(name);
+      return at >= 0 ? argv[at + 1] : undefined;
+    };
+    const path = flag('--model');
+    const version = flag('--mod-version');
+    const model = await loadModel({
+      ...(path !== undefined ? { path } : {}),
+      ...(version !== undefined ? { version } : {}),
+    });
     const args = parseCli(argv, model);
     const solver = createSolver(model, backend);
     if (args.compareAlternates) {

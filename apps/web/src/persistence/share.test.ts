@@ -4,7 +4,7 @@ import lzString from 'lz-string';
 import { describe, expect, test } from 'vitest';
 import v1 from '../../../../fixtures/worlds/v1-world.json';
 import v16 from '../../../../fixtures/worlds/v16-world.json';
-import v17 from '../../../../fixtures/worlds/v17-world.json';
+import v18 from '../../../../fixtures/worlds/v18-world.json';
 import { SHARE_LIMIT, isShareHash, readShareHash, shareLink } from './share';
 import { bigWorld } from './testing';
 
@@ -19,7 +19,7 @@ const lzHash = (world: unknown) =>
 
 describe('share links (PLAN M9, A108)', () => {
   test('World → URL → World is deep-equal', async () => {
-    for (const world of [createWorld('h'), v17, bigWorld(20)]) {
+    for (const world of [createWorld('h'), v18, bigWorld(20)]) {
       const link = await shareLink(world as never, BASE);
       if (!link.ok) throw new Error('expected a link');
       expect(link.url).toMatch(/^https:\/\/example\.test\/app\/\?x=1#z=[\w-]+$/);

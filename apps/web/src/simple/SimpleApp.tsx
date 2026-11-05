@@ -14,16 +14,19 @@ import type { Saves } from '../persistence/saves';
 import { SavePanel } from '../persistence/SavePanel';
 import type { Boot } from '../persistence/session';
 import type { SolverClient } from '../solver/client';
+import type { SolverHub } from '../solver/hub';
 import type { Catalog } from '../solver/protocol';
 import type { WorldStore } from '../store';
 import { LogoMark } from '../ui/icons';
 import { ThemeSwitch } from '../ui/ThemeSwitch';
 import { ToastProvider, useToast } from '../ui/toasts';
 import { useWorldPlan } from '../useWorldPlan';
+import { ModVersionChip } from '../versions/ModVersionChip';
+import { useWorldSolver } from '../versions/useWorldSolver';
 import { keepOneFactory } from './oneFactory';
 
 export function SimpleApp(props: {
-  client: SolverClient;
+  hub: SolverHub;
   store: WorldStore;
   layout: LayoutEngine;
   saves: Saves;
@@ -37,30 +40,20 @@ export function SimpleApp(props: {
 }
 
 function SimpleFrame(props: {
-  client: SolverClient;
+  hub: SolverHub;
   store: WorldStore;
   layout: LayoutEngine;
   saves: Saves;
   boot: Boot;
 }) {
-  const { client, store, layout, saves, boot } = props;
+  const { hub, store, layout, saves, boot } = props;
   const mismatch = useStore(store, (s) => s.dataHashMismatch);
   const world = useStore(store, (s) => s.world);
-  const [catalog, setCatalog] = useState<Catalog | undefined>();
-  const [initError, setInitError] = useState<string | undefined>();
+  // The solver for the world's SF+ mod version (A111).
+  const { client, catalog, initError } = useWorldSolver(hub, store);
   const [newWorld, setNewWorld] = useState(false);
   const toast = useToast();
   const escape = useMemo(() => escapeStack(), []);
-
-  useEffect(() => {
-    client.ready.then(
-      (r) => {
-        store.getState().attachData(r.dataHash);
-        setCatalog(r.catalog);
-      },
-      (e: unknown) => setInitError((e as Error).message),
-    );
-  }, [client, store]);
 
   // Whatever is loaded (a file, a slot, a link, the sample) becomes one factory.
   useEffect(() => {
@@ -106,6 +99,7 @@ function SimpleFrame(props: {
                 {world.meta.name}
               </span>
             )}
+            <ModVersionChip store={store} hub={hub} />
           </div>
           <div className="topbar-actions">
             <a className="button-link" href="../">

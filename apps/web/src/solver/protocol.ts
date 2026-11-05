@@ -2,7 +2,13 @@
 import type { Area, BeltCapacity, NodePurity, RecipeUnlock } from '@sps/data';
 import type { FactoryGraph } from '@sps/graph';
 import type { Diagnostic, ItemRate, PlanSummary, SummaryBuilding, SummaryFlow } from '@sps/solver';
-import type { FactoryResult, ModelerReportLine, World, WorldResult } from '@sps/world';
+import type {
+  FactoryResult,
+  ModelerReportLine,
+  VersionSwitch,
+  World,
+  WorldResult,
+} from '@sps/world';
 
 /** An item the target picker offers. */
 export interface CatalogItem {
@@ -125,7 +131,9 @@ export type WorldAction =
   /** Modeler import (M14, A57): `text` is the `.sfmd` file; `at` the ISO time of the build marks. */
   | { kind: 'import-modeler'; text: string; at: string }
   /** Modeler export (M14, A58): one factory, or the whole world when `factoryId` is missing. */
-  | { kind: 'export-modeler'; factoryId?: string };
+  | { kind: 'export-modeler'; factoryId?: string }
+  /** Moves the world to SF+ `version` (A111), the version of the worker it is sent to. */
+  | { kind: 'switch-version'; version: string };
 
 /** What a Modeler import made, and what it could not map. */
 export interface ModelerImported {
@@ -212,9 +220,13 @@ export interface WorldSolved {
   imported?: ModelerImported;
   /** `export-modeler`: the `.sfmd` file's text. */
   sfmd?: string;
+  /** `switch-version`: what the switch dropped and which manual plans changed (the world is in `edited`). */
+  switched?: Omit<VersionSwitch, 'world'>;
 }
 
-export type ToWorker = { type: 'solve'; id: number } & WorldSolveRequest;
+export type ToWorker =
+  /** The worker's SF+ mod version (A111), sent once, first. */
+  { type: 'init'; version: string } | ({ type: 'solve'; id: number } & WorldSolveRequest);
 
 /** How far the running world solve has got (ResolveProgress). */
 export interface SolveProgress {

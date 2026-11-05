@@ -4,12 +4,15 @@ import { createSolverClient, type WorkerLike } from './client';
 import type { FromWorker, ToWorker, WorldSummary } from './protocol';
 
 function fakeWorker() {
-  const sent: ToWorker[] = [];
+  /** The client sends only solves; `startSolverWorker` sends the init. */
+  const sent: Extract<ToWorker, { type: 'solve' }>[] = [];
   let listener: ((e: MessageEvent<FromWorker>) => void) | undefined;
   let onError: ((e: { message?: string }) => void) | undefined;
   const worker: WorkerLike & { terminated: boolean } = {
     terminated: false,
-    postMessage: (m) => sent.push(m),
+    postMessage: (m) => {
+      if (m.type === 'solve') sent.push(m);
+    },
     addEventListener: ((type: 'message' | 'error', fn: never) => {
       if (type === 'message') listener = fn;
       else onError = fn;
@@ -75,6 +78,19 @@ describe('solver client', () => {
 
     reply({ type: 'failed', id: sent[1]!.id, message: 'nope' });
     await expect(p3).rejects.toThrow('nope');
+  });
+
+  test('a result comes back with every field the worker sent', async () => {
+    const { worker, sent, reply } = fakeWorker();
+    const client = createSolverClient(worker);
+    const p = client.solve({
+      world: createWorld('1'),
+      action: { kind: 'switch-version', version: '2' },
+    });
+    const switched = { dropped: [], changed: [{ factoryId: 'f', recipes: ['r'] }] };
+    const edited = createWorld('2');
+    reply({ type: 'solved', id: sent[0]!.id, world: summary(1), ms: 2, edited, switched });
+    await expect(p).resolves.toEqual({ world: summary(1), ms: 2, edited, switched });
   });
 
   test('replies to unknown ids are ignored; dispose settles pending requests', async () => {

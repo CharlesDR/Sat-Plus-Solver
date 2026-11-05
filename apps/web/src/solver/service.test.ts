@@ -80,6 +80,46 @@ describe('solver service', () => {
     expect(plate.tier).toBe('5-1');
   });
 
+  test('a version switch (A111) edits the world against the old model, then solves it', async () => {
+    // The old version had one more recipe and a slower Iron Plate.
+    const extra = { ...mini.recipes.find((r) => r.id === 'iron-plate')!, id: 'old-plate' };
+    const old: Model = {
+      ...mini,
+      meta: { ...mini.meta, dataHash: 'old' },
+      recipes: [
+        ...mini.recipes.map((r) =>
+          r.id === 'iron-plate'
+            ? { ...r, outputs: r.outputs.map((o) => ({ ...o, rate: o.rate / 2 })) }
+            : r,
+        ),
+        extra,
+      ],
+    };
+    const asked: (string | undefined)[] = [];
+    const service = createSolverService(createSolver(mini, backend), undefined, undefined, (v) => {
+      asked.push(v);
+      return Promise.resolve(v === '1' ? old : undefined);
+    });
+    const world = createWorld('old', '1');
+    world.defaults.recipes = { 'old-plate': true };
+    world.factories[0]!.request.targets.push({ item: 'iron-plate', rate: 20 });
+    world.factories[0]!.manual = {
+      enabled: true,
+      frozen: [{ recipe: 'iron-plate', machines: 1 }],
+      edits: [],
+    };
+    const out = await service.solve({ world, action: { kind: 'switch-version', version: '2' } });
+    expect(asked).toEqual(['1']);
+    expect(out.edited?.meta).toMatchObject({ modVersion: '2', dataHash: 'vanilla-mini' });
+    expect(out.edited?.defaults.recipes).toEqual({});
+    expect(out.switched).toEqual({
+      dropped: [{ recipe: 'old-plate', name: extra.name, kind: 'toggle' }],
+      changed: [{ factoryId: DEFAULT_FACTORY_ID, recipes: ['iron-plate'] }],
+    });
+    // The world it returns is the one solved: Iron Plate at the new rate.
+    expect(out.world.factories[0]?.id).toBe(DEFAULT_FACTORY_ID);
+  });
+
   test("solves the world's factory and returns the same summary as the CLI path", async () => {
     const service = createSolverService(createSolver(mini, backend));
     expect(service.dataHash).toBe('vanilla-mini');

@@ -169,6 +169,17 @@ function v16ToV17(doc: Doc): Doc {
   return { ...doc, meta: { ...(doc.meta as Doc), v: 17 } };
 }
 
+/** The SF+ mod version every save from before mod versions was made with (A111). */
+export const FIRST_MOD_VERSION = '2026.3.489';
+
+/**
+ * v17 → v18 (A111): the world names its SF+ mod version. Every older save
+ * was made with the only dataset there was, so its plans don't move.
+ */
+function v17ToV18(doc: Doc): Doc {
+  return { ...doc, meta: { ...(doc.meta as Doc), v: 18, modVersion: FIRST_MOD_VERSION } };
+}
+
 const MIGRATIONS: Record<number, (doc: Doc) => Doc> = {
   1: v1ToV2,
   2: v2ToV3,
@@ -186,6 +197,7 @@ const MIGRATIONS: Record<number, (doc: Doc) => Doc> = {
   14: v14ToV15,
   15: v15ToV16,
   16: v16ToV17,
+  17: v17ToV18,
 };
 
 /** Returns `doc` upgraded to the current version; throws on a newer or malformed document. */

@@ -66,7 +66,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: data/generated
-          key: build-data-${{ hashFiles('game_data.json', 'data.schema.json', 'data/**', '!data/generated/**', 'packages/data/**', 'tooling/build-data.ts') }}
+          key: build-data-${{ hashFiles('mod-versions/**', 'data.schema.json', 'data/**', '!data/generated/**', 'packages/data/**', 'tooling/build-data.ts') }}
       - if: steps.data-cache.outputs.cache-hit != 'true'
         run: pnpm build:data
       - run: pnpm test

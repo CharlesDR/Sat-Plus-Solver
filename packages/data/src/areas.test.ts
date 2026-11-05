@@ -122,7 +122,7 @@ describe('real dataset (A62)', () => {
   let result: BuildResult;
   beforeAll(() => {
     result = buildModel({
-      gameData: read('game_data.json'),
+      gameData: read('mod-versions/2026.3.489/game_data.json'),
       nodesCsv: read('data/nodes.csv'),
       minerModel: read('data/miner-model.json'),
       overrides: read('data/overrides.json'),
@@ -153,7 +153,7 @@ describe('real dataset (A62)', () => {
   test('the placement is deterministic', () => {
     expect(result.details!.areas).toEqual(
       buildModel({
-        gameData: read('game_data.json'),
+        gameData: read('mod-versions/2026.3.489/game_data.json'),
         nodesCsv: read('data/nodes.csv'),
         minerModel: read('data/miner-model.json'),
         overrides: read('data/overrides.json'),

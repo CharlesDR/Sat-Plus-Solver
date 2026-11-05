@@ -33,11 +33,23 @@ describe('New world (N1–N3)', () => {
   test('empty and sample starts', () => {
     const { store, saves } = setup();
     startNewWorld(store, saves, { from: 'empty', name: '' });
-    expect(store.getState().world).toEqual(emptyWorld('h'));
+    // A new world has no data hash until its version's model attaches (A111).
+    expect(store.getState().world).toEqual(emptyWorld());
     startNewWorld(store, saves, { from: 'sample', name: 'Demo' });
     const w = store.getState().world;
     expect(w.meta.name).toBe('Demo');
     expect(w.factories.map((f) => f.name)).toEqual(sample.factories.map((f) => f.name));
+  });
+
+  test('a new world, empty or the sample, starts on the newest mod version (A111)', () => {
+    const world = { ...createWorld('h'), meta: { ...createWorld('h').meta, modVersion: 'old' } };
+    const store = createWorldStore(world, { newestVersion: 'new' });
+    const saves = createSaves(memoryStorage());
+    expect(store.getState().world.meta.modVersion).toBe('old');
+    for (const from of ['empty', 'settings', 'sample'] as const) {
+      startNewWorld(store, saves, { from, name: '' });
+      expect(store.getState().world.meta.modVersion).toBe('new');
+    }
   });
 
   test('a failed save stops before anything changes', () => {
@@ -56,6 +68,6 @@ describe('New world (N1–N3)', () => {
       undoable: false,
     });
     expect(restorePrevious(store, saves)).toBe('There is no previous world to restore.');
-    expect(serializeWorld(store.getState().world)).toBe(serializeWorld(emptyWorld('h')));
+    expect(serializeWorld(store.getState().world)).toBe(serializeWorld(emptyWorld()));
   });
 });

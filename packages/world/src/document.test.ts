@@ -83,8 +83,8 @@ describe('fresh worlds and names (N1, N2, N8)', () => {
     const old = busy();
     const w = freshWorld(old, true, ' Phase 2 ');
     expect(w).toEqual({
-      ...emptyWorld('h'),
-      meta: { ...emptyWorld('h').meta, name: 'Phase 2' },
+      ...emptyWorld(),
+      meta: { ...emptyWorld().meta, name: 'Phase 2' },
       defaults: old.defaults,
       nodePool: old.nodePool,
     });
@@ -93,8 +93,10 @@ describe('fresh worlds and names (N1, N2, N8)', () => {
     expect(old.defaults.recipes).toEqual({ a: false });
   });
 
-  test('an empty start is a new world on the same data, with no factory, unnamed when blank', () => {
-    expect(freshWorld(busy(), false, '  ')).toEqual(emptyWorld('h'));
+  test('an empty start is a new world with no factory, unnamed when blank, on no data yet', () => {
+    // No mod version or data hash: the app starts it on the newest version (A111).
+    const old = { ...busy(), meta: { ...busy().meta, modVersion: '2026.3.489' } };
+    expect(freshWorld(old, false, '  ')).toEqual(emptyWorld());
   });
 
   test('renaming sets or clears the name', () => {

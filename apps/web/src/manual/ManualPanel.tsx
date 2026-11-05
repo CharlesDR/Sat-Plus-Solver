@@ -73,6 +73,8 @@ export function ManualPanel(props: {
   onUndo(): void;
   onRevert(): void;
   onDiscard(): void;
+  /** Clears the note on recipes a mod version switch changed (A111). */
+  onDismissNote(): void;
 }) {
   const { factory, recipes, node, missing } = props;
   const manual = factory.manual!;
@@ -83,9 +85,22 @@ export function ManualPanel(props: {
   const matches = useMemo(() => paletteMatches(recipes, search), [recipes, search]);
   const target =
     node?.recipe && (node.kind === 'recipe' || node.kind === 'resource') ? node : undefined;
+  const note = manual.versionNote;
+  const recipeName = useMemo(() => new Map(recipes.map((r) => [r.id, r.name])), [recipes]);
 
   return (
     <section className="manual-panel" aria-label="Manual plan">
+      {note && (
+        <p className="warning version-note" role="status">
+          SF+ {note.version} changed{' '}
+          {note.recipes.length === 1 ? 'a recipe' : `${note.recipes.length} recipes`} in this plan:{' '}
+          {note.recipes.map((id) => recipeName.get(id) ?? id).join(', ')}. The machine counts are
+          kept; check what they make now.{' '}
+          <button type="button" onClick={props.onDismissNote}>
+            Dismiss
+          </button>
+        </p>
+      )}
       <div className="tweak-bar">
         <strong>Manual edits ({edits})</strong>
         <button type="button" onClick={props.onUndo} disabled={!edits} data-help="undo-manual">

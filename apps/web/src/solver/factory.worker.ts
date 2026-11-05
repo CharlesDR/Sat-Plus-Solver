@@ -5,24 +5,24 @@
  * carries the embodied import costs it learnt since the last one (A90), so
  * the solver worker's saved caches stay whole.
  */
-import type { Model } from '@sps/data';
 import { createHighsBackend, createSolver, type CostCacheEntry } from '@sps/solver';
-import modelUrl from '../../../../data/generated/model.json?url';
 import type { FromFactoryWorker, ToFactoryWorker } from './pool';
+import { loadModel } from './versions';
 
 const post = (msg: FromFactoryWorker) => globalThis.postMessage(msg);
 
-const ready = (async () => {
-  const res = await fetch(modelUrl);
-  if (!res.ok) throw new Error(`Could not load the model (${res.status}).`);
-  return createSolver((await res.json()) as Model, createHighsBackend());
-})();
+/** The solver worker names the SF+ mod version first (A111). */
+let start!: (version: string) => void;
+const ready = new Promise<string>((resolve) => (start = resolve)).then(async (version) =>
+  createSolver((await loadModel(version))!, createHighsBackend()),
+);
 /** Cost keys the solver worker already has: seeded, or sent back with a solve. */
 const known = new Set<string>();
 void ready.then(() => post({ type: 'ready' }));
 
 globalThis.addEventListener('message', (e: MessageEvent<ToFactoryWorker>) => {
   const msg = e.data;
+  if (msg.type === 'init') return start(msg.version);
   void (async () => {
     try {
       const solver = await ready;

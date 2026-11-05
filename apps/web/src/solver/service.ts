@@ -35,6 +35,7 @@ import {
   scaleUp,
   writeModeler,
   sizePowerPlant,
+  switchModVersion,
   type Factory,
   type FactoryResult,
   type ResolveOptions,
@@ -84,11 +85,14 @@ const CACHE_LIMIT = 500;
  * `layout` lays out flowcharts for the Modeler export (A58); the worker
  * passes its own ELK, so the main thread never runs it. With `pool`, factory
  * solves run side by side on its workers (S2); results are the same.
+ * `models` gives another SF+ mod version's model, or undefined for one this
+ * build lacks, so a version switch can compare (A111).
  */
 export function createSolverService(
   solver: Solver,
   layout?: LayoutEngine,
   pool?: FactoryPool,
+  models: (version: string | undefined) => Promise<Model | undefined> = async () => undefined,
 ): SolverService {
   const { model, backend } = solver;
   const labels = modelLabels(model);
@@ -111,7 +115,21 @@ export function createSolverService(
       solves: [...cache],
       costs: solver.costEntries(),
     }),
-    async solve({ world, focus, action }, onProgress) {
+    async solve(request, onProgress) {
+      const { focus, action } = request;
+      let { world } = request;
+      // A version switch (A111) edits the world first; the rest solves the edited one.
+      let switched: WorldSolved['switched'];
+      if (action?.kind === 'switch-version') {
+        const out = switchModVersion(
+          world,
+          action.version,
+          model,
+          await models(world.meta.modVersion),
+        );
+        world = out.world;
+        switched = { dropped: out.dropped, changed: out.changed };
+      }
       // The pool starts once a world has factories that can solve side by side.
       if (world.factories.length > 1) pool?.warm();
       const names = new Map(world.factories.map((f) => [f.id, f.name]));
@@ -252,6 +270,7 @@ export function createSolverService(
         ...(shortfallPreview ? { shortfallPreview } : {}),
         ...(imported ? { imported } : {}),
         ...(sfmd !== undefined ? { sfmd } : {}),
+        ...(switched ? { edited: world, switched } : {}),
       };
     },
   };

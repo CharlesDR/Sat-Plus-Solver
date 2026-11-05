@@ -4,7 +4,7 @@
  */
 import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures';
-import { clickFlowNode, openFactory } from './helpers';
+import { clickFlowNode, openFactory, pickModVersion } from './helpers';
 
 const node = (page: Page, id: string) =>
   page.getByTestId('flowchart').locator(`.react-flow__node[data-id="${id}"]`);
@@ -52,6 +52,8 @@ test('Reinforced Iron Plate 5/min: multi-stage Water, a fan-out labelled per lin
   page,
 }) => {
   await openFactory(page);
+  // Its stage counts come from 2026.3.489's recipes.
+  await pickModVersion(page, '2026.3.489');
   await page.getByLabel('Per minute').fill('5');
   await page.getByLabel('Target item').fill('Reinforced Iron Plate');
   await expect(page.getByTestId('plan-status')).toContainText('Status: ok');
@@ -84,6 +86,8 @@ test('hover focus, and the click tooltip with exact values closes on Esc first (
   page,
 }) => {
   await openFactory(page);
+  // Its stage counts come from 2026.3.489's recipes.
+  await pickModVersion(page, '2026.3.489');
   await page.getByLabel('Per minute').fill('5');
   await page.getByLabel('Target item').fill('Reinforced Iron Plate');
   await expect(page.getByTestId('plan-status')).toContainText('Status: ok');

@@ -140,6 +140,29 @@ describe('world store', () => {
     expect(store.getState().dataHashMismatch).toEqual({ world: 'h1', model: 'h2' });
   });
 
+  test('a model of another mod version gives no data verdict, and marks keep the world hash (A111)', () => {
+    const store = createWorldStore(createWorld('h1', '1'));
+    store.getState().attachData('h2', '2');
+    expect(store.getState().dataHashMismatch).toBeUndefined();
+    store.getState().useCurrentData();
+    expect(store.getState().world.meta.dataHash).toBe('h1');
+    // A world on the model's version is checked as before.
+    store.getState().loadWorld(createWorld('h0', '2'));
+    expect(store.getState().dataHashMismatch).toEqual({ world: 'h0', model: 'h2' });
+    store.getState().loadWorld(createWorld('h1', '1'));
+    expect(store.getState().dataHashMismatch).toBeUndefined();
+  });
+
+  test('a world without a mod version gets the newest when the store takes it (A111)', () => {
+    const store = createWorldStore(createWorld(), { newestVersion: '9' });
+    expect(store.getState().world.meta.modVersion).toBe('9');
+    expect(store.getState().past).toEqual([]);
+    store.getState().loadWorld(createWorld('', '1'));
+    expect(store.getState().world.meta.modVersion).toBe('1');
+    store.getState().replaceWorld(createWorld());
+    expect(store.getState().world.meta.modVersion).toBe('9');
+  });
+
   test('useCurrentData adopts the loaded data hash and clears the warning', () => {
     const store = createWorldStore(createWorld('old'));
     store.getState().useCurrentData();

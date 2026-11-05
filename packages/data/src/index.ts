@@ -4,3 +4,4 @@
  * See docs/ARCHITECTURE.md §2 and §6.
  */
 export * from './model';
+export * from './versions';

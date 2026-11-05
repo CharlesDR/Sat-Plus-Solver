@@ -21,10 +21,16 @@ export interface NewWorldOptions {
 
 export type NewWorldOutcome = { ok: true; undoable: boolean } | { ok: false; message: string };
 
-/** The world to start from, built from the current one. */
+/**
+ * The world to start from, built from the current one. Neither names a mod
+ * version, so it starts on the newest (A111).
+ */
 function startingWorld(current: World, from: StartFrom, name: string): World {
   if (from !== 'sample') return freshWorld(current, from === 'settings', name);
-  const world = parseWorld(JSON.stringify(sample));
+  const parsed = parseWorld(JSON.stringify(sample));
+  const meta = { ...parsed.meta };
+  delete meta.modVersion;
+  const world = { ...parsed, meta };
   return name.trim() ? renameWorld(world, name) : world;
 }
 

@@ -3,14 +3,15 @@
  * the command line exactly as the site does and prints its factory, link,
  * item-ledger, power and node tables.
  *
- *   pnpm world solve <world.json | share link | -> [--model <model.json>] [--json | --summary]
+ *   pnpm world solve <world.json | share link | -> [--mod-version <version> | --model <model.json>] [--json | --summary]
  *
  * The world is a saved `World` file (any version; it is migrated first), a
  * live-site share link (`…#z=<payload>`, or `…#w=<payload>` from before A108,
  * quoted in the shell), or `-` for
  * either on stdin. `--summary` prints only targets, byproducts, raw inputs
- * and power. The model is data/generated/model.json, built in memory when it
- * is missing.
+ * and power. The model is the world's own mod version's (A111; the newest
+ * when it has none or this CLI lacks it), or `--mod-version`'s, from
+ * data/generated/<version>/model.json, built in memory when it is missing.
  */
 import { readFileSync } from 'node:fs';
 import { inflateRawSync } from 'node:zlib';
@@ -27,9 +28,9 @@ import {
   type World,
   type WorldResult,
 } from '@sps/world';
-import { CliError, loadModel } from './solve';
+import { availableVersions, CliError, loadModel } from './solve';
 
-const USAGE = `Usage: pnpm world solve <world.json | share link | -> [--model <model.json>] [--json | --summary]`;
+const USAGE = `Usage: pnpm world solve <world.json | share link | -> [--mod-version <version> | --model <model.json>] [--json | --summary]`;
 
 const fmt = formatRate;
 
@@ -250,6 +251,7 @@ export async function runWorldCli(
         args: argv,
         options: {
           model: { type: 'string' },
+          'mod-version': { type: 'string' },
           json: { type: 'boolean' },
           summary: { type: 'boolean' },
         },
@@ -273,11 +275,23 @@ export async function runWorldCli(
         throw new CliError(`World file not found: ${file}`);
       throw e;
     }
-    const model = await loadModel(parsed.values.model);
-    const stderr =
-      world.meta.dataHash && world.meta.dataHash !== model.meta.dataHash
-        ? `warning: ${file} was saved against game data ${world.meta.dataHash}; the model is ${model.meta.dataHash}.\n`
-        : '';
+    // The world's own mod version (A111), unless a model or version is given.
+    const { model: path, 'mod-version': asked } = parsed.values;
+    const versions = availableVersions();
+    const own = world.meta.modVersion;
+    const fallback =
+      path === undefined && asked === undefined && own !== undefined && !versions.includes(own);
+    let stderr = fallback
+      ? `warning: ${file} uses mod version ${own}, which this CLI lacks; solving on ${versions.at(-1)}.\n`
+      : '';
+    const version = asked ?? (fallback ? undefined : own);
+    const model = await loadModel({
+      ...(path !== undefined ? { path } : {}),
+      ...(version !== undefined ? { version } : {}),
+    });
+    const ownData = !fallback && (asked === undefined || asked === own);
+    if (ownData && world.meta.dataHash && world.meta.dataHash !== model.meta.dataHash)
+      stderr += `warning: ${file} was saved against game data ${world.meta.dataHash}; the model is ${model.meta.dataHash}.\n`;
     const solver = createSolver(model, backend);
     const result = await resolveWorld(world, model, (r) => solver.solve(r));
     const stdout = parsed.values.json

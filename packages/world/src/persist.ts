@@ -98,6 +98,7 @@ function shapeProblems(w: World): string[] {
   if (!isOpt(w.meta.name, isStr)) out.push('"meta.name" is not a string');
   if (!isOpt(w.meta.worldId, isStr)) out.push('"meta.worldId" is not a string');
   if (!isOpt(w.meta.savedAt, isStr)) out.push('"meta.savedAt" is not a string');
+  if (!isOpt(w.meta.modVersion, isStr)) out.push('"meta.modVersion" is not a string');
   list(
     'factories',
     (f) =>
@@ -170,7 +171,16 @@ const isEntries = (v: unknown, min: number) =>
   v.every((e) => isObj(e) && isStr(e.recipe) && isNum(e.machines) && e.machines >= min);
 
 function isManual(m: unknown): boolean {
-  return isObj(m) && isBool(m.enabled) && isEntries(m.frozen, 0) && isEntries(m.edits, 0);
+  return (
+    isObj(m) &&
+    isBool(m.enabled) &&
+    isEntries(m.frozen, 0) &&
+    isEntries(m.edits, 0) &&
+    isOpt(
+      m.versionNote,
+      (n) => isObj(n) && isStr(n.version) && Array.isArray(n.recipes) && n.recipes.every(isStr),
+    )
+  );
 }
 
 function isBuilt(b: unknown): boolean {
@@ -270,7 +280,7 @@ export function extractFactory(
   delete shared.parentId;
   delete shared.collapsed;
   return {
-    ...createWorld(world.meta.dataHash),
+    ...createWorld(world.meta.dataHash, world.meta.modVersion),
     factories: [shared],
     defaults: structuredCopy(world.defaults),
     nodePool: { ...world.nodePool },

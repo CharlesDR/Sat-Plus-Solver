@@ -94,6 +94,8 @@ export const HELP: Readonly<Record<string, string>> = {
 
   // Other buttons and labels.
   'world-name': 'The world name. Click to rename.',
+  'mod-version':
+    'The SF+ mod version whose recipe data this world uses. Switching re-solves every factory; Undo goes back.',
   'quick-search': 'Search parts, factories and actions (Ctrl+K).',
   undo: 'Undo the last edit (Ctrl+Z). In a factory with manual edits or tweaks, Ctrl+Z undoes those first.',
   redo: 'Redo the undone edit (Ctrl+Y).',
