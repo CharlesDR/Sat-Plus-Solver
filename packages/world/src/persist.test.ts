@@ -5,7 +5,7 @@ import { describe, expect, test } from 'vitest';
 import vanillaMini from '../../../fixtures/vanilla-mini/model.json';
 import mini from '../../../fixtures/worlds/mini-world.json';
 import v1 from '../../../fixtures/worlds/v1-world.json';
-import v17 from '../../../fixtures/worlds/v17-world.json';
+import v18 from '../../../fixtures/worlds/v18-world.json';
 import { WORLD_VERSION, createWorld, type World } from './document';
 import { migrateWorld } from './migrate';
 import { WorldLoadError, extractFactory, loadWorld, parseWorld, serializeWorld } from './persist';
@@ -142,6 +142,7 @@ const worldArb: fc.Arbitrary<World> = (() => {
             dataHash: fc.stringMatching(/^[0-9a-f]{0,16}$/),
             worldId: fc.stringMatching(/^[0-9a-f]{16}$/),
             savedAt: fc.integer({ min: 0, max: 4e12 }).map((t) => new Date(t).toISOString()),
+            modVersion: fc.constantFrom('2026.3.489', '2026.4.651'),
           },
           { requiredKeys: ['v', 'dataHash'] },
         ),
@@ -180,9 +181,9 @@ describe('World → JSON → World', () => {
   });
 
   test('is deep-equal for the current-version fixture, and the fixture is current', () => {
-    expect(v17.meta.v).toBe(WORLD_VERSION);
-    const w = parseWorld(JSON.stringify(v17));
-    expect(w).toStrictEqual(v17);
+    expect(v18.meta.v).toBe(WORLD_VERSION);
+    const w = parseWorld(JSON.stringify(v18));
+    expect(w).toStrictEqual(v18);
     expect(parseWorld(serializeWorld(w, true))).toStrictEqual(w);
   });
 
@@ -230,6 +231,14 @@ describe('parseWorld rejects what it cannot read', () => {
     );
     expect(bad({ ...w, meta: { ...w.meta, savedAt: 0 } })).toThrow(
       /"meta.savedAt" is not a string/,
+    );
+    // A111's mod version is a string, and a manual note names its version and recipes.
+    expect(bad({ ...w, meta: { ...w.meta, modVersion: 2026 } })).toThrow(
+      /"meta.modVersion" is not a string/,
+    );
+    const noted = { enabled: true, frozen: [], edits: [], versionNote: { version: '2' } };
+    expect(bad({ ...w, factories: [{ ...f, manual: noted }] })).toThrow(
+      /factories\[0\] is malformed/,
     );
   });
   test('dangling references still load (resolution reports them)', () => {

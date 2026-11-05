@@ -15,15 +15,19 @@ import v14 from '../../../fixtures/worlds/v14-world.json';
 import v15 from '../../../fixtures/worlds/v15-world.json';
 import v16 from '../../../fixtures/worlds/v16-world.json';
 import v17 from '../../../fixtures/worlds/v17-world.json';
+import v18 from '../../../fixtures/worlds/v18-world.json';
 import v9 from '../../../fixtures/worlds/v9-world.json';
 import { WORLD_VERSION, createWorld, factorySolveRequest } from './document';
-import { WorldMigrationError, migrateWorld } from './migrate';
+import { FIRST_MOD_VERSION, WorldMigrationError, migrateWorld } from './migrate';
+
+/** What migration adds to every older save's meta: the version and its mod version (A111). */
+const CURRENT = { v: WORLD_VERSION, modVersion: FIRST_MOD_VERSION };
 
 describe('migrateWorld', () => {
   test('a v1 (M3) save migrates to the current version with both toggles off', () => {
     const before = JSON.stringify(v1);
     const w = migrateWorld(v1);
-    expect(w.meta).toEqual({ v: WORLD_VERSION, dataHash: 'abc123' });
+    expect(w.meta).toEqual({ ...CURRENT, dataHash: 'abc123' });
     expect(w.defaults).toEqual({
       // The old default stack moves to the new default (v5).
       objectives: ['scarcity'],
@@ -89,7 +93,7 @@ describe('migrateWorld', () => {
   test('a v3 save trades node budgets for resource limits (A33)', () => {
     const before = JSON.stringify(v3);
     const w = migrateWorld(v3);
-    expect(w.meta).toEqual({ v: WORLD_VERSION, dataHash: '0123456789abcdef' });
+    expect(w.meta).toEqual({ ...CURRENT, dataHash: '0123456789abcdef' });
     // Iron's cap of 3 nodes has no rate to become, so it is dropped.
     expect(w.factories.map((f) => f.resources)).toEqual([{}, {}, {}]);
     expect(w.factories.every((f) => !('nodeBudget' in f))).toBe(true);
@@ -150,7 +154,7 @@ describe('migrateWorld', () => {
   test('a v5 save gains an empty tweak list per factory and nothing else (A35)', () => {
     const before = JSON.stringify(v5);
     const w = migrateWorld(v5);
-    expect(w.meta).toEqual({ v: WORLD_VERSION, dataHash: v5.meta.dataHash });
+    expect(w.meta).toEqual({ ...CURRENT, dataHash: v5.meta.dataHash });
     expect(w.factories).toEqual(v5.factories.map((f) => ({ ...f, tweaks: [] })));
     for (const key of ['groups', 'links', 'nodePool'] as const) expect(w[key]).toEqual(v5[key]);
     expect(w.defaults).toEqual({ ...v5.defaults, avoidFluidByproducts: true, simplicity: true });
@@ -158,7 +162,7 @@ describe('migrateWorld', () => {
     // The v6 fixture is the v5 one plus tweaks on one factory.
     expect({ ...w, factories: w.factories.map((f) => ({ ...f, tweaks: [] })) }).toEqual({
       ...v6,
-      meta: { ...v6.meta, v: WORLD_VERSION },
+      meta: { ...v6.meta, ...CURRENT },
       defaults: { ...v6.defaults, avoidFluidByproducts: true, simplicity: true },
       factories: v6.factories.map((f) => ({ ...f, tweaks: [] })),
     });
@@ -169,7 +173,7 @@ describe('migrateWorld', () => {
     const w = migrateWorld(v6);
     expect(w).toEqual({
       ...v6,
-      meta: { ...v6.meta, v: WORLD_VERSION },
+      meta: { ...v6.meta, ...CURRENT },
       defaults: { ...v6.defaults, avoidFluidByproducts: true, simplicity: true },
     });
     expect(JSON.stringify(v6)).toBe(before);
@@ -186,7 +190,7 @@ describe('migrateWorld', () => {
     const w = migrateWorld(v7);
     expect(w).toEqual({
       ...v7,
-      meta: { ...v7.meta, v: WORLD_VERSION },
+      meta: { ...v7.meta, ...CURRENT },
       defaults: { ...v7.defaults, avoidFluidByproducts: true, simplicity: true },
     });
     expect(JSON.stringify(v7)).toBe(before);
@@ -194,7 +198,7 @@ describe('migrateWorld', () => {
     // The v8 fixture is the migrated v7 one with the setting off in one factory.
     expect({
       ...v8,
-      meta: { ...v8.meta, v: WORLD_VERSION },
+      meta: { ...v8.meta, ...CURRENT },
       defaults: { ...v8.defaults, simplicity: true },
       factories: v8.factories.map((f) => ({
         ...f,
@@ -214,7 +218,7 @@ describe('migrateWorld', () => {
     const w = migrateWorld(v8);
     expect(w).toEqual({
       ...v8,
-      meta: { ...v8.meta, v: WORLD_VERSION },
+      meta: { ...v8.meta, ...CURRENT },
       defaults: { ...v8.defaults, simplicity: true },
     });
     expect(JSON.stringify(v8)).toBe(before);
@@ -232,7 +236,7 @@ describe('migrateWorld', () => {
     const w = migrateWorld(v9);
     expect(w).toEqual({
       ...v9,
-      meta: { ...v9.meta, v: WORLD_VERSION },
+      meta: { ...v9.meta, ...CURRENT },
       defaults: { ...v9.defaults, simplicity: true },
     });
     expect(JSON.stringify(v9)).toBe(before);
@@ -247,7 +251,7 @@ describe('migrateWorld', () => {
     const w = migrateWorld(v10);
     expect(w).toEqual({
       ...v10,
-      meta: { ...v10.meta, v: WORLD_VERSION },
+      meta: { ...v10.meta, ...CURRENT },
       defaults: { ...v10.defaults, simplicity: true },
     });
     expect(JSON.stringify(v10)).toBe(before);
@@ -265,7 +269,7 @@ describe('migrateWorld', () => {
     const w = migrateWorld(v11);
     expect(w).toEqual({
       ...v11,
-      meta: { ...v11.meta, v: WORLD_VERSION },
+      meta: { ...v11.meta, ...CURRENT },
       defaults: { ...v11.defaults, simplicity: true },
     });
     expect(JSON.stringify(v11)).toBe(before);
@@ -286,7 +290,7 @@ describe('migrateWorld', () => {
     delete (unset.factories[0]!.request as { minerFluidSupply?: string }).minerFluidSupply;
     expect({
       ...unset,
-      meta: { ...unset.meta, v: WORLD_VERSION },
+      meta: { ...unset.meta, ...CURRENT },
       defaults: { ...unset.defaults, simplicity: true },
     }).toEqual(w);
     expect(
@@ -304,7 +308,7 @@ describe('migrateWorld', () => {
     const w = migrateWorld(v12);
     expect(w).toEqual({
       ...v12,
-      meta: { ...v12.meta, v: WORLD_VERSION },
+      meta: { ...v12.meta, ...CURRENT },
       defaults: { ...v12.defaults, simplicity: true },
     });
     expect(JSON.stringify(v12)).toBe(before);
@@ -314,7 +318,7 @@ describe('migrateWorld', () => {
     expect(name).toBe('Phase 2');
     expect({
       ...v13,
-      meta: { ...meta, v: WORLD_VERSION },
+      meta: { ...meta, ...CURRENT },
       defaults: { ...v13.defaults, simplicity: true },
     }).toEqual(w);
   });
@@ -324,7 +328,7 @@ describe('migrateWorld', () => {
     const w = migrateWorld(v13);
     expect(w).toEqual({
       ...v13,
-      meta: { ...v13.meta, v: WORLD_VERSION },
+      meta: { ...v13.meta, ...CURRENT },
       defaults: { ...v13.defaults, simplicity: true },
     });
     expect(JSON.stringify(v13)).toBe(before);
@@ -334,7 +338,7 @@ describe('migrateWorld', () => {
     const request = (({ simplicity: _, ...r }) => r)(v14.factories[0]!.request);
     expect({
       ...v14,
-      meta: { ...v14.meta, v: WORLD_VERSION },
+      meta: { ...v14.meta, ...CURRENT },
       factories: [{ ...v14.factories[0]!, request }, ...v14.factories.slice(1)],
     }).toEqual(w);
     expect(
@@ -345,14 +349,14 @@ describe('migrateWorld', () => {
   test('a v14 save keeps its area settings and groups by pinch points (A87)', () => {
     const before = JSON.stringify(v14);
     const w = migrateWorld(v14);
-    expect(w).toEqual({ ...v14, meta: { ...v14.meta, v: WORLD_VERSION } });
+    expect(w).toEqual({ ...v14, meta: { ...v14.meta, ...CURRENT } });
     expect(JSON.stringify(v14)).toBe(before);
     // No factory carries "Group by: part type", so every one gets pinch points.
     expect(w.factories.every((f) => f.areas?.by === undefined)).toBe(true);
     // The v15 fixture is the migrated v14 one with part type picked in one factory.
     expect({
       ...v15,
-      meta: { ...v15.meta, v: WORLD_VERSION },
+      meta: { ...v15.meta, ...CURRENT },
       factories: v15.factories.map((f) =>
         f.id === 'factory-3' ? (({ areas: _, ...r }) => r)(f) : f,
       ),
@@ -363,7 +367,7 @@ describe('migrateWorld', () => {
   test('a v15 save keeps its targets as For links, Hold by default (A92)', () => {
     const before = JSON.stringify(v15);
     const w = migrateWorld(v15);
-    expect(w).toEqual({ ...v15, meta: { ...v15.meta, v: WORLD_VERSION } });
+    expect(w).toEqual({ ...v15, meta: { ...v15.meta, ...CURRENT } });
     expect(JSON.stringify(v15)).toBe(before);
     expect(w.defaults.builtFactories).toBeUndefined();
     expect(w.factories.flatMap((f) => f.request.targets).every((t) => t.kept === undefined)).toBe(
@@ -376,7 +380,7 @@ describe('migrateWorld', () => {
     // The v16 fixture is the migrated v15 one with Grow picked and a Kept rate.
     expect({
       ...v16,
-      meta: { ...v16.meta, v: WORLD_VERSION },
+      meta: { ...v16.meta, ...CURRENT },
       defaults: (({ builtFactories: _, ...d }) => d)(v16.defaults),
       factories: v16.factories.map((f) =>
         f.id === 'factory-4'
@@ -392,14 +396,32 @@ describe('migrateWorld', () => {
   test('a v16 save carries over unchanged but for its version, with no id or saved time (A109)', () => {
     const before = JSON.stringify(v16);
     const w = migrateWorld(v16);
-    expect(w).toEqual({ ...v16, meta: { ...v16.meta, v: WORLD_VERSION } });
+    expect(w).toEqual({ ...v16, meta: { ...v16.meta, ...CURRENT } });
     expect(JSON.stringify(v16)).toBe(before);
     expect(w.meta.worldId).toBeUndefined();
     expect(w.meta.savedAt).toBeUndefined();
     // The v17 fixture is the migrated v16 one with an id and a saved time.
     const meta = (({ worldId: _, savedAt: __, ...rest }) => rest)(v17.meta);
-    expect({ ...v17, meta }).toEqual(w);
-    expect(migrateWorld(v17)).toEqual(v17);
+    expect({ ...v17, meta: { ...meta, ...CURRENT } }).toEqual(w);
+  });
+
+  test('a v17 save is stamped with the only mod version there was, and nothing else changes (A111)', () => {
+    const before = JSON.stringify(v17);
+    const w = migrateWorld(v17);
+    expect(w).toEqual({ ...v17, meta: { ...v17.meta, ...CURRENT } });
+    expect(w.meta.modVersion).toBe('2026.3.489');
+    expect(JSON.stringify(v17)).toBe(before);
+  });
+
+  test('a v18 save keeps its own mod version and its manual version note', () => {
+    // The v18 fixture is the migrated v17 one switched to 2026.4.651.
+    const w = migrateWorld(v18);
+    expect(w).toEqual(v18);
+    expect(w.meta.modVersion).toBe('2026.4.651');
+    expect(w.factories.find((f) => f.id === 'factory-1')?.manual?.versionNote).toEqual({
+      version: '2026.4.651',
+      recipes: ['iron-plate'],
+    });
   });
 
   test('a current world passes through unchanged', () => {

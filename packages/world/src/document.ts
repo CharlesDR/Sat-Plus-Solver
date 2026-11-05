@@ -32,7 +32,7 @@ import type {
   SolveRequest,
 } from '@sps/solver';
 
-export const WORLD_VERSION = 17;
+export const WORLD_VERSION = 18;
 
 /** Lexicographic tolerance bounds (CLAUDE.md): 0.01%–90%, default 0.01%. */
 export const TOLERANCE_MIN = 0.0001;
@@ -56,6 +56,11 @@ export interface WorldMeta {
   worldId?: string;
   /** When the world was last edited, as an ISO 8601 UTC time (A109); none until its first edit. */
   savedAt?: string;
+  /**
+   * The SF+ mod version whose recipe data the world uses (A111). The app
+   * gives a world without one the newest version when it is started or opened.
+   */
+  modVersion?: string;
 }
 
 /** Settings every factory inherits unless it overrides them. */
@@ -246,6 +251,11 @@ export interface ManualPlan {
   /** Sorted by recipe. */
   frozen: ManualEntry[];
   edits: ManualEntry[];
+  /**
+   * Recipes of the plan that differ in the mod version the world last
+   * switched to (A111), sorted; shown until dismissed. Missing = no note.
+   */
+  versionNote?: { version: string; recipes: string[] };
 }
 
 /**
@@ -322,10 +332,10 @@ export function createFactory(id: string, name: string): Factory {
   };
 }
 
-/** A fresh world with one implicit factory. */
-export function createWorld(dataHash = ''): World {
+/** A fresh world with one implicit factory; with no `modVersion`, the app gives it the newest (A111). */
+export function createWorld(dataHash = '', modVersion?: string): World {
   return {
-    meta: { v: WORLD_VERSION, dataHash },
+    meta: { v: WORLD_VERSION, dataHash, ...(modVersion !== undefined ? { modVersion } : {}) },
     factories: [createFactory(DEFAULT_FACTORY_ID, 'Factory')],
     groups: [],
     links: [],
@@ -345,10 +355,11 @@ export function emptyWorld(dataHash = ''): World {
 /**
  * A fresh world (N1, N2): no factories, groups or links (UX-8). With
  * `keepSettings` it keeps `world`'s defaults and node pool edits; a blank
- * `name` leaves it unnamed.
+ * `name` leaves it unnamed. It names no mod version, so the app starts it
+ * on the newest (A111).
  */
 export function freshWorld(world: World, keepSettings: boolean, name = ''): World {
-  const out = emptyWorld(world.meta.dataHash);
+  const out = emptyWorld();
   const trimmed = name.trim();
   if (trimmed) out.meta.name = trimmed;
   if (!keepSettings) return out;
