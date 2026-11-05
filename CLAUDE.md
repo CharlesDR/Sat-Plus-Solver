@@ -16,7 +16,7 @@ A client-side, two-layer production planner for the Satisfactory Plus (SF+) mod.
 
 ### Data
 
-- **`game_data.json`, `data.schema.json` and `Nodecount Sat Plus.xlsx` are read-only.** Fixes go in `data/overrides.json`, `data/miner-model.json` or `data/nodes.csv`, each with a comment or report entry explaining why.
+- **`mod-versions/<version>/game_data.json` (one per SF+ mod version, A111), `data.schema.json` and `Nodecount Sat Plus.xlsx` are read-only.** Fixes go in `data/overrides.json`, `data/miner-model.json` or `data/nodes.csv`, each with a comment or report entry explaining why.
 - Parse every `Amount`/`BatchTime` as an **exact rational** (supports `"3"`, `"7.5"`, `"1/3"`, `"1 1/3"`). Convert to float once, at the end of normalization.
 - Validation errors **fail the build**. Never downgrade an error to a warning to get past it.
 - Miner rates come only from the formula in ARCHITECTURE §2.3, using the parameters in `data/miner-model.json`. No hard-coded rate numbers in code.
