@@ -48,6 +48,8 @@ export interface WorldState {
   dataHashMismatch?: { world: string; model: string } | undefined;
   /** The loaded model's data hash, once the solver is ready. */
   modelHash?: string;
+  /** The loaded model's SF+ mod version (A111); its hash says nothing about a world on another. */
+  modelVersion?: string | undefined;
   /** Replaces the factory's targets. */
   setTargets(factoryId: string, targets: Target[]): void;
   /** Sets a setting in a scope; `undefined` on a factory removes its override (inherit). */
@@ -57,8 +59,11 @@ export interface WorldState {
   setUnassignedImports(factoryId: string, imports: UnassignedImport[]): void;
   /** Replaces the factory's resource limits (A33). */
   setResources(factoryId: string, resources: Factory['resources']): void;
-  /** Records the loaded model's hash; a different non-empty hash is a warning, not an error. */
-  attachData(dataHash: string): void;
+  /**
+   * Records the loaded model's hash and mod version; a different non-empty
+   * hash for a world on that version is a warning, not an error.
+   */
+  attachData(dataHash: string, version?: string): void;
   /**
    * Replaces the document with a loaded one (a save slot, a file or a share
    * link) and checks its data hash against the model's (PLAN M9).
@@ -109,6 +114,8 @@ export interface WorldState {
   /** Back to the solver; the manual plan is kept. */
   leaveManual(factoryId: string): void;
   discardManual(factoryId: string): void;
+  /** Clears a manual plan's note on recipes a mod version switch changed (A111). */
+  dismissVersionNote(factoryId: string): void;
   /** Sets a recipe group's machine count; 0 removes it. */
   setManualCount(factoryId: string, recipe: string, machines: number): void;
   undoManual(factoryId: string): void;
@@ -157,6 +164,8 @@ export interface StoreOptions {
    * from `now`. Left out (most tests), worlds are kept as given.
    */
   newWorldId?: () => string;
+  /** A world without `meta.modVersion` gets this one when the store takes it (A111): the newest. */
+  newestVersion?: string;
 }
 
 export type WorldStore = ReturnType<typeof createWorldStore>;
@@ -188,12 +197,16 @@ function toggled(
 
 export function createWorldStore(initial: World = createWorld(), options: StoreOptions = {}) {
   const now = options.now ?? (() => Date.now());
-  const { newWorldId } = options;
-  /** The world with an id, when identity is on (A109). */
-  const owned = (w: World): World =>
-    !newWorldId || w.meta.worldId !== undefined
-      ? w
-      : { ...w, meta: { ...w.meta, worldId: newWorldId() } };
+  const { newWorldId, newestVersion } = options;
+  /** The world with an id, when identity is on (A109), and a mod version (A111). */
+  const owned = (w: World): World => {
+    let out = w;
+    if (newWorldId && out.meta.worldId === undefined)
+      out = { ...out, meta: { ...out.meta, worldId: newWorldId() } };
+    if (newestVersion !== undefined && out.meta.modVersion === undefined)
+      out = { ...out, meta: { ...out.meta, modVersion: newestVersion } };
+    return out;
+  };
   /** Set while a change of the world is not an edit: loads, data-hash bookkeeping. */
   let keepTime = false;
   /** Set while an edit must not become an undo step: data-hash bookkeeping, undo and redo themselves. */
@@ -220,13 +233,14 @@ export function createWorldStore(initial: World = createWorld(), options: StoreO
     ): void =>
       rawSet((state) => {
         const out = typeof partial === 'function' ? partial(state) : partial;
-        if (!newWorldId || !out.world || out.world === state.world) return out;
+        if (!out.world || out.world === state.world) return out;
         const world = owned(out.world);
         return {
           ...out,
-          world: keepTime
-            ? world
-            : { ...world, meta: { ...world.meta, savedAt: new Date(now()).toISOString() } },
+          world:
+            !newWorldId || keepTime
+              ? world
+              : { ...world, meta: { ...world.meta, savedAt: new Date(now()).toISOString() } },
         };
       });
     const untimed = (f: () => void) => {
@@ -328,25 +342,29 @@ export function createWorldStore(initial: World = createWorld(), options: StoreO
             Object.entries(resources).map(([item, limit]) => [item, { ...limit }]),
           ),
         })),
-      attachData: (dataHash) =>
+      attachData: (dataHash, version) =>
         silently(() =>
           untimed(() =>
-            set(({ world }) => ({ modelHash: dataHash, ...checkData(world, dataHash) })),
+            set(({ world }) => ({
+              modelHash: dataHash,
+              modelVersion: version,
+              ...checkData(world, dataHash, version),
+            })),
           ),
         ),
       // A loaded world keeps its saved time (A109).
       loadWorld: (world) =>
         untimed(() =>
-          set(({ modelHash }) =>
+          set(({ modelHash, modelVersion }) =>
             modelHash === undefined
               ? { world, dataHashMismatch: undefined }
-              : checkData(world, modelHash),
+              : checkData(world, modelHash, modelVersion),
           ),
         ),
       useCurrentData: () =>
         silently(() =>
-          set(({ world, modelHash }) =>
-            modelHash === undefined
+          set(({ world, modelHash, modelVersion }) =>
+            modelHash === undefined || !sameVersion(world, modelVersion)
               ? {}
               : {
                   world: { ...world, meta: { ...world.meta, dataHash: modelHash } },
@@ -379,19 +397,20 @@ export function createWorldStore(initial: World = createWorld(), options: StoreO
       enterManual: (factoryId, plan) => apply((w) => edit.enterManual(w, factoryId, plan)),
       leaveManual: (factoryId) => apply((w) => edit.leaveManual(w, factoryId)),
       discardManual: (factoryId) => apply((w) => edit.discardManual(w, factoryId)),
+      dismissVersionNote: (factoryId) => apply((w) => edit.dismissVersionNote(w, factoryId)),
       setManualCount: (factoryId, recipe, machines) =>
         apply((w) => edit.setManualCount(w, factoryId, recipe, machines)),
       undoManual: (factoryId) => apply((w) => edit.undoManual(w, factoryId)),
       revertManual: (factoryId) => apply((w) => edit.revertManual(w, factoryId)),
       replaceWorld: (world) => set({ world }),
       markBuilt: (source, at) =>
-        set(({ world, modelHash }) => ({
-          world: edit.markBuilt(world, source, modelHash ?? world.meta.dataHash, at),
+        set((state) => ({
+          world: edit.markBuilt(state.world, source, currentHash(state), at),
         })),
       markAllBuilt: (sources, at) => {
         let skipped: string[] = [];
-        set(({ world, modelHash }) => {
-          const out = edit.markAllBuilt(world, sources, modelHash ?? world.meta.dataHash, at);
+        set((state) => {
+          const out = edit.markAllBuilt(state.world, sources, currentHash(state), at);
           skipped = out.skipped;
           return { world: out.world };
         });
@@ -443,11 +462,27 @@ export function createWorldStore(initial: World = createWorld(), options: StoreO
   return store;
 }
 
+/** The model is of the world's own mod version (A111), or either is not known. */
+const sameVersion = (world: World, version: string | undefined) =>
+  version === undefined || world.meta.modVersion === undefined || world.meta.modVersion === version;
+
+/** The data hash a build mark records: the model's, when it is the world's version (A111). */
+const currentHash = (s: WorldState) =>
+  s.modelHash !== undefined && sameVersion(s.world, s.modelVersion)
+    ? s.modelHash
+    : s.world.meta.dataHash;
+
 /**
  * A world against the model's data hash: a world with no hash adopts the
- * model's; a different hash is flagged, and the world still loads.
+ * model's; a different hash is flagged, and the world still loads. A model of
+ * another mod version gives no verdict until the world's own loads (A111).
  */
-function checkData(world: World, model: string): Pick<WorldState, 'world' | 'dataHashMismatch'> {
+function checkData(
+  world: World,
+  model: string,
+  version?: string,
+): Pick<WorldState, 'world' | 'dataHashMismatch'> {
+  if (!sameVersion(world, version)) return { world, dataHashMismatch: undefined };
   if (world.meta.dataHash === model) return { world, dataHashMismatch: undefined };
   if (world.meta.dataHash === '')
     return {

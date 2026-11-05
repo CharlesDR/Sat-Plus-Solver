@@ -12,7 +12,10 @@ import type { CostCacheEntry, SolveRequest, SolveResult } from '@sps/solver';
 const POOL_LIMIT = 4;
 
 export type ToFactoryWorker =
-  { type: 'solve'; id: number; request: SolveRequest } | { type: 'seed'; costs: CostCacheEntry[] };
+  /** The SF+ mod version whose model it loads (A111), sent once, first. */
+  | { type: 'init'; version: string }
+  | { type: 'solve'; id: number; request: SolveRequest }
+  | { type: 'seed'; costs: CostCacheEntry[] };
 export type FromFactoryWorker =
   | { type: 'ready' }
   | { type: 'solved'; id: number; result: SolveResult; costs: CostCacheEntry[] }

@@ -85,15 +85,11 @@ export function createSolverClient(worker: WorkerLike): SolverClient {
     const done = inFlight;
     inFlight = undefined;
     if (msg.type === 'solved') {
-      done.resolve({
-        world: msg.world,
-        ms: msg.ms,
-        ...(msg.focus ? { focus: msg.focus } : {}),
-        ...(msg.edited ? { edited: msg.edited } : {}),
-        ...(msg.previews ? { previews: msg.previews } : {}),
-        ...(msg.imported ? { imported: msg.imported } : {}),
-        ...(msg.sfmd !== undefined ? { sfmd: msg.sfmd } : {}),
-      });
+      // Everything but the envelope, so a new result field can't be lost here.
+      const outcome: SolveOutcome & { type?: string; id?: number } = { ...msg };
+      delete outcome.type;
+      delete outcome.id;
+      done.resolve(outcome);
     } else done.reject(new Error(msg.message));
     if (queued) {
       const next = queued;
@@ -130,8 +126,10 @@ export function createSolverClient(worker: WorkerLike): SolverClient {
   };
 }
 
-/** The app's worker. */
-export function startSolverWorker(): SolverClient {
+/** The app's worker for one SF+ mod version (A111). */
+export function startSolverWorker(version: string): SolverClient {
   const worker = new Worker(new URL('./solver.worker.ts', import.meta.url), { type: 'module' });
-  return createSolverClient(worker as WorkerLike);
+  const client = createSolverClient(worker as WorkerLike);
+  worker.postMessage({ type: 'init', version } satisfies ToWorker);
+  return client;
 }

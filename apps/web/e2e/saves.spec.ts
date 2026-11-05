@@ -130,8 +130,14 @@ test('an old save migrates, and a data-hash mismatch warns but loads', async ({ 
   await upload(page, 'old.json', await readFile(V1, 'utf8'));
   await expect(page.getByRole('alert')).toContainText('different game data (abc123)');
   const w = (await autosave(page)) as { meta: { v: number; dataHash: string } };
-  // The app gives the world an id when it opens it (A109).
-  expect(w.meta).toEqual({ v: 17, dataHash: 'abc123', worldId: expect.any(String) as unknown });
+  // The app gives the world an id when it opens it (A109); a save from before
+  // mod versions is on the first one, 2026.3.489 (A111).
+  expect(w.meta).toEqual({
+    v: 18,
+    dataHash: 'abc123',
+    modVersion: '2026.3.489',
+    worldId: expect.any(String) as unknown,
+  });
   await page.getByRole('button', { name: 'Open Factory', exact: true }).click();
   await expect(page.getByRole('table', { name: 'Targets' })).toContainText('Iron Plate');
 

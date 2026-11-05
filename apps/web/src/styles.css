@@ -2715,6 +2715,11 @@ details[open] > :not(summary) {
   border-radius: 999px;
   font-size: 13px;
 }
+/* The SF+ mod version chip in the top bar (A111). */
+.scope-chip.mod-version {
+  margin: 0;
+  white-space: nowrap;
+}
 .setting > .setting-badge,
 .setting > .setting-reset {
   order: 2;

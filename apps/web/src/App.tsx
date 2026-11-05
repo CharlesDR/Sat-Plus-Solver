@@ -10,6 +10,7 @@ import { announceNewWorld, NewWorldDialog } from './persistence/NewWorldDialog';
 import { restorePrevious, startNewWorld } from './persistence/newWorld';
 import type { Boot } from './persistence/session';
 import type { SolverClient } from './solver/client';
+import type { SolverHub } from './solver/hub';
 import type { Catalog } from './solver/protocol';
 import type { WorldStore } from './store';
 import { useWorldPlan } from './useWorldPlan';
@@ -21,6 +22,8 @@ import { ToastProvider, useToast } from './ui/toasts';
 import { WorldView, type StartActions } from './world/WorldView';
 import { EscapeContext, escapeStack, isTextField } from './escape';
 import { NumbersProvider } from './ui/numbers';
+import { ModVersionChip } from './versions/ModVersionChip';
+import { useWorldSolver } from './versions/useWorldSolver';
 import { backOut, factoryView, focusOf, parentLookup, WORLD_VIEW, type View } from './viewPath';
 
 // U3: views the first screen doesn't need load on first use.
@@ -35,7 +38,7 @@ const CommandPalette = lazy(() =>
 export type { View } from './viewPath';
 
 export function App(props: {
-  client: SolverClient;
+  hub: SolverHub;
   store: WorldStore;
   layout: LayoutEngine;
   saves: Saves;
@@ -49,17 +52,17 @@ export function App(props: {
 }
 
 function AppFrame(props: {
-  client: SolverClient;
+  hub: SolverHub;
   store: WorldStore;
   layout: LayoutEngine;
   saves: Saves;
   boot: Boot;
 }) {
-  const { client, store, layout, saves, boot } = props;
+  const { hub, store, layout, saves, boot } = props;
   const mismatch = useStore(store, (s) => s.dataHashMismatch);
   const world = useStore(store, (s) => s.world);
-  const [catalog, setCatalog] = useState<Catalog | undefined>();
-  const [initError, setInitError] = useState<string | undefined>();
+  // The solver for the world's SF+ mod version (A111).
+  const { client, catalog, initError } = useWorldSolver(hub, store);
   const [view, setView] = useState<View>(WORLD_VIEW);
   const [palette, setPalette] = useState(false);
   const [newWorld, setNewWorld] = useState(false);
@@ -111,16 +114,6 @@ function AppFrame(props: {
   );
   // A view of a factory that no longer exists (deleted, or a load replaced the world) is the world.
   const focus = focusOf(view, (id) => world.factories.some((f) => f.id === id));
-
-  useEffect(() => {
-    client.ready.then(
-      (r) => {
-        store.getState().attachData(r.dataHash);
-        setCatalog(r.catalog);
-      },
-      (e: unknown) => setInitError((e as Error).message),
-    );
-  }, [client, store]);
 
   // Ctrl+K (Cmd+K) opens quick search from anywhere.
   useEffect(() => {
@@ -179,6 +172,7 @@ function AppFrame(props: {
                   {world.meta.name}
                 </span>
               )}
+              <ModVersionChip store={store} hub={hub} />
             </div>
             <Breadcrumb
               world={world}

@@ -498,6 +498,7 @@ export function FactoryView(props: {
                 actions.setManualCount(factoryId, recipe, machines);
                 if (machines === 0) setSelection(undefined);
               }}
+              onDismissNote={() => actions.dismissVersionNote(factoryId)}
               onAdd={(recipe) => {
                 actions.setManualCount(factoryId, recipe, 1);
                 setSelection({ id: recipeNodeId(recipe), from: 'table' });

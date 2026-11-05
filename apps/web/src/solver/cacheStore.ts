@@ -1,7 +1,7 @@
 /**
  * Solver caches kept across reloads (A90): the worker's memo of factory
- * solves and the solver's embodied import costs, in IndexedDB, for one model
- * data hash at a time. Every access is wrapped: without storage (a private
+ * solves and the solver's embodied import costs, in IndexedDB, one entry per
+ * SF+ mod version (A111), for its latest data hash. Every access is wrapped: without storage (a private
  * window, blocked site data) the app works and simply starts cold.
  */
 import type { CostCacheEntry } from '@sps/solver';
@@ -19,7 +19,6 @@ const SAVED_COSTS = 2000;
 
 const DB = 'sps-solver';
 const STORE = 'caches';
-const KEY = 'current';
 
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -30,13 +29,19 @@ function open(): Promise<IDBDatabase> {
   });
 }
 
+/** The version's entry; the key before mod versions was 'current'. */
+const key = (version: string) => `version:${version}`;
+
 /** The saved caches for `dataHash`, or undefined (none, other data, or no storage). */
-export async function loadCaches(dataHash: string): Promise<SavedCaches | undefined> {
+export async function loadCaches(
+  version: string,
+  dataHash: string,
+): Promise<SavedCaches | undefined> {
   try {
     const db = await open();
     try {
       const saved = await new Promise<unknown>((resolve, reject) => {
-        const req = db.transaction(STORE, 'readonly').objectStore(STORE).get(KEY);
+        const req = db.transaction(STORE, 'readonly').objectStore(STORE).get(key(version));
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error ?? new Error('IndexedDB read failed.'));
       });
@@ -53,7 +58,7 @@ export async function loadCaches(dataHash: string): Promise<SavedCaches | undefi
 }
 
 /** Saves the caches, keeping the newest entries; quietly does nothing without storage. */
-export async function saveCaches(caches: SavedCaches): Promise<void> {
+export async function saveCaches(version: string, caches: SavedCaches): Promise<void> {
   try {
     const db = await open();
     try {
@@ -64,7 +69,7 @@ export async function saveCaches(caches: SavedCaches): Promise<void> {
       };
       await new Promise<void>((resolve, reject) => {
         const tx = db.transaction(STORE, 'readwrite');
-        tx.objectStore(STORE).put(value, KEY);
+        tx.objectStore(STORE).put(value, key(version));
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error ?? new Error('IndexedDB write failed.'));
       });
