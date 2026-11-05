@@ -1,9 +1,13 @@
 import { describe, expect, test } from 'vitest';
-import { readInputs, runPipeline } from './build-data';
+import { modVersions, PINNED_VERSION, readInputs, runPipeline } from './build-data';
 
 describe('pnpm build:data pipeline', () => {
-  test('real data builds cleanly, including the free-lunch check', async () => {
-    const { result, report } = await runPipeline(readInputs());
+  test('every mod version ships, the pinned one first (A111)', () => {
+    expect(modVersions()).toEqual([PINNED_VERSION, '2026.4.651']);
+  });
+
+  test.each(modVersions())('%s builds cleanly, including the free-lunch check', async (version) => {
+    const { result, report } = await runPipeline(readInputs(version));
     expect(result.issues.filter((i) => i.severity === 'error')).toEqual([]);
     expect(result.model).toBeDefined();
     expect(report).toContain('**Status: OK**');

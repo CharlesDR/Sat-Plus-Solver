@@ -6,7 +6,7 @@ import { MW_ITEM_ID, type Model } from './model';
 const root = new URL('../../../', import.meta.url);
 const read = (p: string) => readFileSync(new URL(p, root), 'utf8');
 const inputs: BuildInputs = {
-  gameData: read('game_data.json'),
+  gameData: read('mod-versions/2026.3.489/game_data.json'),
   nodesCsv: read('data/nodes.csv'),
   minerModel: read('data/miner-model.json'),
   overrides: read('data/overrides.json'),

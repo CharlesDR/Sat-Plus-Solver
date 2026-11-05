@@ -1,10 +1,11 @@
 import { filterMinerRoutes, minerFluidOptions } from '@sps/solver';
 import { describe, expect, test } from 'vitest';
+import { PINNED_VERSION } from './build-data';
 import { loadModel } from './solve';
 
 /** Miner fluids (A69) on the SF+ data: the ores with no plain route, derived, not hard-coded. */
 describe('miner fluids on the SF+ data', async () => {
-  const model = await loadModel();
+  const model = await loadModel({ version: PINNED_VERSION });
   const options = minerFluidOptions(model.recipes);
   const needy = [...options].filter(([, o]) => !o.plain);
 

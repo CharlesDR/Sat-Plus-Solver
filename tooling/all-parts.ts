@@ -7,6 +7,8 @@
  *   pnpm test:all-parts      every part, in parallel workers (final validation of a build plan)
  *   pnpm scarcity-sweep      every part under O1; prints the likely-usage seed for
  *                            data/scarcity-usage.json (A85)
+ *
+ * Both run on every mod version (A111), or on `--mod-version <version>` only.
  */
 import { execSync } from 'node:child_process';
 import { availableParallelism } from 'node:os';
@@ -21,7 +23,7 @@ import {
   type Solver,
 } from '@sps/solver';
 import { createWorld, factorySolveRequest } from '@sps/world';
-import { runPipeline } from './build-data';
+import { modVersions, readInputs, runPipeline } from './build-data';
 
 /**
  * Known dataset gaps, never targeted. Only items game_data.json gives no way
@@ -157,7 +159,16 @@ function usageSeed(model: Model, results: readonly PartResult[]) {
 
 async function main() {
   const sweep = process.argv.includes('--sweep');
-  const model = (await runPipeline()).result.model!;
+  const at = process.argv.indexOf('--mod-version');
+  const versions = at >= 0 ? [process.argv[at + 1]!] : modVersions();
+  let failures = 0;
+  for (const version of versions) failures += await runVersion(version, sweep);
+  if (!sweep && failures) process.exit(1);
+}
+
+/** Solves every part on one mod version; returns how many failed. */
+async function runVersion(version: string, sweep: boolean): Promise<number> {
+  const model = (await runPipeline(readInputs(version))).result.model!;
   const items = partTargets(model);
   const objectives: ObjectiveId[] | undefined = sweep ? ['resources'] : undefined;
   const started = Date.now();
@@ -165,7 +176,7 @@ async function main() {
   const failed = results.filter((r) => r.status !== 'ok' || r.errors.length);
   const name = new Map(model.items.map((i) => [i.id, i.name]));
   console.log(
-    `${results.length - failed.length}/${results.length} parts solve ` +
+    `${version}: ${results.length - failed.length}/${results.length} parts solve ` +
       `(${((Date.now() - started) / 1000).toFixed(0)} s; known gaps left out: ${Object.keys(KNOWN_GAPS).join(', ')}).`,
   );
   for (const f of failed)
@@ -185,7 +196,7 @@ async function main() {
     }
     console.log(JSON.stringify({ usage }, null, 2));
   }
-  if (!sweep && failed.length) process.exit(1);
+  return failed.length;
 }
 
 if (!isMainThread) {

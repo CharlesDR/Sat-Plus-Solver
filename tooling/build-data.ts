@@ -1,20 +1,37 @@
 /**
  * `pnpm build:data`: runs the data pipeline (docs/ARCHITECTURE.md §6) and the
- * solver-side free-lunch check, then writes data/generated/{model.json,report.md}.
+ * solver-side free-lunch check for every SF+ mod version in mod-versions/
+ * (A111), then writes data/generated/<version>/{model.json,report.md}.
  * Exits non-zero on any validation error, so CI fails on bad data.
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { compareModVersions } from '@sps/data';
 import { buildModel, renderReport, type BuildResult, type ReportSection } from '@sps/data/build';
 import { createHighsBackend, findFreeLunch } from '@sps/solver';
 
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-export function readInputs(root = ROOT) {
+/**
+ * The version golden fixtures, the layout-score baseline and the data tests
+ * stay on (A111), so a new mod version never moves them.
+ */
+export const PINNED_VERSION = '2026.3.489';
+
+/** The mod versions in mod-versions/, oldest first; the last is the newest. */
+export function modVersions(root = ROOT): string[] {
+  return readdirSync(join(root, 'mod-versions'), { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name)
+    .sort(compareModVersions);
+}
+
+/** One mod version's pipeline inputs: its own game data plus the shared data files. */
+export function readInputs(version = PINNED_VERSION, root = ROOT) {
   const read = (p: string) => readFileSync(join(root, p), 'utf8');
   return {
-    gameData: read('game_data.json'),
+    gameData: read(`mod-versions/${version}/game_data.json`),
     nodesCsv: read('data/nodes.csv'),
     minerModel: read('data/miner-model.json'),
     overrides: read('data/overrides.json'),
@@ -61,23 +78,37 @@ export async function runPipeline(
   return { result, report: renderReport(result, sections) };
 }
 
+/** Where `pnpm build:data` writes a version's model and report. */
+export function generatedDir(version: string, root = ROOT): string {
+  return join(root, 'data', 'generated', version);
+}
+
 async function main() {
-  const { result, report } = await runPipeline();
-  const outDir = join(ROOT, 'data', 'generated');
-  mkdirSync(outDir, { recursive: true });
-  writeFileSync(join(outDir, 'report.md'), report);
-  const errors = result.issues.filter((i) => i.severity === 'error');
-  const warnings = result.issues.length - errors.length;
-  if (!result.model || errors.length) {
-    for (const e of errors) console.error(`error [${e.code}] ${e.message}`);
-    console.error(`\nData build FAILED: ${errors.length} error(s). See data/generated/report.md`);
-    process.exit(1);
+  // A version removed from mod-versions/ leaves no stale model behind.
+  rmSync(join(ROOT, 'data', 'generated'), { recursive: true, force: true });
+  let failed = false;
+  for (const version of modVersions()) {
+    const { result, report } = await runPipeline(readInputs(version));
+    const outDir = generatedDir(version);
+    mkdirSync(outDir, { recursive: true });
+    writeFileSync(join(outDir, 'report.md'), report);
+    const errors = result.issues.filter((i) => i.severity === 'error');
+    const warnings = result.issues.length - errors.length;
+    if (!result.model || errors.length) {
+      for (const e of errors) console.error(`${version}: error [${e.code}] ${e.message}`);
+      console.error(
+        `${version}: data build FAILED, ${errors.length} error(s). See data/generated/${version}/report.md`,
+      );
+      failed = true;
+      continue;
+    }
+    writeFileSync(join(outDir, 'model.json'), JSON.stringify(result.model));
+    console.log(
+      `${version}: data build OK: ${result.model.recipes.length} recipes, ${result.model.items.length} items, ` +
+        `${result.model.nodes.length} node classes, ${warnings} warning(s). Wrote data/generated/${version}/.`,
+    );
   }
-  writeFileSync(join(outDir, 'model.json'), JSON.stringify(result.model));
-  console.log(
-    `Data build OK: ${result.model.recipes.length} recipes, ${result.model.items.length} items, ` +
-      `${result.model.nodes.length} node classes, ${warnings} warning(s). Wrote data/generated/.`,
-  );
+  if (failed) process.exit(1);
 }
 
 // Not inside the CLI bundle, where every module shares the bundle's URL.

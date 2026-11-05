@@ -1,5 +1,5 @@
 pnpm-lock.yaml
-game_data.json
+mod-versions/*/game_data.json
 data.schema.json
 *.xlsx
 dist/
