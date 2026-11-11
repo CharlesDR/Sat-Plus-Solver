@@ -581,11 +581,16 @@ details[open] > summary::before {
   font-weight: 700;
   letter-spacing: -0.01em;
 }
+/* UV-11: the bar keeps one line; when room runs short the breadcrumb's names end in "…". */
 .topbar-actions {
   margin-left: auto;
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: none;
+}
+.undo-redo {
+  display: inline-flex;
 }
 .search-button {
   color: var(--muted);
@@ -616,12 +621,13 @@ details[open] > summary::before {
 
 /* Breadcrumb, with the factory switcher as its last crumb. */
 .breadcrumb {
+  flex: 0 1 auto;
   min-width: 0;
 }
 .breadcrumb ol {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 4px;
   list-style: none;
   margin: 0;
@@ -631,6 +637,7 @@ details[open] > summary::before {
   display: flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
 }
 .breadcrumb li + li::before {
   content: '';
@@ -640,8 +647,13 @@ details[open] > summary::before {
   border-right: 1.5px solid var(--muted);
   border-top: 1.5px solid var(--muted);
   transform: rotate(45deg);
+  flex: none;
 }
 .crumb {
+  min-width: 3em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   padding: 4px 8px;
   border: 0;
   border-radius: var(--radius-sm);
@@ -664,6 +676,8 @@ button.crumb:hover {
   border-color: transparent;
   background-color: transparent;
   max-width: 260px;
+  min-width: 6em;
+  text-overflow: ellipsis;
 }
 .crumb-select:hover {
   background-color: var(--surface-2);
@@ -2715,10 +2729,13 @@ details[open] > :not(summary) {
   border-radius: 999px;
   font-size: 13px;
 }
-/* The SF+ mod version chip in the top bar (A111). */
+/* The SF+ mod version chip in the top bar (A111); its picker is as wide as the version shown (UV-11). */
 .scope-chip.mod-version {
   margin: 0;
   white-space: nowrap;
+}
+.scope-chip.mod-version select {
+  field-sizing: content;
 }
 .setting > .setting-badge,
 .setting > .setting-reset {
