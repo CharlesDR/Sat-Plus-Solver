@@ -1,7 +1,8 @@
 /**
- * UI visibility review (UV-1 to UV-7, Charles 2026-11-01; UV-8 and UV-9 from
- * the 2026-11-04 sweep): on a laptop-sized window the controls a view needs are
- * on screen without scrolling, and a pick or a pop-up never lands out of view.
+ * UI visibility review (UV-1 to UV-7, Charles 2026-11-01; UV-8 to UV-10 from
+ * the 2026-11-04 sweep, UV-11 from 2026-11-11): on a laptop-sized window the
+ * controls a view needs are on screen without scrolling, and a pick or a pop-up
+ * never lands out of view.
  */
 import { readFile } from 'node:fs/promises';
 import type { Page } from '@playwright/test';
@@ -181,4 +182,33 @@ test('the world canvas keeps its place while the world is laid out (UV-10)', asy
   // The tab row, an open panel and a link editor below don't move when the drawing arrives.
   expect(after.y).toBeCloseTo(before.y, 0);
   expect(after.height).toBeCloseTo(before.height, 0);
+});
+
+test('the top bar keeps one line in a factory at 1120 px (UV-11)', async ({ page }) => {
+  // Just above 1100 px, where the Search button still shows its label: the tightest fit.
+  await page.setViewportSize({ width: 1120, height: 720 });
+  await openSample(page);
+  await openFrameFactory(page);
+  const bar = (await page.locator('header.topbar').boundingBox())!;
+  const boxes = await page
+    .locator('header.topbar')
+    .locator('.breadcrumb li > *, .undo-redo button, .mod-version select, .search-button')
+    .evaluateAll((els) =>
+      els.map((e) => {
+        const r = e.getBoundingClientRect();
+        return {
+          name: e.getAttribute('aria-label') ?? e.textContent,
+          top: r.top,
+          bottom: r.bottom,
+        };
+      }),
+    );
+  expect(boxes.length).toBeGreaterThanOrEqual(6);
+  for (const b of boxes) {
+    expect(b.top, `${b.name} top`).toBeGreaterThanOrEqual(bar.y);
+    expect(b.bottom, `${b.name} bottom`).toBeLessThanOrEqual(bar.y + bar.height);
+  }
+  // Undo and redo sit side by side.
+  const [undo, redo] = boxes.filter((b) => b.name === 'Undo' || b.name === 'Redo');
+  expect(undo!.top).toBe(redo!.top);
 });
